@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SPORTS, CONDITIONS, DFW_CITIES } from "@/lib/constants";
+import { formatCondition } from "@/lib/utils";
 import { SlidersHorizontal, X, ShoppingBag } from "lucide-react";
 import type { Listing, User } from "@/types/database";
 
@@ -160,10 +161,10 @@ function BrowseContent() {
       clear: () => setSportFilter("all"),
     });
   if (conditionFilter !== "all") {
-    const lbl =
-      CONDITIONS.find((c) => c.value === conditionFilter)?.label ||
-      conditionFilter;
-    activeChips.push({ label: lbl, clear: () => setConditionFilter("all") });
+    activeChips.push({
+      label: formatCondition(conditionFilter),
+      clear: () => setConditionFilter("all"),
+    });
   }
   if (cityFilter !== "all")
     activeChips.push({
@@ -347,14 +348,20 @@ function BrowseContent() {
                     value={conditionFilter}
                     onValueChange={(v) => setConditionFilter(v ?? "all")}
                   >
-                    <SelectTrigger className="min-h-[44px]">
-                      <SelectValue placeholder="Any Condition" />
+                    <SelectTrigger className="min-h-[44px] bg-white">
+                      <SelectValue placeholder="Any Condition">
+                        {(v: string) =>
+                          !v || v === "all"
+                            ? "Any Condition"
+                            : formatCondition(v)
+                        }
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Any Condition</SelectItem>
                       {CONDITIONS.map((c) => (
                         <SelectItem key={c.value} value={c.value}>
-                          {c.label}
+                          {formatCondition(c.value)}
                         </SelectItem>
                       ))}
                     </SelectContent>

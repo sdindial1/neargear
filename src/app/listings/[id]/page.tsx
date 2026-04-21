@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { SaveButton } from "@/components/save-button";
 import { SizeRecommendation } from "@/components/size-recommendation";
 import { ListingCard } from "@/components/listing-card";
+import { formatCondition } from "@/lib/utils";
 import {
   Calendar,
   Eye,
@@ -19,13 +20,6 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Listing, User } from "@/types/database";
-
-const conditionLabels: Record<string, string> = {
-  like_new: "Like New",
-  good: "Good",
-  fair: "Fair",
-  poor: "Poor",
-};
 
 const conditionColors: Record<string, string> = {
   like_new: "bg-green-100 text-green-800",
@@ -125,7 +119,7 @@ export default async function ListingPage({
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <Badge className="bg-navy/90 text-white">{listing.sport}</Badge>
             <Badge className={conditionColors[listing.condition] || ""}>
-              {conditionLabels[listing.condition] || listing.condition}
+              {formatCondition(listing.condition)}
             </Badge>
             {listing.ai_age_range && (
               <Badge className="bg-orange/10 text-orange border border-orange/20">
@@ -218,7 +212,7 @@ export default async function ListingPage({
             <div>
               <dt className="text-muted-foreground">Condition</dt>
               <dd className="font-medium text-navy">
-                {conditionLabels[listing.condition] || listing.condition}
+                {formatCondition(listing.condition)}
               </dd>
             </div>
             {listing.ai_age_range && (

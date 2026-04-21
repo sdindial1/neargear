@@ -45,17 +45,31 @@ const REQUIRED_FIELDS = [
   "description", "confidence",
 ] as const;
 
+function approxKb(base64OrDataUrl: string): number {
+  const commaIdx = base64OrDataUrl.indexOf(",");
+  const raw = commaIdx >= 0 ? base64OrDataUrl.slice(commaIdx + 1) : base64OrDataUrl;
+  return Math.round((raw.length * 3) / 4 / 1024);
+}
+
 export async function POST(request: NextRequest) {
   const { images } = await request.json();
 
   if (!images || !Array.isArray(images) || images.length === 0) {
+    console.log("[analyze] no images in body");
     return Response.json({ error: "At least one image is required" }, { status: 400 });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
+    console.log("[analyze] ANTHROPIC_API_KEY missing in env");
     return Response.json({ error: "AI analysis not configured" }, { status: 500 });
   }
+
+  const sizes = images.map(approxKb);
+  const totalKb = sizes.reduce((a: number, b: number) => a + b, 0);
+  console.log(
+    `[analyze] ${images.length} image(s); sizes KB = [${sizes.join(", ")}]; total ~${totalKb} KB`,
+  );
 
   const imageContent = images.map(toImageBlock);
 
@@ -80,49 +94,64 @@ export async function POST(request: NextRequest) {
       }),
     });
 
+    console.log(`[analyze] anthropic status ${response.status} ok=${response.ok}`);
+
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error("Anthropic API error:", errorBody);
-      return Response.json({ error: "AI analysis unavailable" }, { status: 502 });
+      console.log(`[analyze] anthropic error body: ${errorBody.slice(0, 800)}`);
+      return Response.json(
+        { error: "AI analysis unavailable", upstreamStatus: response.status },
+        { status: 502 },
+      );
     }
 
     const data = await response.json();
     const rawText: string = data.content?.[0]?.text ?? "";
+    console.log(`[analyze] raw first 500 chars: ${rawText.slice(0, 500)}`);
+
     const cleaned = stripFences(rawText);
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      console.log("[analyze] no JSON object found in response");
       return Response.json({ error: "Could not parse AI response" }, { status: 500 });
     }
 
     let analysis;
     try {
       analysis = JSON.parse(jsonMatch[0]);
-    } catch {
+    } catch (parseErr) {
+      console.log("[analyze] JSON.parse failed:", parseErr);
+      console.log("[analyze] offending text:", jsonMatch[0].slice(0, 500));
       return Response.json({ error: "Could not parse AI response" }, { status: 500 });
     }
 
     for (const field of REQUIRED_FIELDS) {
       if (analysis[field] === undefined || analysis[field] === null) {
+        console.log(`[analyze] required field missing: ${field}`);
         return Response.json(
           { error: "AI analysis incomplete. Please retake photos with the item clearly visible." },
-          { status: 422 }
+          { status: 422 },
         );
       }
     }
 
     if (typeof analysis.confidence === "number" && analysis.confidence < 0.4) {
+      console.log(`[analyze] low confidence ${analysis.confidence}`);
       return Response.json(
         {
           error: "Could not identify item clearly. Please retake photos in better lighting with the item clearly visible.",
           analysis,
         },
-        { status: 422 }
+        { status: 422 },
       );
     }
 
+    console.log(
+      `[analyze] success — item=${analysis.item} confidence=${analysis.confidence}`,
+    );
     return Response.json(analysis);
   } catch (err) {
-    console.error("AI analysis error:", err);
+    console.log("[analyze] unexpected error:", err);
     return Response.json({ error: "AI analysis failed" }, { status: 500 });
   }
 }

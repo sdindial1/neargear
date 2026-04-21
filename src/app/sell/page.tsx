@@ -24,6 +24,8 @@ import {
   DFW_CITIES,
 } from "@/lib/constants";
 import type { AIListingAnalysis } from "@/types/ai";
+import { dataUrlToBlob, resizeImage } from "@/lib/image";
+import { formatCondition } from "@/lib/utils";
 import {
   AlertCircle,
   ArrowLeft,
@@ -43,15 +45,6 @@ const PROCESSING_STEPS = [
   "Checking DFW market prices…",
   "Writing your description…",
 ];
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target?.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 async function base64ToBlob(
   imageBase64: string,
@@ -89,7 +82,7 @@ export default function SellPage() {
     if (step !== "processing") return;
     const interval = setInterval(() => {
       setProcessingIdx((i) => (i + 1) % PROCESSING_STEPS.length);
-    }, 1400);
+    }, 1500);
     return () => clearInterval(interval);
   }, [step]);
 
@@ -101,7 +94,17 @@ export default function SellPage() {
     setError("");
 
     try {
-      const base64Images = await Promise.all(photos.map(fileToDataUrl));
+      const base64Images = await Promise.all(
+        photos.map((p) => resizeImage(p, 1024, 0.85)),
+      );
+      console.log(
+        "[sell] analyze payload — images:",
+        base64Images.length,
+        "total KB:",
+        Math.round(
+          base64Images.reduce((s, u) => s + u.length, 0) * 0.75 / 1024,
+        ),
+      );
 
       const res = await fetch("/api/analyze-listing", {
         method: "POST",
@@ -150,14 +153,14 @@ export default function SellPage() {
 
     for (const photo of photos) {
       try {
-        const dataUrl = await fileToDataUrl(photo);
-        let uploadBlob: Blob = photo;
-        let ext = (photo.name.split(".").pop() || "jpg").toLowerCase();
+        const dataUrl = await resizeImage(photo, 1024, 0.85);
+        let uploadBlob: Blob = await dataUrlToBlob(dataUrl);
+        let ext = "jpg";
 
         const bgRes = await fetch("/api/remove-background", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageBase64: dataUrl, mimeType: photo.type }),
+          body: JSON.stringify({ imageBase64: dataUrl, mimeType: "image/jpeg" }),
         });
         if (bgRes.ok) {
           const bg = await bgRes.json();
@@ -244,7 +247,7 @@ export default function SellPage() {
               Sell Your Gear
             </h1>
             <p className="text-sm text-muted-foreground mb-6">
-              Take 3-5 photos. AI does the rest.
+              Take 2-5 photos. AI does the rest.
             </p>
 
             <PhotoUpload photos={photos} onPhotosChange={setPhotos} />
@@ -258,28 +261,44 @@ export default function SellPage() {
 
             <Button
               onClick={handleAnalyze}
-              disabled={photos.length < 3}
+              disabled={photos.length < 2}
               className="btn-large btn-primary mt-6"
             >
               <Sparkles className="w-5 h-5" />
-              {photos.length < 3
-                ? `Add ${3 - photos.length} more photo${photos.length === 2 ? "" : "s"}`
-                : "Analyze My Item"}
+              {photos.length === 0
+                ? "Add 2 photos to continue"
+                : photos.length === 1
+                  ? "Add 1 more photo"
+                  : "Analyze My Item"}
             </Button>
+            {photos.length > 0 && photos.length < 5 && (
+              <p className="text-center text-xs text-muted-foreground mt-2">
+                Add more photos for a better offer
+              </p>
+            )}
           </div>
         )}
 
         {step === "processing" && (
-          <div className="flex-1 flex flex-col items-center justify-center px-4 py-20 text-center">
-            <div className="w-20 h-20 rounded-full bg-orange/10 flex items-center justify-center mb-6 animate-pulse">
-              <Sparkles className="w-10 h-10 text-orange" />
+          <div className="fixed inset-0 z-[60] bg-navy flex flex-col items-center justify-center px-6 text-center">
+            <div className="relative w-44 h-44 mb-10">
+              <div className="absolute inset-0 rounded-full bg-orange/20 animate-ping" />
+              <div className="absolute inset-5 rounded-full bg-orange/25 animate-pulse" />
+              <div className="absolute inset-10 rounded-full ace-blob" />
             </div>
-            <h2 className="font-heading text-xl font-bold text-navy mb-2">
-              Analyzing your item…
+
+            <h2 className="font-heading text-2xl md:text-3xl font-bold text-white mb-3">
+              Analyzing your item
             </h2>
-            <p className="text-sm text-muted-foreground max-w-xs">
+
+            <p
+              key={processingIdx}
+              className="text-base text-white/85 max-w-xs min-h-[3rem] message-fade"
+            >
               {PROCESSING_STEPS[processingIdx]}
             </p>
+
+            <div className="mt-8 w-56 shimmer-bar" />
           </div>
         )}
 
@@ -368,21 +387,27 @@ export default function SellPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Condition</Label>
+                <div className="flex items-center gap-2">
+                  <Label>Condition</Label>
+                  {analysis?.condition && (
+                    <span className="text-xs text-orange font-medium">
+                      AI: {formatCondition(analysis.condition)}
+                    </span>
+                  )}
+                </div>
                 <Select
                   value={condition}
                   onValueChange={(v) => setCondition(v ?? "")}
                 >
-                  <SelectTrigger className="min-h-[44px]">
-                    <SelectValue />
+                  <SelectTrigger className="min-h-[44px] bg-white">
+                    <SelectValue>
+                      {(v: string) => (v ? formatCondition(v) : "")}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {CONDITIONS.map((c) => (
                       <SelectItem key={c.value} value={c.value}>
-                        {c.label}
-                        {analysis?.condition === c.value
-                          ? " (AI suggested)"
-                          : ""}
+                        {formatCondition(c.value)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -415,12 +440,12 @@ export default function SellPage() {
               <div className="space-y-1.5">
                 <Label>Your price ($)</Label>
                 <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy" />
                   <Input
                     type="number"
                     min="0"
                     step="0.01"
-                    className="input-large pl-9"
+                    className="input-large pl-10 text-xl font-bold"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                   />

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Heart, Star, MapPin, ImageIcon, ShieldCheck } from "lucide-react";
+import { formatCondition } from "@/lib/utils";
 import type { Listing, User } from "@/types/database";
 
 interface ListingCardProps {
@@ -16,13 +17,6 @@ const conditionColors: Record<string, string> = {
   good: "bg-blue-100 text-blue-800",
   fair: "bg-yellow-100 text-yellow-800",
   poor: "bg-red-100 text-red-800",
-};
-
-const conditionLabels: Record<string, string> = {
-  like_new: "Like New",
-  good: "Good",
-  fair: "Fair",
-  poor: "Poor",
 };
 
 export function ListingCard({ listing, initiallySaved = false }: ListingCardProps) {
@@ -69,7 +63,7 @@ export function ListingCard({ listing, initiallySaved = false }: ListingCardProp
           <Badge
             className={`absolute bottom-2 left-2 text-[11px] font-semibold h-6 ${conditionColors[listing.condition] || ""}`}
           >
-            {conditionLabels[listing.condition] || listing.condition}
+            {formatCondition(listing.condition)}
           </Badge>
           {listing.ai_confidence !== null && listing.ai_confidence !== undefined && listing.ai_confidence > 0.7 && (
             <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-white/90 rounded-full px-2 py-0.5 text-[10px] text-navy font-medium">
