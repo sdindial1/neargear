@@ -81,8 +81,8 @@ export default function SignupPage() {
       {/* Logo */}
       <div className="pt-8 pb-4 text-center">
         <Link href="/" className="inline-block text-3xl font-bold font-heading">
-          <span className="text-white">Near</span>
-          <span className="text-orange">Gear</span>
+          <span className="text-white">Sport</span>
+          <span className="text-orange">Swap</span>
         </Link>
       </div>
 

@@ -20,7 +20,6 @@ import {
 import {
   SPORTS,
   SPORT_CATEGORIES,
-  CONDITIONS,
   DFW_CITIES,
 } from "@/lib/constants";
 import type { AIListingAnalysis } from "@/types/ai";
@@ -29,9 +28,11 @@ import { formatCondition } from "@/lib/utils";
 import {
   AlertCircle,
   ArrowLeft,
-  DollarSign,
+  Info,
   Loader2,
+  Plus,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
   Upload,
 } from "lucide-react";
@@ -54,16 +55,20 @@ async function base64ToBlob(
   return res.blob();
 }
 
+const MAX_REANALYZE_PHOTOS = 7;
+
 export default function SellPage() {
   const router = useRouter();
   const supabase = createClient();
   const pendingRef = useRef<boolean>(false);
+  const reanalyzeInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<Step>("photos");
   const [photos, setPhotos] = useState<File[]>([]);
   const [analysis, setAnalysis] = useState<AIListingAnalysis | null>(null);
   const [processingIdx, setProcessingIdx] = useState(0);
   const [error, setError] = useState("");
+  const [showConditionInfo, setShowConditionInfo] = useState(false);
 
   const [title, setTitle] = useState("");
   const [sport, setSport] = useState("");
@@ -86,16 +91,17 @@ export default function SellPage() {
     return () => clearInterval(interval);
   }, [step]);
 
-  const handleAnalyze = async () => {
+  const analyzePhotos = async (list: File[]) => {
     if (pendingRef.current) return;
     pendingRef.current = true;
+    const fallbackStep: Step = analysis ? "review" : "photos";
     setStep("processing");
     setProcessingIdx(0);
     setError("");
 
     try {
       const base64Images = await Promise.all(
-        photos.map((p) => resizeImage(p, 1024, 0.85)),
+        list.map((p) => resizeImage(p, 1024, 0.85)),
       );
       console.log(
         "[sell] analyze payload — images:",
@@ -116,7 +122,7 @@ export default function SellPage() {
 
       if (!res.ok) {
         setError(data.error || "Analysis failed. Try clearer photos.");
-        setStep("photos");
+        setStep(fallbackStep);
         return;
       }
 
@@ -134,10 +140,26 @@ export default function SellPage() {
       setStep("review");
     } catch {
       setError("Something went wrong. Please try again.");
-      setStep("photos");
+      setStep(fallbackStep);
     } finally {
       pendingRef.current = false;
     }
+  };
+
+  const handleAnalyze = () => analyzePhotos(photos);
+
+  const handleReanalyzePhotos = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const incoming = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (incoming.length === 0) return;
+    const remaining = MAX_REANALYZE_PHOTOS - photos.length;
+    if (remaining <= 0) return;
+    const added = incoming.slice(0, Math.min(2, remaining));
+    const combined = [...photos, ...added];
+    setPhotos(combined);
+    analyzePhotos(combined);
   };
 
   const handleSubmit = async () => {
@@ -387,31 +409,33 @@ export default function SellPage() {
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Label>Condition</Label>
-                  {analysis?.condition && (
-                    <span className="text-xs text-orange font-medium">
-                      AI: {formatCondition(analysis.condition)}
-                    </span>
-                  )}
+                <Label>Condition</Label>
+                <div className="flex items-center gap-3 bg-white rounded-xl border border-orange/20 p-4">
+                  <div className="w-10 h-10 rounded-full bg-orange/10 flex items-center justify-center flex-shrink-0">
+                    <ShieldCheck className="w-5 h-5 text-orange" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-heading text-lg font-bold text-navy">
+                      {condition ? formatCondition(condition) : "—"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowConditionInfo((s) => !s)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5"
+                      aria-expanded={showConditionInfo}
+                      aria-label="About AI-verified condition"
+                    >
+                      AI-verified condition
+                      <Info className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <Select
-                  value={condition}
-                  onValueChange={(v) => setCondition(v ?? "")}
-                >
-                  <SelectTrigger className="min-h-[44px] bg-white">
-                    <SelectValue>
-                      {(v: string) => (v ? formatCondition(v) : "")}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONDITIONS.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>
-                        {formatCondition(c.value)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {showConditionInfo && (
+                  <p className="text-xs text-muted-foreground bg-gray-100 rounded-lg p-3 leading-relaxed">
+                    Our AI analyzes your photos to determine the condition
+                    grade for buyer trust.
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -437,26 +461,68 @@ export default function SellPage() {
                 </div>
               </div>
 
+              {analysis?.suggestedPrice != null && (
+                <div className="bg-orange/5 border border-orange/20 rounded-xl p-4 space-y-1">
+                  <p className="font-heading text-2xl font-bold text-orange">
+                    AI Suggests ${analysis.suggestedPrice}
+                  </p>
+                  {analysis.priceRange && (
+                    <p className="text-sm text-muted-foreground">
+                      Market range: ${analysis.priceRange.min}–$
+                      {analysis.priceRange.max} in DFW
+                    </p>
+                  )}
+                  {photos.length < MAX_REANALYZE_PHOTOS && (
+                    <button
+                      type="button"
+                      onClick={() => reanalyzeInputRef.current?.click()}
+                      className="flex items-center gap-1.5 text-xs text-orange underline underline-offset-2 pt-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Offer seem low? Add more photos for a better analysis
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-1.5">
-                <Label>Your price ($)</Label>
+                <Label>Your Price</Label>
                 <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy" />
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-3xl font-semibold text-navy pointer-events-none leading-none">
+                    $
+                  </span>
                   <Input
                     type="number"
                     min="0"
                     step="0.01"
-                    className="input-large pl-10 text-xl font-bold"
+                    inputMode="decimal"
+                    placeholder="0"
+                    className="input-large pl-12 pr-4 text-3xl font-semibold tabular-nums text-left"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                   />
                 </div>
-                {analysis?.priceRange && (
-                  <p className="text-xs text-orange mt-1">
-                    AI suggests ${analysis.priceRange.min}–$
-                    {analysis.priceRange.max} based on DFW market
-                  </p>
-                )}
               </div>
+
+              <input
+                ref={reanalyzeInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleReanalyzePhotos}
+                style={{
+                  position: "absolute",
+                  width: 1,
+                  height: 1,
+                  padding: 0,
+                  margin: -1,
+                  overflow: "hidden",
+                  clip: "rect(0, 0, 0, 0)",
+                  opacity: 0,
+                }}
+                aria-hidden="true"
+                tabIndex={-1}
+              />
 
               <div className="space-y-1.5">
                 <Label>Description</Label>
@@ -492,7 +558,9 @@ export default function SellPage() {
 
               <Button
                 onClick={handleSubmit}
-                disabled={submitting || !title || !sport || !price}
+                disabled={
+                  submitting || !title || !sport || !price || !condition
+                }
                 className="btn-large btn-primary"
               >
                 {submitting ? (

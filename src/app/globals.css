@@ -213,7 +213,6 @@
 /* Large touch inputs */
 .input-large {
   min-height: 52px;
-  font-size: 1rem;
   border-radius: 12px;
   padding: 0 16px;
   background: white;

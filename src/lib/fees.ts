@@ -21,7 +21,7 @@ export function calculateDeposit(priceInCents: number): number {
 }
 
 export const FEE_DISPLAY = {
-  marketing: "Free to list. Only pay when you sell.",
+  marketing: "Free to list. Only pay when you swap.",
   sellerNote: "A small platform fee is deducted automatically when your item sells.",
   feeSchedule: [
     { range: "Under $30", fee: "10%" },

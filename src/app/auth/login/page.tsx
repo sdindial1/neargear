@@ -39,8 +39,8 @@ export default function LoginPage() {
       {/* Logo */}
       <div className="pt-12 pb-6 text-center">
         <Link href="/" className="inline-block text-4xl font-bold font-heading">
-          <span className="text-white">Near</span>
-          <span className="text-orange">Gear</span>
+          <span className="text-white">Sport</span>
+          <span className="text-orange">Swap</span>
         </Link>
         <p className="text-white/40 text-sm mt-1">DFW Sports Gear Marketplace</p>
       </div>
