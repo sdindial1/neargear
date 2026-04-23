@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Heart, Star, MapPin, ImageIcon, ShieldCheck } from "lucide-react";
 import { formatCondition } from "@/lib/utils";
+import { isSavedLocal, toggleSavedLocal } from "@/lib/wishlist";
 import type { Listing, User } from "@/types/database";
 
 interface ListingCardProps {
@@ -23,10 +24,14 @@ export function ListingCard({ listing, initiallySaved = false }: ListingCardProp
   const [saved, setSaved] = useState(initiallySaved);
   const price = (listing.price / 100).toFixed(0);
 
+  useEffect(() => {
+    setSaved(isSavedLocal(listing.id));
+  }, [listing.id]);
+
   const toggleSave = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setSaved((s) => !s);
+    setSaved(toggleSavedLocal(listing.id));
   };
 
   return (

@@ -396,6 +396,16 @@
 }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
+/* Success check pop-in */
+@keyframes success-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.success-pop {
+  animation: success-pop 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 /* Processing screen — pulsing orange blob + fading messages + shimmer */
 @keyframes ace-breathe {
   0%, 100% { transform: scale(1); filter: brightness(1); }

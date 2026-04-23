@@ -9,9 +9,11 @@ import { SizeRecommendation } from "@/components/size-recommendation";
 import { ListingCard } from "@/components/listing-card";
 import { formatCondition } from "@/lib/utils";
 import {
+  AlertCircle,
   Calendar,
   Eye,
   Handshake,
+  Heart,
   ImageIcon,
   MapPin,
   ShieldCheck,
@@ -26,6 +28,13 @@ const conditionColors: Record<string, string> = {
   good: "bg-blue-100 text-blue-800",
   fair: "bg-yellow-100 text-yellow-800",
   poor: "bg-red-100 text-red-800",
+};
+
+const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  active: { label: "Active", className: "bg-green-100 text-green-800" },
+  pending: { label: "Pending", className: "bg-amber-100 text-amber-800" },
+  sold: { label: "Sold", className: "bg-gray-200 text-gray-700" },
+  removed: { label: "Removed", className: "bg-gray-200 text-gray-700" },
 };
 
 export default async function ListingPage({
@@ -45,6 +54,13 @@ export default async function ListingPage({
     .single();
 
   if (!listing) notFound();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isOwner = user?.id === listing.seller_id;
+  const isActive = listing.status === "active";
+  const isPending = listing.status === "pending";
 
   await supabase
     .from("listings")
@@ -83,6 +99,7 @@ export default async function ListingPage({
 
   type Seller = Pick<User, "full_name" | "avg_rating" | "city">;
   const similarListings = (similar as (Listing & { seller?: Seller })[]) || [];
+  const statusMeta = STATUS_BADGE[listing.status] || STATUS_BADGE.active;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -115,8 +132,16 @@ export default async function ListingPage({
           )}
         </div>
 
-        <div className="max-w-3xl mx-auto w-full px-4 py-4 pb-24 md:pb-8">
+        <div className="max-w-3xl mx-auto w-full px-4 py-4 pb-28 md:pb-8">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
+            {isOwner && (
+              <Badge className="bg-orange/10 text-orange border border-orange/20">
+                Your Listing
+              </Badge>
+            )}
+            {isOwner && (
+              <Badge className={statusMeta.className}>{statusMeta.label}</Badge>
+            )}
             <Badge className="bg-navy/90 text-white">{listing.sport}</Badge>
             <Badge className={conditionColors[listing.condition] || ""}>
               {formatCondition(listing.condition)}
@@ -141,16 +166,32 @@ export default async function ListingPage({
           <h1 className="font-heading text-2xl md:text-3xl font-bold text-navy">
             {listing.title}
           </h1>
-          <div className="flex items-baseline gap-3 mt-1">
-            <p className="text-3xl md:text-4xl font-bold text-orange">
-              ${price}
-            </p>
-            {aiPrice && (
-              <p className="text-sm text-muted-foreground">
-                AI suggested: ${aiPrice}
+
+          {isPending && !isOwner ? (
+            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-amber-700 flex-shrink-0" />
+                <p className="font-heading font-bold text-amber-900">
+                  Pending Meetup
+                </p>
+              </div>
+              <p className="text-sm text-amber-900 mt-2 leading-relaxed">
+                This item has a pending meetup. Save to wishlist to be notified
+                if it becomes available.
               </p>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex items-baseline gap-3 mt-1">
+              <p className="text-3xl md:text-4xl font-bold text-orange">
+                ${price}
+              </p>
+              {aiPrice && (
+                <p className="text-sm text-muted-foreground">
+                  AI suggested: ${aiPrice}
+                </p>
+              )}
+            </div>
+          )}
 
           {listing.description && (
             <div className="mt-4">
@@ -274,23 +315,52 @@ export default async function ListingPage({
 
         <div className="fixed bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 bg-white border-t p-3 md:relative md:border-0 md:p-0 md:max-w-3xl md:mx-auto md:mb-8">
           <div className="max-w-3xl mx-auto flex items-center gap-3">
-            <div className="flex-shrink-0">
-              <p className="text-2xl font-bold text-orange leading-none">
-                ${price}
+            {isOwner ? (
+              <div className="flex-1 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <p className="font-heading font-bold text-navy">
+                    {statusMeta.label}
+                  </p>
+                </div>
+                <Link href="/profile/meetups">
+                  <Button variant="outline" className="btn-large">
+                    View Meetups
+                  </Button>
+                </Link>
+              </div>
+            ) : isPending ? (
+              <Link href="/" className="flex-1">
+                <Button className="btn-large btn-primary">
+                  <Heart className="w-5 h-5" /> Add to Wishlist
+                </Button>
+              </Link>
+            ) : isActive ? (
+              <>
+                <div className="flex-shrink-0">
+                  <p className="text-2xl font-bold text-orange leading-none tabular-nums">
+                    ${price}
+                  </p>
+                </div>
+                <SaveButton
+                  listingId={listing.id}
+                  className="flex-shrink-0 w-11 h-11 rounded-xl border bg-white flex items-center justify-center"
+                  size={22}
+                />
+                <Link
+                  href={`/listings/${listing.id}/request`}
+                  className="flex-1"
+                >
+                  <Button className="btn-large btn-primary">
+                    <Handshake className="w-5 h-5" /> Request to Buy
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <p className="flex-1 text-center text-sm text-muted-foreground">
+                This listing is no longer available.
               </p>
-            </div>
-            <SaveButton
-              className="flex-shrink-0 w-11 h-11 rounded-xl border bg-white flex items-center justify-center"
-              size={22}
-            />
-            <Link
-              href={`/messages?listing=${listing.id}`}
-              className="flex-1"
-            >
-              <Button className="btn-large btn-primary">
-                <Handshake className="w-5 h-5" /> Book Meetup
-              </Button>
-            </Link>
+            )}
           </div>
         </div>
       </main>
