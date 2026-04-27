@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Navbar } from "@/components/navbar";
@@ -8,25 +8,39 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { calculateDeposit } from "@/lib/fees";
 import {
-  getSuggestedMeetupLocations,
+  getAllZonesByCombinedDistance,
+  getSuggestedMeetupLocationsByZip,
   getZoneTypeEmoji,
   getZoneTypeLabel,
   type SafeZone,
+  type SuggestedZone,
 } from "@/lib/safezones";
+import { isValidZipcodeFormat } from "@/lib/zipcodes";
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
+  Home,
   ImageIcon,
   Loader2,
   MapPin,
+  Plus,
   ShieldCheck,
 } from "lucide-react";
 import type { Listing, User } from "@/types/database";
 
 type OfferType = "full_price" | "minus_10" | "minus_15" | "custom";
 type Step = 1 | 2 | 3 | 4;
+
+type SelectedLocation =
+  | { type: "safe_zone"; zone: SafeZone }
+  | { type: "custom"; name: string; address: string; note: string }
+  | { type: "home_buyer"; address: string }
+  | { type: "home_seller" };
 
 interface TimeWindow {
   id: string;
@@ -45,7 +59,30 @@ const TIME_WINDOWS: TimeWindow[] = [
   { id: "evening", label: "Evening (6pm – 8pm)", short: "Evening", startHour: 18, endHour: 20 },
 ];
 
-type ListingWithSeller = Listing & { seller?: Pick<User, "id" | "full_name" | "city"> };
+type ListingWithSeller = Listing & {
+  seller?: Pick<User, "id" | "full_name" | "city"> & { zipcode?: string | null };
+};
+
+function formatMoney(n: number): string {
+  return `$${n.toFixed(2)}`;
+}
+
+function locationIsValid(loc: SelectedLocation | null): boolean {
+  if (!loc) return false;
+  if (loc.type === "safe_zone") return !!loc.zone;
+  if (loc.type === "custom")
+    return loc.name.trim().length > 0 && loc.address.trim().length > 0;
+  if (loc.type === "home_buyer") return loc.address.trim().length > 0;
+  if (loc.type === "home_seller") return true;
+  return false;
+}
+
+function locationLabel(loc: SelectedLocation): string {
+  if (loc.type === "safe_zone") return loc.zone.name;
+  if (loc.type === "custom") return loc.name;
+  if (loc.type === "home_buyer") return "Your home";
+  return "Seller's home";
+}
 
 export default function RequestToBuyPage() {
   const router = useRouter();
@@ -56,18 +93,21 @@ export default function RequestToBuyPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserCity, setCurrentUserCity] = useState<string | null>(null);
+  const [currentUserZipcode, setCurrentUserZipcode] = useState<string | null>(
+    null,
+  );
 
   const [step, setStep] = useState<Step>(1);
 
   const [offerType, setOfferType] = useState<OfferType>("full_price");
   const [customOffer, setCustomOffer] = useState("");
-  const [showCustom, setShowCustom] = useState(false);
+  const [showCustomOffer, setShowCustomOffer] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedWindow, setSelectedWindow] = useState<TimeWindow | null>(null);
 
-  const [selectedZone, setSelectedZone] = useState<SafeZone | null>(null);
+  const [selectedLocation, setSelectedLocation] =
+    useState<SelectedLocation | null>(null);
 
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -77,7 +117,7 @@ export default function RequestToBuyPage() {
     const load = async () => {
       const { data: listingRow, error } = await supabase
         .from("listings")
-        .select("*, seller:users!seller_id(id, full_name, city)")
+        .select("*, seller:users!seller_id(id, full_name, city, zipcode)")
         .eq("id", params.id)
         .single();
 
@@ -100,10 +140,10 @@ export default function RequestToBuyPage() {
         setCurrentUserId(user.id);
         const { data: profile } = await supabase
           .from("users")
-          .select("city")
+          .select("zipcode")
           .eq("id", user.id)
           .single();
-        if (profile?.city) setCurrentUserCity(profile.city);
+        if (profile?.zipcode) setCurrentUserZipcode(profile.zipcode);
       }
 
       setLoading(false);
@@ -131,17 +171,39 @@ export default function RequestToBuyPage() {
   const remainingDollars =
     Math.round((offeredPriceDollars - depositDollars) * 100) / 100;
 
-  const customValid =
+  const customOfferValid =
     offerType !== "custom" ||
     (Number.isFinite(parseFloat(customOffer)) &&
       parseFloat(customOffer) >= minOfferDollars &&
       parseFloat(customOffer) <= listingPriceDollars);
 
-  const suggestedZones = useMemo(() => {
+  const sellerZipcode = listing?.seller?.zipcode || null;
+
+  const recommendedSuggestions = useMemo(() => {
     if (!listing) return [];
-    const sellerCity = listing.seller?.city || listing.city;
-    return getSuggestedMeetupLocations(currentUserCity, sellerCity, 3);
-  }, [listing, currentUserCity]);
+    return getSuggestedMeetupLocationsByZip(
+      currentUserZipcode,
+      sellerZipcode,
+      3,
+    );
+  }, [listing, currentUserZipcode, sellerZipcode]);
+
+  const allSuggestionsSorted = useMemo(() => {
+    if (!listing) return [];
+    return getAllZonesByCombinedDistance(currentUserZipcode, sellerZipcode);
+  }, [listing, currentUserZipcode, sellerZipcode]);
+
+  const needsZipcodePrompt = !!currentUserId && !currentUserZipcode;
+
+  const saveZipcode = async (zip: string) => {
+    if (!currentUserId) return;
+    if (!isValidZipcodeFormat(zip)) return;
+    const { error } = await supabase
+      .from("users")
+      .update({ zipcode: zip })
+      .eq("id", currentUserId);
+    if (!error) setCurrentUserZipcode(zip);
+  };
 
   const next14Days = useMemo(() => {
     const base = new Date();
@@ -154,13 +216,14 @@ export default function RequestToBuyPage() {
   }, []);
 
   const canAdvance =
-    (step === 1 && customValid && offeredPriceDollars > 0) ||
+    (step === 1 && customOfferValid && offeredPriceDollars > 0) ||
     (step === 2 && !!selectedDate && !!selectedWindow) ||
-    (step === 3 && !!selectedZone) ||
+    (step === 3 && locationIsValid(selectedLocation)) ||
     (step === 4 && agreed && !submitting);
 
   const handleSubmit = async () => {
-    if (!listing || !selectedDate || !selectedWindow || !selectedZone) return;
+    if (!listing || !selectedDate || !selectedWindow || !selectedLocation)
+      return;
     setSubmitting(true);
     setSubmitError("");
 
@@ -169,16 +232,35 @@ export default function RequestToBuyPage() {
     const end = new Date(selectedDate);
     end.setHours(selectedWindow.endHour, 0, 0, 0);
 
-    const locationJson = JSON.stringify({
-      safeZoneId: selectedZone.id,
-      name: selectedZone.name,
-      address: selectedZone.address,
-      city: selectedZone.city,
-      state: selectedZone.state,
-      zip: selectedZone.zip,
-      lat: selectedZone.lat,
-      lng: selectedZone.lng,
-    });
+    let payload: Record<string, unknown> = {};
+    if (selectedLocation.type === "safe_zone") {
+      const z = selectedLocation.zone;
+      payload = {
+        type: "safe_zone",
+        safeZoneId: z.id,
+        name: z.name,
+        address: z.address,
+        city: z.city,
+        state: z.state,
+        zip: z.zip,
+        lat: z.lat,
+        lng: z.lng,
+      };
+    } else if (selectedLocation.type === "custom") {
+      payload = {
+        type: "custom",
+        name: selectedLocation.name.trim(),
+        address: selectedLocation.address.trim(),
+        note: selectedLocation.note.trim() || undefined,
+      };
+    } else if (selectedLocation.type === "home_buyer") {
+      payload = {
+        type: "home_buyer",
+        address: selectedLocation.address.trim(),
+      };
+    } else {
+      payload = { type: "home_seller" };
+    }
 
     const { data: meetup, error: insErr } = await supabase
       .from("meetups")
@@ -190,7 +272,7 @@ export default function RequestToBuyPage() {
         offer_type: offerType,
         meetup_window_start: start.toISOString(),
         meetup_window_end: end.toISOString(),
-        meetup_location: locationJson,
+        meetup_location: JSON.stringify(payload),
         deposit_amount: depositCents,
         status: "requested",
       })
@@ -282,12 +364,12 @@ export default function RequestToBuyPage() {
               listingPriceDollars={listingPriceDollars}
               offerType={offerType}
               setOfferType={setOfferType}
-              showCustom={showCustom}
-              setShowCustom={setShowCustom}
+              showCustom={showCustomOffer}
+              setShowCustom={setShowCustomOffer}
               customOffer={customOffer}
               setCustomOffer={setCustomOffer}
               minOfferDollars={minOfferDollars}
-              customValid={customValid}
+              customValid={customOfferValid}
             />
           )}
           {step === 2 && (
@@ -301,9 +383,12 @@ export default function RequestToBuyPage() {
           )}
           {step === 3 && (
             <StepLocation
-              zones={suggestedZones}
-              selectedZone={selectedZone}
-              setSelectedZone={setSelectedZone}
+              recommendedSuggestions={recommendedSuggestions}
+              allSuggestions={allSuggestionsSorted}
+              selectedLocation={selectedLocation}
+              setSelectedLocation={setSelectedLocation}
+              needsZipcodePrompt={needsZipcodePrompt}
+              onSaveZipcode={saveZipcode}
             />
           )}
           {step === 4 && (
@@ -315,7 +400,7 @@ export default function RequestToBuyPage() {
               remainingDollars={remainingDollars}
               selectedDate={selectedDate!}
               selectedWindow={selectedWindow!}
-              selectedZone={selectedZone!}
+              selectedLocation={selectedLocation!}
               agreed={agreed}
               setAgreed={setAgreed}
               error={submitError}
@@ -348,10 +433,6 @@ export default function RequestToBuyPage() {
       </div>
     </div>
   );
-}
-
-function formatMoney(n: number): string {
-  return `$${n.toFixed(2)}`;
 }
 
 function StepOffer({
@@ -619,67 +700,385 @@ function StepTime({
   );
 }
 
-function StepLocation({
-  zones,
-  selectedZone,
-  setSelectedZone,
+function ZoneCard({
+  suggestion,
+  selected,
+  onSelect,
+  showDistance,
 }: {
-  zones: SafeZone[];
-  selectedZone: SafeZone | null;
-  setSelectedZone: (z: SafeZone) => void;
+  suggestion: SuggestedZone;
+  selected: boolean;
+  onSelect: () => void;
+  showDistance: boolean;
 }) {
+  const z = suggestion.zone;
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`w-full text-left rounded-2xl border-2 p-4 bg-white transition-colors ${
+        selected ? "border-orange" : "border-gray-200"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <div className="text-3xl leading-none">{getZoneTypeEmoji(z.type)}</div>
+        <div className="flex-1 min-w-0">
+          <p className="font-heading text-base font-bold text-navy">
+            {z.name}
+          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {z.address}, {z.city}, {z.state} {z.zip}
+          </p>
+          {showDistance && (
+            <p className="text-xs text-orange font-medium mt-1 tabular-nums">
+              {suggestion.buyerMiles.toFixed(1)} mi from you ·{" "}
+              {suggestion.sellerMiles.toFixed(1)} mi from seller
+            </p>
+          )}
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <span className="text-[11px] text-muted-foreground">
+              {getZoneTypeLabel(z.type)}
+            </span>
+            <span className="inline-flex items-center gap-1 bg-orange/10 text-orange text-[11px] font-semibold rounded-full px-2 py-0.5">
+              <ShieldCheck className="w-3 h-3" />
+              {z.badge}
+            </span>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function StepLocation({
+  recommendedSuggestions,
+  allSuggestions,
+  selectedLocation,
+  setSelectedLocation,
+  needsZipcodePrompt,
+  onSaveZipcode,
+}: {
+  recommendedSuggestions: SuggestedZone[];
+  allSuggestions: SuggestedZone[];
+  selectedLocation: SelectedLocation | null;
+  setSelectedLocation: (l: SelectedLocation | null) => void;
+  needsZipcodePrompt: boolean;
+  onSaveZipcode: (zip: string) => Promise<void>;
+}) {
+  const [showAllZones, setShowAllZones] = useState(false);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [showHomeFlow, setShowHomeFlow] = useState(false);
+
+  const [customName, setCustomName] = useState("");
+  const [customAddress, setCustomAddress] = useState("");
+  const [customNote, setCustomNote] = useState("");
+
+  const [homeAcked, setHomeAcked] = useState(false);
+  const [homeOption, setHomeOption] = useState<"buyer" | "seller">("buyer");
+  const [buyerHomeAddress, setBuyerHomeAddress] = useState("");
+
+  const [zipDraft, setZipDraft] = useState("");
+  const [savingZip, setSavingZip] = useState(false);
+
+  const recommendedIds = new Set(
+    recommendedSuggestions.map((s) => s.zone.id),
+  );
+  const additionalSuggestions = allSuggestions.filter(
+    (s) => !recommendedIds.has(s.zone.id),
+  );
+  const showDistance =
+    recommendedSuggestions.length > 0 &&
+    recommendedSuggestions[0].combined > 0;
+
+  const isSelectedZone = (id: string) =>
+    selectedLocation?.type === "safe_zone" &&
+    selectedLocation.zone.id === id;
+
+  const confirmCustom = () => {
+    setSelectedLocation({
+      type: "custom",
+      name: customName,
+      address: customAddress,
+      note: customNote,
+    });
+  };
+
+  const confirmHome = () => {
+    if (homeOption === "buyer") {
+      setSelectedLocation({ type: "home_buyer", address: buyerHomeAddress });
+    } else {
+      setSelectedLocation({ type: "home_seller" });
+    }
+  };
+
   return (
     <>
       <h1 className="font-heading text-2xl font-bold text-navy mb-1">
         Where Should You Meet?
       </h1>
       <p className="text-sm text-muted-foreground mb-4">
-        Public safe zones between you and the seller.
+        Pick a public safe zone, suggest a different spot, or arrange a home
+        meet.
       </p>
 
-      <div className="space-y-3">
-        {zones.map((z) => {
-          const selected = selectedZone?.id === z.id;
-          return (
-            <button
-              key={z.id}
+      {selectedLocation && (
+        <div className="bg-orange/5 border border-orange/20 rounded-xl p-3 mb-4 flex items-start gap-2">
+          <CheckCircle2 className="w-5 h-5 text-orange flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-orange">
+              {locationLabel(selectedLocation)}
+            </p>
+            {selectedLocation.type === "custom" && (
+              <p className="text-xs text-muted-foreground">
+                Custom location · {selectedLocation.address}
+              </p>
+            )}
+            {selectedLocation.type === "home_buyer" && (
+              <p className="text-xs text-muted-foreground">
+                Your home · {selectedLocation.address || "address pending"}
+              </p>
+            )}
+            {selectedLocation.type === "home_seller" && (
+              <p className="text-xs text-muted-foreground">
+                Seller will share address after accepting
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedLocation(null)}
+            className="text-xs text-muted-foreground"
+          >
+            Change
+          </button>
+        </div>
+      )}
+
+      {needsZipcodePrompt && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 space-y-2">
+          <p className="text-sm font-semibold text-amber-900">
+            We need your zipcode to find safe meetup spots near you.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              inputMode="numeric"
+              maxLength={5}
+              placeholder="5-digit zipcode"
+              value={zipDraft}
+              onChange={(e) =>
+                setZipDraft(e.target.value.replace(/\D/g, "").slice(0, 5))
+              }
+              className="input-large flex-1 tabular-nums"
+            />
+            <Button
               type="button"
-              onClick={() => setSelectedZone(z)}
-              className={`w-full text-left rounded-2xl border-2 p-4 bg-white transition-colors ${
-                selected ? "border-orange" : "border-gray-200"
-              }`}
+              disabled={!isValidZipcodeFormat(zipDraft) || savingZip}
+              onClick={async () => {
+                setSavingZip(true);
+                await onSaveZipcode(zipDraft);
+                setSavingZip(false);
+              }}
+              className="btn-primary px-5 h-[52px]"
             >
-              <div className="flex items-start gap-3">
-                <div className="text-3xl leading-none">
-                  {getZoneTypeEmoji(z.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-heading text-base font-bold text-navy">
-                    {z.name}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    {z.address}, {z.city}, {z.state} {z.zip}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <span className="text-[11px] text-muted-foreground">
-                      {getZoneTypeLabel(z.type)}
-                    </span>
-                    <span className="inline-flex items-center gap-1 bg-orange/10 text-orange text-[11px] font-semibold rounded-full px-2 py-0.5">
-                      <ShieldCheck className="w-3 h-3" />
-                      {z.badge}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </button>
-          );
-        })}
+              {savingZip ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+        Recommended Safe Zones
+      </p>
+      <div className="space-y-3">
+        {recommendedSuggestions.map((s) => (
+          <ZoneCard
+            key={s.zone.id}
+            suggestion={s}
+            selected={isSelectedZone(s.zone.id)}
+            onSelect={() =>
+              setSelectedLocation({ type: "safe_zone", zone: s.zone })
+            }
+            showDistance={showDistance}
+          />
+        ))}
       </div>
 
-      <p className="text-xs text-muted-foreground text-center mt-6">
-        Can&apos;t find a good spot? You can message the seller once the
-        request is accepted.
-      </p>
+      <button
+        type="button"
+        onClick={() => setShowAllZones((v) => !v)}
+        className="mt-4 w-full flex items-center justify-between bg-white border-2 border-gray-200 rounded-2xl p-4 text-left"
+      >
+        <span className="text-sm font-semibold text-navy">
+          See all safe zones in your area
+        </span>
+        {showAllZones ? (
+          <ChevronUp className="w-5 h-5 text-navy" />
+        ) : (
+          <ChevronDown className="w-5 h-5 text-navy" />
+        )}
+      </button>
+
+      {showAllZones && (
+        <div className="space-y-3 mt-3">
+          {additionalSuggestions.map((s) => (
+            <ZoneCard
+              key={s.zone.id}
+              suggestion={s}
+              selected={isSelectedZone(s.zone.id)}
+              onSelect={() =>
+                setSelectedLocation({ type: "safe_zone", zone: s.zone })
+              }
+              showDistance={showDistance}
+            />
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => {
+          setShowCustomForm((v) => !v);
+          setShowHomeFlow(false);
+        }}
+        className="mt-4 w-full flex items-center justify-between bg-white border-2 border-orange/30 rounded-2xl p-4 text-left"
+      >
+        <span className="inline-flex items-center gap-2 text-sm font-semibold text-orange">
+          <Plus className="w-4 h-4" /> Suggest a different spot
+        </span>
+        {showCustomForm ? (
+          <ChevronUp className="w-5 h-5 text-orange" />
+        ) : (
+          <ChevronDown className="w-5 h-5 text-orange" />
+        )}
+      </button>
+
+      {showCustomForm && (
+        <div className="mt-3 rounded-2xl border-2 border-orange/40 bg-white p-4 space-y-3">
+          <p className="text-sm font-semibold text-navy">Custom spot</p>
+          <Input
+            placeholder="Place name (e.g., Starbucks on Main St)"
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
+            className="input-large"
+          />
+          <Input
+            placeholder="Address"
+            value={customAddress}
+            onChange={(e) => setCustomAddress(e.target.value)}
+            className="input-large"
+          />
+          <Input
+            placeholder="Optional note (parking tips, etc.)"
+            value={customNote}
+            onChange={(e) => setCustomNote(e.target.value)}
+            className="input-large"
+          />
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 leading-relaxed">
+            <span className="font-semibold">⚠️ Heads up:</span> Custom spots
+            aren&apos;t verified safe zones. Choose somewhere public and
+            well-lit. Avoid private homes for first-time meetups.
+          </div>
+          <Button
+            type="button"
+            onClick={confirmCustom}
+            disabled={!customName.trim() || !customAddress.trim()}
+            className="w-full h-11 btn-primary"
+          >
+            Use this spot
+          </Button>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => {
+          setShowHomeFlow((v) => !v);
+          setShowCustomForm(false);
+        }}
+        className="mt-4 w-full text-center text-sm text-muted-foreground underline underline-offset-2"
+      >
+        Meeting at someone&apos;s home?
+      </button>
+
+      {showHomeFlow && (
+        <div className="mt-3 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+            <p className="text-sm font-semibold text-amber-900">
+              Meeting at someone&apos;s home
+            </p>
+          </div>
+          <p className="text-xs text-amber-900 leading-relaxed">
+            NearGear strongly recommends public meetup spots, especially for
+            first-time transactions.
+          </p>
+          <p className="text-xs text-amber-900 leading-relaxed">
+            If both parties agree, you can meet at a home address. Address
+            will be shared only after the seller accepts the request.
+          </p>
+          <label className="flex items-start gap-2 text-sm text-amber-900 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={homeAcked}
+              onChange={(e) => setHomeAcked(e.target.checked)}
+              className="w-4 h-4 mt-0.5 accent-orange flex-shrink-0"
+            />
+            <span>I understand the risks</span>
+          </label>
+
+          {homeAcked && (
+            <>
+              <div className="space-y-2">
+                <label className="flex items-start gap-2 text-sm text-navy cursor-pointer">
+                  <input
+                    type="radio"
+                    name="homeType"
+                    checked={homeOption === "buyer"}
+                    onChange={() => setHomeOption("buyer")}
+                    className="w-4 h-4 mt-0.5 accent-orange flex-shrink-0"
+                  />
+                  <span>Meet at my home (I&apos;ll share my address)</span>
+                </label>
+                <label className="flex items-start gap-2 text-sm text-navy cursor-pointer">
+                  <input
+                    type="radio"
+                    name="homeType"
+                    checked={homeOption === "seller"}
+                    onChange={() => setHomeOption("seller")}
+                    className="w-4 h-4 mt-0.5 accent-orange flex-shrink-0"
+                  />
+                  <span>
+                    Request seller&apos;s address (seller confirms before
+                    sharing)
+                  </span>
+                </label>
+              </div>
+
+              {homeOption === "buyer" && (
+                <Input
+                  placeholder="Your home address"
+                  value={buyerHomeAddress}
+                  onChange={(e) => setBuyerHomeAddress(e.target.value)}
+                  className="input-large"
+                />
+              )}
+
+              <Button
+                type="button"
+                onClick={confirmHome}
+                disabled={
+                  homeOption === "buyer" && !buyerHomeAddress.trim()
+                }
+                className="w-full h-11 btn-primary"
+              >
+                <Home className="w-4 h-4" />
+                Confirm home meetup
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -692,7 +1091,7 @@ function StepReview({
   remainingDollars,
   selectedDate,
   selectedWindow,
-  selectedZone,
+  selectedLocation,
   agreed,
   setAgreed,
   error,
@@ -704,12 +1103,37 @@ function StepReview({
   remainingDollars: number;
   selectedDate: Date;
   selectedWindow: TimeWindow;
-  selectedZone: SafeZone;
+  selectedLocation: SelectedLocation;
   agreed: boolean;
   setAgreed: (v: boolean) => void;
   error: string;
 }) {
   const discounted = offeredPriceDollars < listingPriceDollars;
+
+  const locText = (() => {
+    if (selectedLocation.type === "safe_zone") {
+      const z = selectedLocation.zone;
+      return { name: z.name, sub: `${z.address}, ${z.city}` };
+    }
+    if (selectedLocation.type === "custom") {
+      return { name: selectedLocation.name, sub: selectedLocation.address };
+    }
+    if (selectedLocation.type === "home_buyer") {
+      return {
+        name: "Your home",
+        sub: selectedLocation.address || "Address provided",
+      };
+    }
+    return {
+      name: "Seller's home",
+      sub: "Seller will confirm and share their address",
+    };
+  })();
+
+  const isHome =
+    selectedLocation.type === "home_buyer" ||
+    selectedLocation.type === "home_seller";
+  const isCustom = selectedLocation.type === "custom";
 
   return (
     <>
@@ -770,11 +1194,24 @@ function StepReview({
           <p className="text-xs text-muted-foreground mb-0.5">Where</p>
           <p className="font-semibold text-navy flex items-center gap-1">
             <MapPin className="w-4 h-4 text-orange" />
-            {selectedZone.name}
+            {locText.name}
+            {isCustom && (
+              <span className="ml-1 inline-flex items-center text-[10px] font-semibold bg-amber-100 text-amber-800 rounded-full px-2 py-0.5">
+                Custom
+              </span>
+            )}
+            {isHome && (
+              <span className="ml-1 inline-flex items-center text-[10px] font-semibold bg-amber-100 text-amber-800 rounded-full px-2 py-0.5">
+                Home
+              </span>
+            )}
           </p>
-          <p className="text-sm text-muted-foreground">
-            {selectedZone.address}, {selectedZone.city}
-          </p>
+          <p className="text-sm text-muted-foreground">{locText.sub}</p>
+          {selectedLocation.type === "custom" && selectedLocation.note && (
+            <p className="text-xs text-muted-foreground mt-1 italic">
+              {selectedLocation.note}
+            </p>
+          )}
         </div>
       </div>
 

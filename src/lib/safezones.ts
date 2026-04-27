@@ -36,7 +36,7 @@ export const DFW_CITY_CENTROIDS: Record<string, { lat: number; lng: number }> =
     Carrollton: { lat: 32.9545, lng: -96.89 },
     Lewisville: { lat: 33.0462, lng: -96.9942 },
     "Flower Mound": { lat: 33.0146, lng: -97.097 },
-    Coppell: { lat: 32.9546, lng: -96.99 },
+    Coppell: { lat: 32.9546, lng: -97.015 },
     "Cedar Hill": { lat: 32.5885, lng: -96.9561 },
     DeSoto: { lat: 32.5899, lng: -96.857 },
     Duncanville: { lat: 32.6518, lng: -96.9083 },
@@ -437,7 +437,109 @@ export const SAFE_ZONES: SafeZone[] = [
     badge: BADGE,
     popularityScore: 8,
   },
+  {
+    id: "grapevine-mills",
+    name: "Grapevine Mills",
+    address: "3000 Grapevine Mills Pkwy",
+    city: "Grapevine",
+    state: "TX",
+    zip: "76051",
+    lat: 32.974,
+    lng: -97.041,
+    type: "shopping_center",
+    badge: BADGE,
+    popularityScore: 9,
+  },
+  {
+    id: "bedford-academy",
+    name: "Academy Sports + Outdoors – Bedford",
+    address: "1900 Airport Fwy",
+    city: "Bedford",
+    state: "TX",
+    zip: "76021",
+    lat: 32.844,
+    lng: -97.142,
+    type: "sporting_goods",
+    badge: BADGE,
+    popularityScore: 8,
+  },
+  {
+    id: "nrh-centre",
+    name: "NRH Centre",
+    address: "6000 Hawk Ave",
+    city: "North Richland Hills",
+    state: "TX",
+    zip: "76180",
+    lat: 32.871,
+    lng: -97.219,
+    type: "recreation_center",
+    badge: BADGE,
+    popularityScore: 7,
+  },
+  {
+    id: "mansfield-activities-center",
+    name: "Mansfield Activities Center",
+    address: "106 S Wisteria St",
+    city: "Mansfield",
+    state: "TX",
+    zip: "76063",
+    lat: 32.5634,
+    lng: -97.1428,
+    type: "recreation_center",
+    badge: BADGE,
+    popularityScore: 6,
+  },
+  {
+    id: "las-colinas-mandalay",
+    name: "Mandalay Canal at Las Colinas",
+    address: "115 Mandalay Canal",
+    city: "Irving",
+    state: "TX",
+    zip: "75039",
+    lat: 32.873,
+    lng: -96.946,
+    type: "community_park",
+    badge: BADGE,
+    popularityScore: 7,
+  },
+  {
+    id: "wylie-smith-library",
+    name: "Smith Public Library",
+    address: "300 Country Club Rd",
+    city: "Wylie",
+    state: "TX",
+    zip: "75098",
+    lat: 33.0175,
+    lng: -96.5308,
+    type: "library",
+    badge: BADGE,
+    popularityScore: 5,
+  },
 ];
+
+// Adjacency map — cities considered "close enough" that a safe zone in
+// either is a reasonable meet for someone in the keyed city.
+export const NEIGHBORS: Record<string, string[]> = {
+  Frisco: ["Plano", "Allen", "McKinney", "Lewisville"],
+  Plano: ["Frisco", "Allen", "Richardson", "Carrollton", "Garland"],
+  Allen: ["Plano", "Frisco", "McKinney"],
+  McKinney: ["Allen", "Frisco", "Plano"],
+  Lewisville: ["Frisco", "Carrollton", "Flower Mound", "Coppell"],
+  Carrollton: ["Lewisville", "Plano", "Coppell", "Richardson"],
+  "Flower Mound": ["Lewisville", "Coppell", "Southlake", "Keller"],
+  Coppell: ["Lewisville", "Carrollton", "Irving", "Flower Mound"],
+  Southlake: ["Keller", "Flower Mound"],
+  Keller: ["Southlake", "Flower Mound"],
+  Richardson: ["Plano", "Garland", "Carrollton"],
+  Garland: ["Plano", "Richardson", "Mesquite"],
+  Mesquite: ["Garland"],
+  Arlington: ["Grand Prairie"],
+  "Grand Prairie": ["Arlington", "Irving", "Cedar Hill"],
+  Irving: ["Coppell", "Grand Prairie"],
+  "Cedar Hill": ["DeSoto", "Duncanville", "Grand Prairie"],
+  DeSoto: ["Cedar Hill", "Duncanville"],
+  Duncanville: ["DeSoto", "Cedar Hill", "Grand Prairie"],
+};
 
 function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
@@ -478,33 +580,246 @@ function cityCoords(city: string | null | undefined): {
   return DFW_CITY_CENTROIDS.Other;
 }
 
+function neighborsOf(city: string | null | undefined): Set<string> {
+  if (!city) return new Set();
+  return new Set(NEIGHBORS[city] || []);
+}
+
+/**
+ * Suggest 3 meetup spots using a tiered priority system:
+ *   T0: zones in buyer's city
+ *   T1: zones in seller's city
+ *   T2: zones in cities that neighbor either party
+ *   T3: anything else, by distance to midpoint
+ *
+ * For same-city pairs (most common case), all 3 results come from the buyer's
+ * own city sorted by popularity. For different-city pairs we round-robin
+ * across the tiers so the buyer sees one option from their city, one from the
+ * seller's city, then a neighbor or fallback.
+ */
 export function getSuggestedMeetupLocations(
   buyerCity: string | null | undefined,
   sellerCity: string | null | undefined,
   limit = 3,
 ): SafeZone[] {
+  const sameCity =
+    !!buyerCity && !!sellerCity && buyerCity === sellerCity;
+
   const buyer = cityCoords(buyerCity);
   const seller = cityCoords(sellerCity);
   const mid = getMidpoint(buyer.lat, buyer.lng, seller.lat, seller.lng);
 
-  const scored = SAFE_ZONES.map((zone) => {
-    const miles = getDistanceMiles(mid.lat, mid.lng, zone.lat, zone.lng);
-    const score = miles - zone.popularityScore * 0.15;
-    return { zone, miles, score };
-  });
+  const byPop = (a: SafeZone, b: SafeZone) =>
+    b.popularityScore - a.popularityScore;
+  const byMidDist = (a: SafeZone, b: SafeZone) =>
+    getDistanceMiles(mid.lat, mid.lng, a.lat, a.lng) -
+    getDistanceMiles(mid.lat, mid.lng, b.lat, b.lng);
 
-  scored.sort((a, b) => a.score - b.score);
-  return scored.slice(0, limit).map((s) => s.zone);
+  const buyerCityZones = SAFE_ZONES.filter((z) => z.city === buyerCity).sort(
+    byPop,
+  );
+  const sellerCityZones = sameCity
+    ? []
+    : SAFE_ZONES.filter((z) => z.city === sellerCity).sort(byPop);
+
+  const buyerNeighbors = neighborsOf(buyerCity);
+  const sellerNeighbors = neighborsOf(sellerCity);
+  const neighborCities = new Set<string>([
+    ...buyerNeighbors,
+    ...sellerNeighbors,
+  ]);
+  if (buyerCity) neighborCities.delete(buyerCity);
+  if (sellerCity) neighborCities.delete(sellerCity);
+  const neighborZones = SAFE_ZONES.filter((z) =>
+    neighborCities.has(z.city),
+  ).sort(byMidDist);
+
+  if (sameCity) {
+    if (buyerCityZones.length >= limit) return buyerCityZones.slice(0, limit);
+    return [...buyerCityZones, ...neighborZones].slice(0, limit);
+  }
+
+  const tiers: SafeZone[][] = [
+    buyerCityZones,
+    sellerCityZones,
+    neighborZones,
+  ];
+  const used = new Set<string>();
+  const result: SafeZone[] = [];
+  let advanced = true;
+  while (result.length < limit && advanced) {
+    advanced = false;
+    for (const tier of tiers) {
+      if (result.length >= limit) break;
+      const next = tier.find((z) => !used.has(z.id));
+      if (next) {
+        used.add(next.id);
+        result.push(next);
+        advanced = true;
+      }
+    }
+  }
+  if (result.length < limit) {
+    const fallback = SAFE_ZONES.filter((z) => !used.has(z.id)).sort(byMidDist);
+    for (const z of fallback) {
+      if (result.length >= limit) break;
+      result.push(z);
+    }
+  }
+
+  return result;
 }
 
+/**
+ * All safe zones, sorted by relevance for the buyer/seller pair — used by
+ * the "Browse all safe zones" expander.
+ */
+export function getAllZonesByRelevance(
+  buyerCity: string | null | undefined,
+  sellerCity: string | null | undefined,
+): SafeZone[] {
+  const buyer = cityCoords(buyerCity);
+  const seller = cityCoords(sellerCity);
+  const mid = getMidpoint(buyer.lat, buyer.lng, seller.lat, seller.lng);
+  const buyerNeighbors = neighborsOf(buyerCity);
+  const sellerNeighbors = neighborsOf(sellerCity);
+
+  function tier(city: string): number {
+    if (city === buyerCity) return 0;
+    if (city === sellerCity) return 1;
+    if (buyerNeighbors.has(city) || sellerNeighbors.has(city)) return 2;
+    return 3;
+  }
+
+  return [...SAFE_ZONES].sort((a, b) => {
+    const ta = tier(a.city);
+    const tb = tier(b.city);
+    if (ta !== tb) return ta - tb;
+    const da = getDistanceMiles(mid.lat, mid.lng, a.lat, a.lng);
+    const db = getDistanceMiles(mid.lat, mid.lng, b.lat, b.lng);
+    return da - db;
+  });
+}
+
+// ----- Zipcode-based matching (preferred) ----------------------------------
+import { getZipcodeCoords } from "@/lib/zipcodes";
+
+export interface SuggestedZone {
+  zone: SafeZone;
+  buyerMiles: number;
+  sellerMiles: number;
+  combined: number;
+}
+
+/**
+ * Score each safe zone by combined distance from buyer and seller zipcodes.
+ * Lower combined miles → better match. Naturally favors zones close to both
+ * parties without arbitrary midpoint math.
+ *
+ * If a zipcode is unknown, falls back to the other party's zipcode (so the
+ * algorithm still produces sensible results when one side is anonymous).
+ * If both are unknown, sorts by popularity.
+ */
+export function getSuggestedMeetupLocationsByZip(
+  buyerZipcode: string | null | undefined,
+  sellerZipcode: string | null | undefined,
+  limit = 3,
+): SuggestedZone[] {
+  const buyer = getZipcodeCoords(buyerZipcode);
+  const seller = getZipcodeCoords(sellerZipcode);
+
+  if (!buyer && !seller) {
+    return [...SAFE_ZONES]
+      .sort((a, b) => b.popularityScore - a.popularityScore)
+      .slice(0, limit)
+      .map((zone) => ({ zone, buyerMiles: 0, sellerMiles: 0, combined: 0 }));
+  }
+
+  const ref1 = buyer ?? seller!;
+  const ref2 = seller ?? buyer!;
+
+  return SAFE_ZONES.map((zone) => {
+    const buyerMiles = getDistanceMiles(ref1.lat, ref1.lng, zone.lat, zone.lng);
+    const sellerMiles = getDistanceMiles(
+      ref2.lat,
+      ref2.lng,
+      zone.lat,
+      zone.lng,
+    );
+    const combined = buyerMiles + sellerMiles - zone.popularityScore * 0.05;
+    return { zone, buyerMiles, sellerMiles, combined };
+  })
+    .sort((a, b) => a.combined - b.combined)
+    .slice(0, limit);
+}
+
+/**
+ * Full safe zone list for the buyer/seller pair, sorted by combined distance.
+ * Used for the "Browse all safe zones" expander.
+ */
+export function getAllZonesByCombinedDistance(
+  buyerZipcode: string | null | undefined,
+  sellerZipcode: string | null | undefined,
+): SuggestedZone[] {
+  const buyer = getZipcodeCoords(buyerZipcode);
+  const seller = getZipcodeCoords(sellerZipcode);
+
+  if (!buyer && !seller) {
+    return [...SAFE_ZONES]
+      .sort((a, b) => b.popularityScore - a.popularityScore)
+      .map((zone) => ({ zone, buyerMiles: 0, sellerMiles: 0, combined: 0 }));
+  }
+
+  const ref1 = buyer ?? seller!;
+  const ref2 = seller ?? buyer!;
+
+  return SAFE_ZONES.map((zone) => {
+    const buyerMiles = getDistanceMiles(ref1.lat, ref1.lng, zone.lat, zone.lng);
+    const sellerMiles = getDistanceMiles(
+      ref2.lat,
+      ref2.lng,
+      zone.lat,
+      zone.lng,
+    );
+    return {
+      zone,
+      buyerMiles,
+      sellerMiles,
+      combined: buyerMiles + sellerMiles,
+    };
+  }).sort((a, b) => a.combined - b.combined);
+}
+
+// ----- Directions URL ------------------------------------------------------
+
+interface DirectionsInput {
+  lat?: number | null;
+  lng?: number | null;
+  address?: string | null;
+  label?: string | null;
+}
+
+export function getDirectionsUrl(input: DirectionsInput): string {
+  if (input.lat != null && input.lng != null) {
+    let url = `https://www.google.com/maps/search/?api=1&query=${input.lat},${input.lng}`;
+    if (input.label) url += `&query_place=${encodeURIComponent(input.label)}`;
+    return url;
+  }
+  if (input.address) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(input.address)}`;
+  }
+  return "https://www.google.com/maps";
+}
+
+/**
+ * @deprecated Use getDirectionsUrl({lat, lng, label}) instead.
+ */
 export function getUniversalDirectionsUrl(
   lat: number,
   lng: number,
   label?: string,
 ): string {
-  const base = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-  if (label) return `${base}&query_place=${encodeURIComponent(label)}`;
-  return base;
+  return getDirectionsUrl({ lat, lng, label });
 }
 
 const ZONE_EMOJI: Record<SafeZoneType, string> = {

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowRight, ArrowLeft, UserPlus, Loader2, SkipForward } from "lucide-react";
 import { DFW_CITIES, ROLES, SPORTS } from "@/lib/constants";
+import { isValidZipcodeFormat } from "@/lib/zipcodes";
 
 export default function SignupPage() {
   const [step, setStep] = useState(1);
@@ -25,6 +26,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
   const [city, setCity] = useState("");
+  const [zipcode, setZipcode] = useState("");
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState("");
   const [childSport, setChildSport] = useState("");
@@ -44,7 +46,7 @@ export default function SignupPage() {
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
-        data: { full_name: fullName, role, city },
+        data: { full_name: fullName, role, city, zipcode },
       },
     });
 
@@ -61,6 +63,7 @@ export default function SignupPage() {
         full_name: fullName,
         role,
         city,
+        zipcode,
       });
 
       if (!skipChild && childName && childAge) {
@@ -203,6 +206,27 @@ export default function SignupPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="zipcode">Zipcode</Label>
+                  <Input
+                    id="zipcode"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={5}
+                    placeholder="e.g. 75033"
+                    className="input-large tabular-nums"
+                    value={zipcode}
+                    onChange={(e) =>
+                      setZipcode(
+                        e.target.value.replace(/\D/g, "").slice(0, 5),
+                      )
+                    }
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Used to find safe meetup spots near you.
+                  </p>
+                </div>
                 <div className="flex gap-3">
                   <Button
                     variant="outline"
@@ -213,7 +237,7 @@ export default function SignupPage() {
                   </Button>
                   <Button
                     onClick={() => setStep(3)}
-                    disabled={!city}
+                    disabled={!city || !isValidZipcodeFormat(zipcode)}
                     className="btn-large btn-primary flex-1"
                   >
                     Continue <ArrowRight className="w-5 h-5" />
