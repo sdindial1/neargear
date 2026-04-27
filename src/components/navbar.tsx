@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogOut, Receipt, UserCircle, Wallet } from "lucide-react";
+import type { Session } from "@supabase/supabase-js";
 
 interface SignedInUser {
   id: string;
@@ -25,31 +26,47 @@ export function Navbar() {
 
   useEffect(() => {
     let alive = true;
-    const load = async () => {
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-      if (!alive) return;
-      if (!authUser) {
-        setUser(null);
-        return;
-      }
+
+    const fillFullName = async (id: string) => {
       const { data: profile } = await supabase
         .from("users")
         .select("full_name")
-        .eq("id", authUser.id)
+        .eq("id", id)
         .maybeSingle();
-      setUser({
-        id: authUser.id,
-        email: authUser.email ?? null,
-        full_name: profile?.full_name ?? null,
-      });
+      if (!alive) return;
+      setUser((prev) =>
+        prev && prev.id === id
+          ? { ...prev, full_name: profile?.full_name ?? prev.full_name }
+          : prev,
+      );
     };
-    load();
+
+    const applySession = (session: Session | null) => {
+      if (!session?.user) {
+        setUser(null);
+        return;
+      }
+      const seedName =
+        (session.user.user_metadata?.full_name as string | undefined) ?? null;
+      setUser({
+        id: session.user.id,
+        email: session.user.email ?? null,
+        full_name: seedName,
+      });
+      fillFullName(session.user.id);
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!alive) return;
+      applySession(session);
+    });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => load());
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      applySession(session);
+    });
+
     return () => {
       alive = false;
       subscription.unsubscribe();
@@ -84,7 +101,7 @@ export function Navbar() {
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 text-sm cursor-pointer">
                 <span className="hidden sm:inline text-white/80">
-                  {user.full_name?.split(" ")[0] || "Hi"}
+                  Welcome {user.full_name?.split(" ")[0] || "back"}
                 </span>
                 <span className="w-8 h-8 rounded-full bg-orange flex items-center justify-center text-white text-sm font-bold">
                   {initial}
