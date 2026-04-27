@@ -57,7 +57,7 @@ async function base64ToBlob(
 
 const MAX_REANALYZE_PHOTOS = 7;
 
-export default function SellPage() {
+function SellPageInner() {
   const router = useRouter();
   const supabase = createClient();
   const pendingRef = useRef<boolean>(false);
@@ -588,5 +588,15 @@ export default function SellPage() {
 
       <BottomNav />
     </div>
+  );
+}
+
+import { AuthGate } from "@/components/auth-gate";
+
+export default function SellPage() {
+  return (
+    <AuthGate reason="Sign in to list your gear and start earning.">
+      <SellPageInner />
+    </AuthGate>
   );
 }

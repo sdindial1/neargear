@@ -84,7 +84,7 @@ function locationLabel(loc: SelectedLocation): string {
   return "Seller's home";
 }
 
-export default function RequestToBuyPage() {
+function RequestToBuyPageInner() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const supabase = useMemo(() => createClient(), []);
@@ -1281,5 +1281,15 @@ function StepReview({
         </div>
       )}
     </>
+  );
+}
+
+import { AuthGate } from "@/components/auth-gate";
+
+export default function RequestToBuyPage() {
+  return (
+    <AuthGate reason="Sign in to send a meetup request to the seller.">
+      <RequestToBuyPageInner />
+    </AuthGate>
   );
 }

@@ -52,7 +52,7 @@ const SELLER_REASONS = [
   "Other",
 ];
 
-export default function CancelMeetupPage() {
+function CancelMeetupPageInner() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const supabase = useMemo(() => createClient(), []);
@@ -330,5 +330,15 @@ export default function CancelMeetupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+import { AuthGate } from "@/components/auth-gate";
+
+export default function CancelMeetupPage() {
+  return (
+    <AuthGate reason="Sign in to cancel this meetup.">
+      <CancelMeetupPageInner />
+    </AuthGate>
   );
 }

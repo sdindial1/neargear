@@ -31,7 +31,7 @@ import {
 import { SPORTS } from "@/lib/constants";
 import type { User, Child, Listing } from "@/types/database";
 
-export default function ProfilePage() {
+function ProfilePageInner() {
   const supabase = createClient();
   const [user, setUser] = useState<User | null>(null);
   const [children, setChildren] = useState<Child[]>([]);
@@ -301,5 +301,15 @@ export default function ProfilePage() {
 
       <BottomNav />
     </div>
+  );
+}
+
+import { AuthGate } from "@/components/auth-gate";
+
+export default function ProfilePage() {
+  return (
+    <AuthGate reason="Sign in to see your listings, kids, and stats.">
+      <ProfilePageInner />
+    </AuthGate>
   );
 }

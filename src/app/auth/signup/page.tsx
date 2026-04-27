@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -18,12 +18,13 @@ import { ArrowRight, ArrowLeft, UserPlus, Loader2, SkipForward } from "lucide-re
 import { DFW_CITIES, ROLES, SPORTS } from "@/lib/constants";
 import { isValidZipcodeFormat } from "@/lib/zipcodes";
 
-export default function SignupPage() {
+function SignupInner() {
   const [step, setStep] = useState(1);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState("");
   const [city, setCity] = useState("");
   const [zipcode, setZipcode] = useState("");
@@ -33,7 +34,10 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
+  const redirectTo = searchParams.get("redirect") || "/";
+  const passwordsMatch = password === confirmPassword;
 
   const handleSignup = async (skipChild = false) => {
     setError("");
@@ -76,7 +80,9 @@ export default function SignupPage() {
       }
     }
 
-    router.push("/auth/login?message=Check your email to confirm your account");
+    router.push(
+      `/auth/login?message=${encodeURIComponent("Check your email to confirm your account")}${redirectTo !== "/" ? `&redirect=${encodeURIComponent(redirectTo)}` : ""}`,
+    );
   };
 
   return (
@@ -151,6 +157,7 @@ export default function SignupPage() {
                   <Input
                     id="password"
                     type="password"
+                    autoComplete="new-password"
                     placeholder="At least 6 characters"
                     className="input-large"
                     value={password}
@@ -158,6 +165,24 @@ export default function SignupPage() {
                     minLength={6}
                     required
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="confirmPassword">Confirm password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="Re-type your password"
+                    className="input-large"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                  {confirmPassword && !passwordsMatch && (
+                    <p className="text-xs text-red-600">
+                      Passwords don&apos;t match.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>I am a...</Label>
@@ -174,7 +199,14 @@ export default function SignupPage() {
                 </div>
                 <Button
                   onClick={() => setStep(2)}
-                  disabled={!firstName || !lastName || !email || !password || !role}
+                  disabled={
+                    !firstName ||
+                    !lastName ||
+                    !email ||
+                    !password ||
+                    !passwordsMatch ||
+                    !role
+                  }
                   className="btn-large btn-primary"
                 >
                   Continue <ArrowRight className="w-5 h-5" />
@@ -325,12 +357,36 @@ export default function SignupPage() {
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/auth/login" className="text-orange hover:text-orange-light font-semibold">
+            <Link
+              href={`/auth/login${redirectTo !== "/" ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`}
+              className="text-orange hover:text-orange-light font-semibold"
+            >
               Log in
             </Link>
           </p>
+
+          <Link
+            href="/"
+            className="mt-3 block text-center text-xs text-muted-foreground"
+          >
+            Continue as guest — just browsing
+          </Link>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-navy">
+          <Loader2 className="w-6 h-6 animate-spin text-orange" />
+        </div>
+      }
+    >
+      <SignupInner />
+    </Suspense>
   );
 }

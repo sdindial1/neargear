@@ -59,7 +59,7 @@ function formatDayHeader(iso: string): string {
   });
 }
 
-export default function MeetupMessagesPage() {
+function MeetupMessagesPageInner() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const supabase = useMemo(() => createClient(), []);
@@ -352,5 +352,15 @@ export default function MeetupMessagesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+import { AuthGate } from "@/components/auth-gate";
+
+export default function MeetupMessagesPage() {
+  return (
+    <AuthGate reason="Sign in to message the other party about your meetup.">
+      <MeetupMessagesPageInner />
+    </AuthGate>
   );
 }

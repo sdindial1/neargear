@@ -112,7 +112,7 @@ function formatRelative(iso: string): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-export default function ProfileMeetupsPage() {
+function ProfileMeetupsPageInner() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [userId, setUserId] = useState<string | null>(null);
@@ -473,5 +473,15 @@ function MeetupCard({
         </div>
       )}
     </div>
+  );
+}
+
+import { AuthGate } from "@/components/auth-gate";
+
+export default function ProfileMeetupsPage() {
+  return (
+    <AuthGate reason="Sign in to see your meetups and respond to requests.">
+      <ProfileMeetupsPageInner />
+    </AuthGate>
   );
 }
