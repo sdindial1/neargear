@@ -1,7 +1,9 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { notifyWishlistReactivation } from "@/lib/notifications";
+import { calculatePlatformFee } from "@/lib/fees";
 
 const STALE_HOURS = 48;
+const COMPLETION_STALE_HOURS = 24;
 
 async function runExpiry() {
   const supabase = await createServerSupabaseClient();
@@ -54,11 +56,75 @@ async function runExpiry() {
     );
   }
 
+  // ---- 24hr auto-complete pass --------------------------------------------
+  const completionCutoffIso = new Date(
+    Date.now() - COMPLETION_STALE_HOURS * 60 * 60 * 1000,
+  ).toISOString();
+
+  const { data: stuck, error: stuckErr } = await supabase
+    .from("meetups")
+    .select(
+      "id, listing_id, buyer_id, seller_id, offered_price, status, buyer_completed_at, seller_completed_at, listing:listings!listing_id(retail_price)",
+    )
+    .in("status", ["buyer_confirmed", "seller_confirmed"]);
+
+  let autoCompleted = 0;
+  if (!stuckErr && stuck) {
+    for (const m of stuck) {
+      const ts =
+        m.status === "buyer_confirmed"
+          ? m.buyer_completed_at
+          : m.seller_completed_at;
+      if (!ts) continue;
+      if (new Date(ts).toISOString() > completionCutoffIso) continue;
+
+      const fee = calculatePlatformFee(m.offered_price ?? 0);
+      const nowIso = new Date().toISOString();
+
+      await supabase
+        .from("meetups")
+        .update({
+          status: "completed",
+          completed_at: nowIso,
+          auto_completed: true,
+        })
+        .eq("id", m.id);
+
+      await supabase
+        .from("listings")
+        .update({ status: "sold" })
+        .eq("id", m.listing_id);
+
+      const retail = (
+        m as unknown as { listing?: { retail_price: number | null } }
+      ).listing?.retail_price;
+
+      await supabase.from("transactions").insert({
+        meetup_id: m.id,
+        listing_id: m.listing_id,
+        buyer_id: m.buyer_id,
+        seller_id: m.seller_id,
+        gross_amount: m.offered_price ?? 0,
+        platform_fee: fee,
+        net_amount: (m.offered_price ?? 0) - fee,
+        retail_price: retail ?? null,
+        auto_completed: true,
+      });
+
+      console.log(
+        `[auto-complete] meetup ${m.id} auto-completed from ${m.status}`,
+      );
+      autoCompleted++;
+    }
+  }
+
   return Response.json({
     ok: true,
     expired: expired.length,
     notified: notifiedTotal,
+    autoCompleted,
     cutoff: cutoffIso,
+    completionCutoff: completionCutoffIso,
   });
 }
 

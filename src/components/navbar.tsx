@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, UserCircle } from "lucide-react";
+import { LogOut, Receipt, UserCircle, Wallet } from "lucide-react";
 
 interface SignedInUser {
   id: string;
@@ -102,6 +102,18 @@ export function Navbar() {
                   className="flex items-center gap-2 cursor-pointer"
                 >
                   <UserCircle className="w-4 h-4" /> Meetups
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push("/profile/transactions")}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <Receipt className="w-4 h-4" /> Transactions
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push("/profile/wallet")}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <Wallet className="w-4 h-4" /> Wallet
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleSignOut}

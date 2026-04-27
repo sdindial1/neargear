@@ -58,6 +58,8 @@ Condition-based pricing guide (DFW market):
 
 For a brand new unused item with tags, price at the HIGH end of Like New (75-80% of retail).
 
+Always include retailPrice — the original retail price (USD) of a similar new item from a major sporting goods retailer. Used to show buyers their savings.
+
 Common items: baseball gloves, bats, cleats, helmets, soccer balls, shin guards, basketball shoes, lacrosse sticks, hockey gear, volleyball gear. Always return valid JSON only - no markdown, no explanation, just the JSON object.`;
 
 const USER_PROMPT = `Analyze these photos of sports equipment.
@@ -76,6 +78,7 @@ Return ONLY this JSON structure with no other text:
   "size": "specific size if visible",
   "suggestedPrice": 45,
   "priceRange": { "min": 35, "max": 55 },
+  "retailPrice": 75,
   "description": "Ready-to-publish 2-3 sentence listing description",
   "confidence": 0.85,
   "photoQualityScore": 0.8,

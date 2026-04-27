@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getDirectionsUrl } from "@/lib/safezones";
 import { MeetupCountdown } from "@/components/meetup-countdown";
+import { CompleteTransactionSection } from "@/components/complete-transaction-section";
 import {
   Calendar,
   Clock,
@@ -77,7 +78,7 @@ export default async function MeetupDetailPage({
     .from("meetups")
     .select(
       `*,
-       listing:listings!listing_id(id, title, photo_urls, price),
+       listing:listings!listing_id(id, title, photo_urls, price, retail_price),
        buyer:users!buyer_id(id, full_name, avg_rating, city),
        seller:users!seller_id(id, full_name, avg_rating, city)`,
     )
@@ -149,6 +150,31 @@ export default async function MeetupDetailPage({
             className="mb-4"
           />
         )}
+
+        {user &&
+          (user.id === meetup.buyer_id || user.id === meetup.seller_id) &&
+          [
+            "scheduled",
+            "buyer_confirmed",
+            "seller_confirmed",
+            "payment_processing",
+            "completed",
+          ].includes(meetup.status) && (
+            <div className="mb-4">
+              <CompleteTransactionSection
+                meetupId={meetup.id}
+                buyerId={meetup.buyer_id}
+                sellerId={meetup.seller_id}
+                listingId={meetup.listing_id}
+                currentUserId={user.id}
+                initialStatus={meetup.status}
+                buyerCompletedAt={meetup.buyer_completed_at ?? null}
+                sellerCompletedAt={meetup.seller_completed_at ?? null}
+                offeredPriceCents={meetup.offered_price ?? 0}
+                retailPriceCents={meetup.listing?.retail_price ?? null}
+              />
+            </div>
+          )}
 
         <div className="bg-white rounded-2xl border p-3 flex gap-3 mb-4">
           <div className="w-20 h-20 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">

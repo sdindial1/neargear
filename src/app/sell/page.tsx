@@ -233,6 +233,9 @@ function SellPageInner() {
         ai_suggested_price: analysis
           ? Math.round(analysis.suggestedPrice * 100)
           : null,
+        retail_price: analysis?.retailPrice
+          ? Math.round(analysis.retailPrice * 100)
+          : null,
         ai_condition_grade: analysis?.condition || null,
         ai_identified_item: analysis?.item || null,
         ai_age_range: ageRangeText,

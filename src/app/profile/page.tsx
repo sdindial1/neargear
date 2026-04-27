@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
@@ -19,6 +20,7 @@ import {
   Trash2,
   X,
   Loader2,
+  LogOut,
   UserCircle,
 } from "lucide-react";
 import {
@@ -33,7 +35,9 @@ import type { User, Child, Listing } from "@/types/database";
 
 function ProfilePageInner() {
   const supabase = createClient();
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [children, setChildren] = useState<Child[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +98,14 @@ function ProfilePageInner() {
   const removeChild = async (childId: string) => {
     await supabase.from("children").delete().eq("id", childId);
     setChildren((prev) => prev.filter((c) => c.id !== childId));
+  };
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    router.push("/");
+    router.refresh();
   };
 
   if (loading) {
@@ -295,6 +307,25 @@ function ProfilePageInner() {
                 ))}
               </div>
             )}
+          </div>
+
+          <Separator className="my-8" />
+
+          <div className="pb-4">
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              className="w-full min-h-[52px] rounded-xl border-2 border-orange text-orange font-heading font-semibold text-base flex items-center justify-center gap-2 bg-white hover:bg-orange/5 active:bg-orange/10 transition-colors cursor-pointer disabled:opacity-60"
+              style={{ WebkitTapHighlightColor: "transparent" }}
+            >
+              {signingOut ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <LogOut className="w-5 h-5" />
+              )}
+              Sign Out
+            </button>
           </div>
         </div>
       </main>

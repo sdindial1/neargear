@@ -12,6 +12,7 @@ export interface AIListingAnalysis {
   size: string;
   suggestedPrice: number;
   priceRange: { min: number; max: number };
+  retailPrice: number;
   description: string;
   confidence: number;
   photoQualityScore: number;

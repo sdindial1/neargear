@@ -56,10 +56,25 @@ export interface Listing {
   ai_size: string | null;
   ai_brand: string | null;
   ai_confidence: number | null;
+  retail_price: number | null;
   views: number;
   city: string | null;
   age_min: number | null;
   age_max: number | null;
+  created_at: string;
+}
+
+export interface Transaction {
+  id: string;
+  meetup_id: string;
+  listing_id: string | null;
+  buyer_id: string | null;
+  seller_id: string | null;
+  gross_amount: number;
+  platform_fee: number;
+  net_amount: number;
+  retail_price: number | null;
+  auto_completed: boolean;
   created_at: string;
 }
 
@@ -102,7 +117,14 @@ export interface Meetup {
   meetup_time: string | null;
   buyer_confirmed_at: string | null;
   seller_confirmed_at: string | null;
+  buyer_completed_at: string | null;
+  seller_completed_at: string | null;
   completed_at: string | null;
+  auto_completed: boolean | null;
+  meetup_window_start: string | null;
+  meetup_window_end: string | null;
+  offered_price: number | null;
+  offer_type: string | null;
   created_at: string;
 }
 
