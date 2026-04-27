@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Heart } from "lucide-react";
-import { isSavedLocal, toggleSavedLocal } from "@/lib/wishlist";
+import { createClient } from "@/lib/supabase/client";
+import { getSavedState, toggleSaved } from "@/lib/wishlist";
 
 interface Props {
   listingId?: string;
@@ -17,15 +18,31 @@ export function SaveButton({
   className,
   size = 20,
 }: Props) {
+  const supabase = useMemo(() => createClient(), []);
   const [saved, setSaved] = useState(initiallySaved);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (listingId) setSaved(isSavedLocal(listingId));
-  }, [listingId]);
+    if (!listingId) return;
+    let alive = true;
+    getSavedState(supabase, listingId).then((s) => {
+      if (alive) setSaved(s);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [listingId, supabase]);
 
-  const onClick = () => {
-    if (listingId) setSaved(toggleSavedLocal(listingId));
-    else setSaved((s) => !s);
+  const onClick = async () => {
+    if (!listingId || busy) {
+      setSaved((s) => !s);
+      return;
+    }
+    setBusy(true);
+    setSaved((s) => !s);
+    const actual = await toggleSaved(supabase, listingId);
+    setSaved(actual);
+    setBusy(false);
   };
 
   return (

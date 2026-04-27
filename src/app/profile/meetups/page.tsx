@@ -58,6 +58,45 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "past", label: "Past" },
 ];
 
+const STATUS_BADGE_CLASS: Record<string, string> = {
+  requested: "bg-amber-100 text-amber-800",
+  countered: "bg-blue-100 text-blue-800",
+  scheduled: "bg-green-100 text-green-800",
+  completed: "bg-gray-200 text-gray-700",
+  cancelled_buyer: "bg-gray-200 text-gray-600",
+  cancelled_seller: "bg-gray-200 text-gray-600",
+  cancelled_auto: "bg-gray-200 text-gray-600",
+  no_show_buyer: "bg-red-100 text-red-700",
+  no_show_seller: "bg-red-100 text-red-700",
+  disputed: "bg-red-100 text-red-800",
+};
+
+const STATUS_BADGE_LABEL: Record<string, string> = {
+  requested: "Requested",
+  countered: "Countered",
+  scheduled: "Scheduled",
+  completed: "Completed",
+  cancelled_buyer: "Cancelled by buyer",
+  cancelled_seller: "Cancelled by seller",
+  cancelled_auto: "Expired",
+  no_show_buyer: "Buyer no-show",
+  no_show_seller: "Seller no-show",
+  disputed: "Disputed",
+};
+
+function countdownLabel(start: Date): string {
+  const diff = start.getTime() - Date.now();
+  if (diff <= 0) return "Now";
+  const hours = Math.floor(diff / 3600000);
+  if (hours < 1) {
+    const mins = Math.max(1, Math.floor(diff / 60000));
+    return `In ${mins} min`;
+  }
+  if (hours < 24) return `In ${hours} hour${hours === 1 ? "" : "s"}`;
+  const days = Math.floor(hours / 24);
+  return `In ${days} day${days === 1 ? "" : "s"}`;
+}
+
 function formatHour(d: Date): string {
   return d.toLocaleTimeString("en-US", { hour: "numeric", hour12: true });
 }
@@ -115,37 +154,40 @@ export default function ProfileMeetupsPage() {
     load();
   }, [supabase]);
 
-  const filtered = useMemo(() => {
-    if (!userId) return [];
-    switch (tab) {
-      case "incoming":
-        return rows.filter(
-          (m) =>
-            m.seller_id === userId &&
-            (m.status === "requested" || m.status === "countered"),
-        );
-      case "sent":
-        return rows.filter(
-          (m) =>
-            m.buyer_id === userId &&
-            (m.status === "requested" || m.status === "countered"),
-        );
-      case "scheduled":
-        return rows.filter((m) => m.status === "scheduled");
-      case "past":
-        return rows.filter((m) =>
-          [
-            "completed",
-            "cancelled_buyer",
-            "cancelled_seller",
-            "cancelled_auto",
-            "no_show_buyer",
-            "no_show_seller",
-            "disputed",
-          ].includes(m.status),
-        );
+  const tabRows = useMemo(() => {
+    if (!userId) {
+      return { incoming: [], sent: [], scheduled: [], past: [] } as Record<
+        TabKey,
+        MeetupRow[]
+      >;
     }
-  }, [rows, tab, userId]);
+    return {
+      incoming: rows.filter(
+        (m) =>
+          m.seller_id === userId &&
+          (m.status === "requested" || m.status === "countered"),
+      ),
+      sent: rows.filter(
+        (m) =>
+          m.buyer_id === userId &&
+          (m.status === "requested" || m.status === "countered"),
+      ),
+      scheduled: rows.filter((m) => m.status === "scheduled"),
+      past: rows.filter((m) =>
+        [
+          "completed",
+          "cancelled_buyer",
+          "cancelled_seller",
+          "cancelled_auto",
+          "no_show_buyer",
+          "no_show_seller",
+          "disputed",
+        ].includes(m.status),
+      ),
+    } as Record<TabKey, MeetupRow[]>;
+  }, [rows, userId]);
+
+  const filtered = tabRows[tab];
 
   const handleAccept = async (m: MeetupRow) => {
     setBusyId(m.id);
@@ -222,20 +264,34 @@ export default function ProfileMeetupsPage() {
         </h1>
 
         <div className="flex gap-1 bg-white rounded-xl p-1 border mb-4 overflow-x-auto no-scrollbar">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              className={`flex-shrink-0 px-3 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                tab === t.key
-                  ? "bg-orange text-white"
-                  : "text-muted-foreground hover:bg-gray-50"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+          {TABS.map((t) => {
+            const count = tabRows[t.key].length;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                className={`flex-shrink-0 px-3 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                  tab === t.key
+                    ? "bg-orange text-white"
+                    : "text-muted-foreground hover:bg-gray-50"
+                }`}
+              >
+                {t.label}
+                {count > 0 && (
+                  <span
+                    className={`text-[10px] font-bold rounded-full px-1.5 min-w-[18px] text-center ${
+                      tab === t.key
+                        ? "bg-white/20 text-white"
+                        : "bg-orange/10 text-orange"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {filtered.length === 0 ? (
@@ -257,6 +313,25 @@ export default function ProfileMeetupsPage() {
             ))}
           </div>
         )}
+
+        <div className="mt-10 text-center">
+          <button
+            type="button"
+            onClick={async () => {
+              const res = await fetch("/api/cron/expire-requests", {
+                method: "POST",
+              });
+              const json = await res.json();
+              alert(
+                `Expiry run: ${json.expired ?? 0} cancelled, ${json.notified ?? 0} would-notify`,
+              );
+              location.reload();
+            }}
+            className="text-xs text-muted-foreground underline underline-offset-2"
+          >
+            Run expiry check (dev)
+          </button>
+        </div>
       </main>
 
       <BottomNav />
@@ -386,10 +461,15 @@ function MeetupCard({
       )}
 
       {!showActions && (
-        <div className="mt-3">
-          <Badge className="bg-navy/5 text-navy text-[11px] font-semibold">
-            {meetup.status}
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          <Badge className={`text-[11px] font-semibold ${STATUS_BADGE_CLASS[meetup.status] || "bg-navy/5 text-navy"}`}>
+            {STATUS_BADGE_LABEL[meetup.status] || meetup.status}
           </Badge>
+          {meetup.status === "scheduled" && (
+            <span className="text-[11px] font-semibold text-orange">
+              {countdownLabel(start)}
+            </span>
+          )}
         </div>
       )}
     </div>

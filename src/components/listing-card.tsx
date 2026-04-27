@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Heart, Star, MapPin, ImageIcon, ShieldCheck } from "lucide-react";
 import { formatCondition } from "@/lib/utils";
-import { isSavedLocal, toggleSavedLocal } from "@/lib/wishlist";
+import { createClient } from "@/lib/supabase/client";
+import { getSavedState, toggleSaved } from "@/lib/wishlist";
 import type { Listing, User } from "@/types/database";
 
 interface ListingCardProps {
@@ -21,17 +22,26 @@ const conditionColors: Record<string, string> = {
 };
 
 export function ListingCard({ listing, initiallySaved = false }: ListingCardProps) {
+  const supabase = useMemo(() => createClient(), []);
   const [saved, setSaved] = useState(initiallySaved);
   const price = (listing.price / 100).toFixed(0);
 
   useEffect(() => {
-    setSaved(isSavedLocal(listing.id));
-  }, [listing.id]);
+    let alive = true;
+    getSavedState(supabase, listing.id).then((s) => {
+      if (alive) setSaved(s);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [listing.id, supabase]);
 
-  const toggleSave = (e: React.MouseEvent) => {
+  const toggleSave = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setSaved(toggleSavedLocal(listing.id));
+    setSaved((s) => !s);
+    const actual = await toggleSaved(supabase, listing.id);
+    setSaved(actual);
   };
 
   return (

@@ -3,7 +3,8 @@ import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getUniversalDirectionsUrl } from "@/lib/safezones";
+import { getDirectionsUrl } from "@/lib/safezones";
+import { MeetupCountdown } from "@/components/meetup-countdown";
 import {
   Calendar,
   Clock,
@@ -93,6 +94,7 @@ export default async function MeetupDetailPage({
   const otherParty = isBuyer ? meetup.seller : meetup.buyer;
 
   let location: {
+    type?: string;
     safeZoneId?: string;
     name?: string;
     address?: string;
@@ -101,12 +103,16 @@ export default async function MeetupDetailPage({
     zip?: string;
     lat?: number;
     lng?: number;
+    note?: string;
   } | null = null;
   try {
     if (meetup.meetup_location) location = JSON.parse(meetup.meetup_location);
   } catch {
     location = null;
   }
+  const locType = location?.type ?? "safe_zone";
+  const isCustomLoc = locType === "custom";
+  const isHomeLoc = locType === "home_buyer" || locType === "home_seller";
 
   const status = STATUS_META[meetup.status] || {
     label: meetup.status,
@@ -118,14 +124,14 @@ export default async function MeetupDetailPage({
   const start = new Date(meetup.meetup_window_start);
   const end = new Date(meetup.meetup_window_end);
 
-  const directionsUrl =
-    location?.lat && location?.lng
-      ? getUniversalDirectionsUrl(
-          location.lat,
-          location.lng,
-          location.name,
-        )
-      : null;
+  const directionsUrl = location
+    ? getDirectionsUrl({
+        lat: location.lat ?? null,
+        lng: location.lng ?? null,
+        address: location.address ?? null,
+        label: location.name ?? null,
+      })
+    : null;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -135,6 +141,14 @@ export default async function MeetupDetailPage({
         <Badge className={`${status.className} font-semibold mb-3`}>
           {status.label}
         </Badge>
+
+        {meetup.status === "scheduled" && (
+          <MeetupCountdown
+            windowStart={meetup.meetup_window_start}
+            windowEnd={meetup.meetup_window_end}
+            className="mb-4"
+          />
+        )}
 
         <div className="bg-white rounded-2xl border p-3 flex gap-3 mb-4">
           <div className="w-20 h-20 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
@@ -207,20 +221,51 @@ export default async function MeetupDetailPage({
             <div className="p-4">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <MapPin className="w-3 h-3" /> Location
+                {isCustomLoc && (
+                  <span className="ml-1 text-[10px] font-semibold bg-amber-100 text-amber-800 rounded-full px-2 py-0.5">
+                    Custom
+                  </span>
+                )}
+                {isHomeLoc && (
+                  <span className="ml-1 text-[10px] font-semibold bg-amber-100 text-amber-800 rounded-full px-2 py-0.5">
+                    Home
+                  </span>
+                )}
               </p>
-              <p className="font-semibold text-navy mt-1">{location.name}</p>
+              <p className="font-semibold text-navy mt-1">
+                {location.name ||
+                  (locType === "home_buyer"
+                    ? "Buyer's home"
+                    : locType === "home_seller"
+                      ? "Seller's home"
+                      : "Location")}
+              </p>
               <p className="text-sm text-muted-foreground">
-                {location.address}
+                {location.address ||
+                  (locType === "home_seller"
+                    ? "Seller will share address after accepting."
+                    : "")}
                 {location.city ? `, ${location.city}` : ""}
                 {location.state ? `, ${location.state}` : ""}
                 {location.zip ? ` ${location.zip}` : ""}
               </p>
-              {directionsUrl && (
+              {location.note && (
+                <p className="text-xs text-muted-foreground mt-1 italic">
+                  {location.note}
+                </p>
+              )}
+              {isHomeLoc && (
+                <p className="text-xs text-amber-800 mt-2 leading-relaxed">
+                  ⚠️ Home meetup — make sure you&apos;re comfortable before
+                  accepting.
+                </p>
+              )}
+              {meetup.status === "scheduled" && directionsUrl && (
                 <a
                   href={directionsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 mt-3 text-sm font-semibold text-orange"
+                  className="inline-flex items-center justify-center gap-1.5 mt-3 w-full h-11 rounded-xl bg-orange text-white font-semibold text-sm"
                 >
                   <Navigation className="w-4 h-4" />
                   Get Directions
@@ -253,13 +298,13 @@ export default async function MeetupDetailPage({
 
       <div className="fixed bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 bg-white border-t p-3">
         <div className="max-w-lg mx-auto flex gap-2">
-          <Link href="/messages" className="flex-1">
+          <Link href={`/meetups/${meetup.id}/messages`} className="flex-1">
             <Button variant="outline" className="btn-large w-full">
               <MessageCircle className="w-5 h-5" /> Message
             </Button>
           </Link>
           {["requested", "scheduled", "countered"].includes(meetup.status) && (
-            <Link href="/profile/meetups" className="flex-1">
+            <Link href={`/meetups/${meetup.id}/cancel`} className="flex-1">
               <Button
                 variant="outline"
                 className="btn-large w-full text-red-600 border-red-200"
