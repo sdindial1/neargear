@@ -1,4 +1,4 @@
-const KEY = "sportswap:wishlist";
+const KEY = "neargear:wishlist";
 
 function read(): Set<string> {
   if (typeof window === "undefined") return new Set();

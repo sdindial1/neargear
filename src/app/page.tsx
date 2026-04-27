@@ -70,7 +70,7 @@ export default function HomePage() {
                 AI-powered marketplace for parents and coaches. Snap photos, AI does the rest.
               </p>
               <p className="mt-2 text-sm text-orange font-semibold">
-                Free to list. Only pay when you swap.
+                Free to list. Only pay when you sell.
               </p>
               <div className="mt-6">
                 <Link href="/browse" className="w-full sm:w-auto">
@@ -120,8 +120,8 @@ export default function HomePage() {
       {/* Footer - desktop only */}
       <footer className="hidden md:block mt-auto bg-navy text-white/60 py-6">
         <div className="max-w-7xl mx-auto px-4 text-center text-sm">
-          <span className="text-white font-heading font-semibold">Sport</span>
-          <span className="text-orange font-heading font-semibold">Swap</span>{" "}
+          <span className="text-white font-heading font-semibold">Near</span>
+          <span className="text-orange font-heading font-semibold">Gear</span>{" "}
           &copy; {new Date().getFullYear()} &mdash; DFW&apos;s Sports Gear Marketplace
         </div>
       </footer>

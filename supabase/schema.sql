@@ -1,4 +1,4 @@
--- SportSwap Database Schema
+-- NearGear Database Schema
 -- Run this in the Supabase SQL Editor
 
 -- ===========================================

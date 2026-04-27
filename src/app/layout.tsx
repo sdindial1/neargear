@@ -15,7 +15,7 @@ const barlowCondensed = Barlow_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "SportSwap — Buy & Sell Sports Gear in DFW",
+  title: "NearGear — Buy & Sell Sports Gear in DFW",
   description:
     "The local marketplace for buying and selling youth sports equipment in the Dallas-Fort Worth area.",
 };

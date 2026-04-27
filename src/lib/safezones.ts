@@ -44,7 +44,7 @@ export const DFW_CITY_CENTROIDS: Record<string, { lat: number; lng: number }> =
     Other: { lat: 32.7767, lng: -96.797 },
   };
 
-const BADGE = "SportSwap Safe Zone";
+const BADGE = "NearGear Safe Zone";
 
 export const SAFE_ZONES: SafeZone[] = [
   {
