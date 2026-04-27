@@ -10,8 +10,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Receipt, UserCircle, Wallet } from "lucide-react";
+import { LogOut, Receipt, ShieldCheck, UserCircle, Wallet } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
+import { isAdmin } from "@/lib/admin";
 
 interface SignedInUser {
   id: string;
@@ -132,6 +133,14 @@ export function Navbar() {
                 >
                   <Wallet className="w-4 h-4" /> Wallet
                 </DropdownMenuItem>
+                {isAdmin(user.email) && (
+                  <DropdownMenuItem
+                    onClick={() => router.push("/admin")}
+                    className="flex items-center gap-2 cursor-pointer text-orange"
+                  >
+                    <ShieldCheck className="w-4 h-4" /> Admin
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={handleSignOut}
                   className="flex items-center gap-2 text-red-600 cursor-pointer"
