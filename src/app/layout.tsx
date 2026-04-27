@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Barlow, Barlow_Condensed } from "next/font/google";
+import { AceFloating } from "@/components/ace/ace-floating";
 import "./globals.css";
 
 const barlow = Barlow({
@@ -30,7 +31,10 @@ export default function RootLayout({
       lang="en"
       className={`${barlow.variable} ${barlowCondensed.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <AceFloating />
+      </body>
     </html>
   );
 }

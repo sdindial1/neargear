@@ -396,6 +396,66 @@
 }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
+/* ==== Ace AI character animations ==== */
+@keyframes ace-breathe-soft {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+@keyframes ace-glow-soft {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(255, 107, 53, 0.45)); }
+  50% { filter: drop-shadow(0 0 18px rgba(255, 107, 53, 0.7)); }
+}
+@keyframes ace-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes ace-ripple-out {
+  0% { transform: scale(0.85); opacity: 0.55; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+@keyframes ace-jump {
+  0%, 100% { transform: translateY(0) scaleX(1) scaleY(1); }
+  20% { transform: translateY(0) scaleX(1.1) scaleY(0.9); }
+  50% { transform: translateY(-12px) scaleX(0.95) scaleY(1.1); }
+  80% { transform: translateY(0) scaleX(1.1) scaleY(0.9); }
+}
+@keyframes ace-typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+.ace-state-idle {
+  animation: ace-breathe-soft 3s ease-in-out infinite,
+             ace-glow-soft 3s ease-in-out infinite;
+}
+.ace-state-thinking-core {
+  transform: scale(0.55);
+  transition: transform 250ms ease-out;
+}
+.ace-state-responding {
+  animation: ace-breathe-soft 1.4s ease-in-out infinite;
+}
+.ace-state-excited {
+  animation: ace-jump 900ms ease-in-out infinite;
+}
+.ace-orbit-dot {
+  animation: ace-orbit 2s linear infinite;
+  transform-origin: center;
+}
+.ace-ripple {
+  animation: ace-ripple-out 1.6s ease-out infinite;
+  transform-origin: center;
+}
+
+/* Drawer slide */
+@keyframes ace-drawer-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.ace-drawer-enter {
+  animation: ace-drawer-up 250ms ease-out;
+}
+
 /* Success check pop-in */
 @keyframes success-pop {
   0% { transform: scale(0.4); opacity: 0; }
