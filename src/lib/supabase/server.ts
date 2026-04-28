@@ -12,10 +12,12 @@ export async function createServerSupabaseClient() {
       "placeholder-key",
       {
         cookies: {
-          getAll() { return []; },
+          getAll() {
+            return [];
+          },
           setAll() {},
         },
-      }
+      },
     );
   }
 

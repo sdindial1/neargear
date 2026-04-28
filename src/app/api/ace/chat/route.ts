@@ -1,4 +1,12 @@
 import { NextRequest } from "next/server";
+import * as Sentry from "@sentry/nextjs";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+import {
+  checkUserLimit,
+  checkDailyLimit,
+  incrementCounters,
+} from "@/lib/ace-rate-limit";
+import { sanitizeText, LIMITS } from "@/lib/sanitize";
 
 interface AceContext {
   page?: string;
@@ -86,69 +94,142 @@ function buildContextBlock(ctx: AceContext): string {
 }
 
 export async function POST(request: NextRequest) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return Response.json({ error: "Ace not configured" }, { status: 500 });
-  }
-
-  let body: {
-    message?: string;
-    conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
-    context?: AceContext;
-  };
   try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "Bad request" }, { status: 400 });
-  }
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!body.message || typeof body.message !== "string") {
-    return Response.json({ error: "Message is required" }, { status: 400 });
-  }
+    if (!user) {
+      return Response.json(
+        { error: "auth_required", message: "Sign in to chat with Ace" },
+        { status: 401 },
+      );
+    }
 
-  const history = (body.conversationHistory ?? []).filter(
-    (m) =>
-      (m.role === "user" || m.role === "assistant") &&
-      typeof m.content === "string",
-  );
+    const dailyCheck = checkDailyLimit();
+    if (!dailyCheck.allowed) {
+      return Response.json(
+        {
+          error: "daily_cap",
+          message:
+            "Ace is taking a break for today and will be back tomorrow! 🌙 In the meantime check out our Help section for common questions.",
+        },
+        { status: 429 },
+      );
+    }
 
-  const messages = [
-    ...history.slice(-12),
-    { role: "user" as const, content: body.message },
-  ];
+    const userCheck = checkUserLimit(user.id);
+    if (!userCheck.allowed) {
+      return Response.json(
+        {
+          error: "rate_limit",
+          message:
+            "You've been busy! Ace needs a quick breather — try again in an hour 😊",
+        },
+        { status: 429 },
+      );
+    }
 
-  const system = `${BASE_PROMPT}\n${buildContextBlock(body.context ?? {})}`;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return Response.json(
+        { error: "Ace not configured" },
+        { status: 500 },
+      );
+    }
 
-  const upstream = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-5-20250929",
-      max_tokens: 500,
-      system,
-      messages,
-      stream: true,
-    }),
-  });
+    let body: {
+      message?: string;
+      conversationHistory?: Array<{
+        role: "user" | "assistant";
+        content: string;
+      }>;
+      context?: AceContext;
+    };
+    try {
+      body = await request.json();
+    } catch {
+      return Response.json({ error: "Bad request" }, { status: 400 });
+    }
 
-  if (!upstream.ok || !upstream.body) {
-    const text = await upstream.text().catch(() => "");
-    console.error("[ace] anthropic error", upstream.status, text.slice(0, 500));
+    if (!body.message || typeof body.message !== "string") {
+      return Response.json(
+        { error: "Message is required" },
+        { status: 400 },
+      );
+    }
+
+    const cleanMessage = sanitizeText(body.message, LIMITS.ACE_MESSAGE);
+    if (!cleanMessage) {
+      return Response.json(
+        { error: "Message is required" },
+        { status: 400 },
+      );
+    }
+
+    const history = (body.conversationHistory ?? [])
+      .filter(
+        (m) =>
+          (m.role === "user" || m.role === "assistant") &&
+          typeof m.content === "string",
+      )
+      .map((m) => ({
+        role: m.role,
+        content: sanitizeText(m.content, LIMITS.ACE_MESSAGE),
+      }));
+
+    const messages = [
+      ...history.slice(-12),
+      { role: "user" as const, content: cleanMessage },
+    ];
+
+    const system = `${BASE_PROMPT}\n${buildContextBlock(body.context ?? {})}`;
+
+    const upstream = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-5-20250929",
+        max_tokens: 500,
+        system,
+        messages,
+        stream: true,
+      }),
+    });
+
+    if (!upstream.ok || !upstream.body) {
+      const text = await upstream.text().catch(() => "");
+      console.error(
+        "[ace] anthropic error",
+        upstream.status,
+        text.slice(0, 500),
+      );
+      return Response.json(
+        { error: "Ace upstream error" },
+        { status: 502 },
+      );
+    }
+
+    incrementCounters(user.id);
+
+    return new Response(upstream.body, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    });
+  } catch (err) {
+    console.error("[ace] unexpected error", err);
+    Sentry.captureException(err);
     return Response.json(
-      { error: "Ace upstream error", status: upstream.status },
-      { status: 502 },
+      { error: "Something went wrong" },
+      { status: 500 },
     );
   }
-
-  return new Response(upstream.body, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
-  });
 }

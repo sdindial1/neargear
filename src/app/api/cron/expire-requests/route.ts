@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { notifyWishlistReactivation } from "@/lib/notifications";
 import { calculatePlatformFee } from "@/lib/fees";
@@ -5,7 +6,22 @@ import { calculatePlatformFee } from "@/lib/fees";
 const STALE_HOURS = 48;
 const COMPLETION_STALE_HOURS = 24;
 
+function checkCronAuth(request: Request): Response | null {
+  if (process.env.NODE_ENV !== "production") return null;
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    console.error("[cron] CRON_SECRET not configured in production");
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const auth = request.headers.get("authorization");
+  if (auth !== `Bearer ${secret}`) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return null;
+}
+
 async function runExpiry() {
+  try {
   const supabase = await createServerSupabaseClient();
   const cutoffIso = new Date(
     Date.now() - STALE_HOURS * 60 * 60 * 1000,
@@ -42,6 +58,8 @@ async function runExpiry() {
       console.error(`[expire-requests] meetup ${m.id} update failed:`, mErr);
       continue;
     }
+
+    if (!m.listing_id) continue;
 
     await supabase
       .from("listings")
@@ -90,10 +108,12 @@ async function runExpiry() {
         })
         .eq("id", m.id);
 
-      await supabase
-        .from("listings")
-        .update({ status: "sold" })
-        .eq("id", m.listing_id);
+      if (m.listing_id) {
+        await supabase
+          .from("listings")
+          .update({ status: "sold" })
+          .eq("id", m.listing_id);
+      }
 
       const retail = (
         m as unknown as { listing?: { retail_price: number | null } }
@@ -126,14 +146,24 @@ async function runExpiry() {
     cutoff: cutoffIso,
     completionCutoff: completionCutoffIso,
   });
+  } catch (err) {
+    console.error("[cron] expire-requests error", err);
+    Sentry.captureException(err);
+    return Response.json(
+      { error: "Something went wrong" },
+      { status: 500 },
+    );
+  }
 }
 
-export async function POST() {
+export async function POST(request: Request) {
+  const unauthorized = checkCronAuth(request);
+  if (unauthorized) return unauthorized;
   return runExpiry();
 }
 
-export async function GET() {
-  // Allow GET for manual dev triggering. In production this should require
-  // a shared-secret header (cron-job.org or Vercel cron passes one).
+export async function GET(request: Request) {
+  const unauthorized = checkCronAuth(request);
+  if (unauthorized) return unauthorized;
   return runExpiry();
 }

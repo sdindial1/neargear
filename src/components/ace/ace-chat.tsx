@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Send, X } from "lucide-react";
+import Link from "next/link";
+import { Loader2, LogIn, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { createClient } from "@/lib/supabase/client";
 import { AceCharacter, type AceState } from "./ace-character";
 import { PhotoTipsCard } from "./photo-tips-card";
 import { useAceContext, suggestedPrompts } from "@/hooks/useAceContext";
@@ -13,8 +15,14 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   showsPhotoTips?: boolean;
+  showsSignIn?: boolean;
   pending?: boolean;
 }
+
+type LimitState = null | "user_hour" | "daily";
+
+const SIGN_IN_PROMPT =
+  "Hey! Sign in to chat with me — I can give you personalized help once I know who you are 😊";
 
 interface Props {
   onClose: () => void;
@@ -31,12 +39,31 @@ function shouldShowPhotoTips(text: string): boolean {
 
 export function AceChat({ onClose, onAceState }: Props) {
   const ctx = useAceContext();
+  const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [limitState, setLimitState] = useState<LimitState>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let alive = true;
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (alive) setSignedIn(!!user);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSignedIn(!!session?.user);
+    });
+    return () => {
+      alive = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   const prompts = useMemo(() => suggestedPrompts(ctx), [ctx]);
 
@@ -44,8 +71,28 @@ export function AceChat({ onClose, onAceState }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  const promptSignIn = () => {
+    setMessages((prev) => {
+      if (prev.length > 0 && prev[prev.length - 1].showsSignIn) return prev;
+      return [
+        ...prev,
+        {
+          id: `signin-${Date.now()}`,
+          role: "assistant",
+          content: SIGN_IN_PROMPT,
+          showsSignIn: true,
+        },
+      ];
+    });
+  };
+
   const sendMessage = async (text: string) => {
     if (!text.trim() || sending) return;
+    if (signedIn === false) {
+      promptSignIn();
+      return;
+    }
+    if (limitState !== null) return;
     const userMsg: Message = {
       id: `u${Date.now()}`,
       role: "user",
@@ -80,6 +127,41 @@ export function AceChat({ onClose, onAceState }: Props) {
           context: ctx,
         }),
       });
+
+      if (res.status === 401) {
+        const json = await res.json().catch(() => ({}));
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aceMsg.id
+              ? {
+                  ...m,
+                  content: json.message || SIGN_IN_PROMPT,
+                  showsSignIn: true,
+                  pending: false,
+                }
+              : m,
+          ),
+        );
+        onAceState("idle");
+        return;
+      }
+
+      if (res.status === 429) {
+        const json = await res.json().catch(() => ({}));
+        const msg = json.message || "Try again later.";
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aceMsg.id
+              ? { ...m, content: msg, pending: false }
+              : m,
+          ),
+        );
+        if (json.error === "rate_limit") setLimitState("user_hour");
+        else if (json.error === "daily_cap") setLimitState("daily");
+        onAceState("alert");
+        setTimeout(() => onAceState("idle"), 2000);
+        return;
+      }
 
       if (!res.ok || !res.body) {
         const body = await res.json().catch(() => ({}));
@@ -183,7 +265,7 @@ export function AceChat({ onClose, onAceState }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-          {messages.length === 0 && (
+          {messages.length === 0 && signedIn !== false && (
             <div className="flex flex-col items-center justify-center text-center py-6">
               <AceCharacter state="idle" size="lg" className="mb-4" />
               <p className="font-heading text-xl font-bold text-navy">
@@ -207,6 +289,23 @@ export function AceChat({ onClose, onAceState }: Props) {
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {messages.length === 0 && signedIn === false && (
+            <div className="flex flex-col items-center justify-center text-center py-6">
+              <AceCharacter state="idle" size="lg" className="mb-4" />
+              <p className="font-heading text-xl font-bold text-navy">
+                Hey! I&apos;m Ace 👋
+              </p>
+              <p className="text-sm text-muted-foreground mt-2 max-w-xs leading-relaxed">
+                {SIGN_IN_PROMPT}
+              </p>
+              <Link href="/auth/login" className="mt-5 inline-block">
+                <Button className="btn-primary h-11 px-6">
+                  <LogIn className="w-4 h-4" /> Sign In
+                </Button>
+              </Link>
             </div>
           )}
 
@@ -241,6 +340,13 @@ export function AceChat({ onClose, onAceState }: Props) {
                     </div>
                   )}
                   {m.showsPhotoTips && !m.pending && <PhotoTipsCard />}
+                  {m.showsSignIn && !m.pending && (
+                    <Link href="/auth/login" className="inline-block mt-2">
+                      <Button className="btn-primary h-10 px-4">
+                        <LogIn className="w-4 h-4" /> Sign In
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </div>
             ),
@@ -258,20 +364,41 @@ export function AceChat({ onClose, onAceState }: Props) {
         <div className="border-t p-3 flex gap-2 items-end safe-bottom">
           <Input
             ref={inputRef}
-            placeholder="Ask Ace anything…"
+            placeholder={
+              signedIn === false
+                ? "Sign in to chat"
+                : limitState === "user_hour"
+                  ? "Try again in an hour"
+                  : limitState === "daily"
+                    ? "Ace is back tomorrow"
+                    : "Ask Ace anything…"
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onFocus={(e) => {
+              if (signedIn === false) {
+                e.currentTarget.blur();
+                promptSignIn();
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 sendMessage(input);
               }
             }}
+            disabled={limitState !== null}
+            readOnly={signedIn === false}
             className="input-large flex-1"
           />
           <Button
             onClick={() => sendMessage(input)}
-            disabled={!input.trim() || sending}
+            disabled={
+              !input.trim() ||
+              sending ||
+              limitState !== null ||
+              signedIn === false
+            }
             className="btn-primary h-[52px] px-4"
           >
             {sending ? (
