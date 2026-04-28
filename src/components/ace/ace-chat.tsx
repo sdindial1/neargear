@@ -8,8 +8,6 @@ import { AceCharacter, type AceState } from "./ace-character";
 import { PhotoTipsCard } from "./photo-tips-card";
 import { useAceContext, suggestedPrompts } from "@/hooks/useAceContext";
 
-const INTRO_KEY = "neargear:ace:intro_seen";
-
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -43,32 +41,8 @@ export function AceChat({ onClose, onAceState }: Props) {
   const prompts = useMemo(() => suggestedPrompts(ctx), [ctx]);
 
   useEffect(() => {
-    let intro = false;
-    try {
-      intro = window.localStorage.getItem(INTRO_KEY) !== "1";
-    } catch {}
-    if (intro) {
-      setMessages([
-        {
-          id: "intro",
-          role: "assistant",
-          content:
-            "Hey! I'm Ace 👋\nI'm here to help you find the right gear, price your items, and make swapping easy. What can I help you with?",
-        },
-      ]);
-      try {
-        window.localStorage.setItem(INTRO_KEY, "1");
-      } catch {}
-    }
-  }, []);
-
-  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || sending) return;
@@ -181,11 +155,11 @@ export function AceChat({ onClose, onAceState }: Props) {
   return (
     <>
       <div
-        className="fixed inset-0 z-[70] bg-black/30"
+        className="fixed inset-0 z-[70] bg-black/50"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="fixed inset-x-0 bottom-0 z-[71] bg-white rounded-t-3xl shadow-2xl flex flex-col ace-drawer-enter h-[78vh]">
+      <div className="fixed inset-x-0 bottom-0 z-[71] bg-white rounded-t-3xl shadow-2xl flex flex-col ace-drawer-enter h-[65dvh] max-h-[65dvh]">
         <div className="flex items-center gap-3 px-4 py-3 border-b">
           <AceCharacter
             state={sending ? "thinking" : "idle"}
@@ -209,6 +183,33 @@ export function AceChat({ onClose, onAceState }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center text-center py-6">
+              <AceCharacter state="idle" size="lg" className="mb-4" />
+              <p className="font-heading text-xl font-bold text-navy">
+                Hey! I&apos;m Ace 👋
+              </p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                Ask me anything about gear, sizing, or how NearGear works.
+              </p>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mt-6 mb-2 self-start">
+                Suggested
+              </p>
+              <div className="flex flex-wrap gap-2 self-start">
+                {prompts.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => sendMessage(p)}
+                    className="text-sm border border-orange/40 text-orange rounded-full px-3 py-1.5 hover:bg-orange/5"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {messages.map((m) =>
             m.role === "user" ? (
               <div key={m.id} className="flex justify-end">
@@ -243,26 +244,6 @@ export function AceChat({ onClose, onAceState }: Props) {
                 </div>
               </div>
             ),
-          )}
-
-          {messages.length <= 1 && (
-            <div className="pt-2">
-              <p className="text-xs text-muted-foreground mb-2">
-                Suggested
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {prompts.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => sendMessage(p)}
-                    className="text-sm border border-orange/40 text-orange rounded-full px-3 py-1.5 hover:bg-orange/5"
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
           )}
 
           {error && (
