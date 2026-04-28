@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { createClient } from "@/lib/supabase/client";
 import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
@@ -17,6 +18,7 @@ import {
   MapPin,
   Star,
   X,
+  Handshake,
 } from "lucide-react";
 
 type TabKey = "incoming" | "sent" | "scheduled" | "past";
@@ -295,8 +297,26 @@ function ProfileMeetupsPageInner() {
         </div>
 
         {filtered.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <p>No meetups here yet.</p>
+          <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+            <Handshake className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <p className="text-navy font-semibold">
+              {tab === "incoming"
+                ? "No buyer requests yet"
+                : tab === "sent"
+                  ? "You haven't sent any requests"
+                  : tab === "scheduled"
+                    ? "No meetups scheduled"
+                    : "No past meetups"}
+            </p>
+            <p className="text-sm text-muted-foreground mt-1 mb-4 px-6">
+              {tab === "incoming"
+                ? "When buyers send you offers, they'll show up here."
+                : tab === "sent"
+                  ? "Find a piece of gear and tap Request to Buy."
+                  : tab === "scheduled"
+                    ? "Confirm a request to schedule a meetup."
+                    : "Completed and cancelled meetups land here."}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -322,7 +342,7 @@ function ProfileMeetupsPageInner() {
                 method: "POST",
               });
               const json = await res.json();
-              alert(
+              toast.success(
                 `Expiry run: ${json.expired ?? 0} cancelled, ${json.notified ?? 0} would-notify`,
               );
               location.reload();

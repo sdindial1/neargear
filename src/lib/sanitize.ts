@@ -1,6 +1,7 @@
 import DOMPurify from "isomorphic-dompurify";
 
 export const LIMITS = {
+  NAME: 60,
   LISTING_TITLE: 100,
   LISTING_DESCRIPTION: 1000,
   MESSAGE: 500,

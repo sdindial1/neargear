@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -257,9 +258,10 @@ export function AdminDashboard({ payload }: { payload: AdminPayload }) {
     setRemovingId(null);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      alert(`Failed: ${body.error ?? res.status}`);
+      toast.error(`Failed: ${body.error ?? res.status}`);
       return;
     }
+    toast.success("Listing removed");
     router.refresh();
   };
 

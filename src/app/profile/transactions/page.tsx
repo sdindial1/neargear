@@ -7,7 +7,7 @@ import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ImageIcon, Loader2 } from "lucide-react";
+import { ImageIcon, Loader2, Receipt } from "lucide-react";
 
 interface TxRow {
   id: string;
@@ -100,8 +100,18 @@ function ProfileTransactionsInner() {
         )}
 
         {rows.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <p>No transactions yet.</p>
+          <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+            <Receipt className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <p className="text-navy font-semibold">No transactions yet</p>
+            <p className="text-sm text-muted-foreground mt-1 mb-4 px-6">
+              When you buy or sell gear, your receipts and earnings show up
+              here.
+            </p>
+            <Link href="/browse">
+              <Button className="bg-orange hover:bg-orange-light text-white min-h-[44px]">
+                Browse Gear
+              </Button>
+            </Link>
           </div>
         ) : (
           <div className="space-y-3">

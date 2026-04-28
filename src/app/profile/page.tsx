@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
 import { ListingCard } from "@/components/listing-card";
-import { ListingCardSkeleton } from "@/components/listing-card-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,10 +18,10 @@ import {
   Plus,
   Pencil,
   Trash2,
-  X,
   Loader2,
   LogOut,
   UserCircle,
+  Package,
 } from "lucide-react";
 import {
   Select,
@@ -145,6 +145,10 @@ function ProfilePageInner() {
 
   const activeListings = listings.filter((l) => l.status === "active");
   const soldListings = listings.filter((l) => l.status === "sold");
+  const totalSold = soldListings.reduce(
+    (sum, l) => sum + (l.price || 0),
+    0,
+  );
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -178,6 +182,14 @@ function ProfilePageInner() {
             <p className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
               <Calendar className="w-3 h-3" /> Member since {memberSince}
             </p>
+            <Link href="/profile/edit">
+              <Button
+                variant="outline"
+                className="mt-4 min-h-[40px] border-navy/20 text-navy hover:bg-navy/5"
+              >
+                <Pencil className="w-4 h-4" /> Edit Profile
+              </Button>
+            </Link>
           </div>
 
           {/* Stats */}
@@ -191,8 +203,10 @@ function ProfilePageInner() {
               <p className="text-xs text-muted-foreground">Sold</p>
             </div>
             <div className="bg-white rounded-xl p-3 text-center shadow-sm">
-              <p className="text-2xl font-bold text-navy">0</p>
-              <p className="text-xs text-muted-foreground">Bought</p>
+              <p className="text-2xl font-bold text-navy">
+                ${(totalSold / 100).toFixed(0)}
+              </p>
+              <p className="text-xs text-muted-foreground">Earned</p>
             </div>
           </div>
 
@@ -292,18 +306,31 @@ function ProfilePageInner() {
               Your Listings
             </h2>
             {activeListings.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No active listings</p>
-                <a href="/sell">
-                  <Button className="mt-3 bg-orange hover:bg-orange-light text-white min-h-[44px]">
+              <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+                <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-navy font-semibold">No active listings yet</p>
+                <p className="text-sm text-muted-foreground mt-1 mb-4 px-6">
+                  Snap a photo and Ace will price it for you in seconds.
+                </p>
+                <Link href="/sell">
+                  <Button className="bg-orange hover:bg-orange-light text-white min-h-[44px]">
                     <Plus className="w-4 h-4 mr-1" /> Create Listing
                   </Button>
-                </a>
+                </Link>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {activeListings.map((listing) => (
-                  <ListingCard key={listing.id} listing={listing} />
+                  <div key={listing.id} className="relative">
+                    <ListingCard listing={listing} />
+                    <Link
+                      href={`/listings/${listing.id}/edit`}
+                      className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/95 shadow-md flex items-center justify-center text-navy hover:bg-orange hover:text-white transition-colors z-10"
+                      aria-label="Edit listing"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Link>
+                  </div>
                 ))}
               </div>
             )}

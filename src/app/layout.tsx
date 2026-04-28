@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Barlow, Barlow_Condensed } from "next/font/google";
+import { Toaster } from "react-hot-toast";
 import { AceFloating } from "@/components/ace/ace-floating";
 import "./globals.css";
 
@@ -34,6 +35,17 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {children}
         <AceFloating />
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            style: {
+              background: "#0d2438",
+              color: "#fff",
+              border: "1px solid #1e3d56",
+            },
+            success: { iconTheme: { primary: "#ff6b35", secondary: "#fff" } },
+          }}
+        />
       </body>
     </html>
   );
