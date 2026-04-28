@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { AceCharacter, type AceState } from "./ace-character";
 import { AceChat } from "./ace-chat";
 
@@ -35,12 +36,27 @@ export function AceFloating() {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<AceState>("idle");
   const [hasUnread, setHasUnread] = useState(false);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const dragRef = useRef<{
     startX: number;
     startY: number;
     moved: boolean;
     pointerId: number | null;
   } | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSignedIn(!!session?.user);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSignedIn(!!session?.user);
+      if (!session?.user) setOpen(false);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -102,6 +118,7 @@ export function AceFloating() {
     setOpen(true);
   };
 
+  if (!signedIn) return null;
   if (HIDE_PATHS.some((p) => pathname?.startsWith(p))) return null;
   if (!pos) return null;
 
