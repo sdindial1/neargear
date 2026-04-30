@@ -266,15 +266,14 @@ export function AceChat({ onClose, onAceState }: Props) {
 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {messages.length === 0 && signedIn !== false && (
-            <div className="flex flex-col items-center justify-center text-center py-6">
-              <AceCharacter state="idle" size="lg" className="mb-4" />
+            <div className="min-h-full flex flex-col items-center justify-center text-center py-10">
               <p className="font-heading text-xl font-bold text-navy">
                 Hey! I&apos;m Ace 👋
               </p>
-              <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+              <p className="text-sm text-muted-foreground mt-2 max-w-xs">
                 Ask me anything about gear, sizing, or how NearGear works.
               </p>
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mt-6 mb-2 self-start">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mt-8 mb-3 self-start">
                 Suggested
               </p>
               <div className="flex flex-wrap gap-2 self-start">
@@ -293,8 +292,7 @@ export function AceChat({ onClose, onAceState }: Props) {
           )}
 
           {messages.length === 0 && signedIn === false && (
-            <div className="flex flex-col items-center justify-center text-center py-6">
-              <AceCharacter state="idle" size="lg" className="mb-4" />
+            <div className="min-h-full flex flex-col items-center justify-center text-center py-10">
               <p className="font-heading text-xl font-bold text-navy">
                 Hey! I&apos;m Ace 👋
               </p>
