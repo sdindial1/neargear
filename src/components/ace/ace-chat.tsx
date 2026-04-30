@@ -443,8 +443,14 @@ export function AceChat({ onClose, onAceState }: Props) {
 function AceIntro({ phase }: { phase: IntroPhase }) {
   if (phase === "gone") return null;
 
+  // Hero SVG (with helmet "A" badge + highlights) for the pop-in moment,
+  // then crossfade to the smaller state SVGs that drive the ongoing loop.
   const characterState: AceState =
-    phase === "excited" ? "excited" : "idle";
+    phase === "popping"
+      ? "hero"
+      : phase === "excited"
+        ? "excited"
+        : "idle";
   const wrapperClass =
     phase === "popping"
       ? "ace-intro-pop"
@@ -454,11 +460,11 @@ function AceIntro({ phase }: { phase: IntroPhase }) {
   const showGlow = phase !== "leaving";
 
   return (
-    <div className="relative" style={{ width: 160, height: 160 }}>
+    <div className="relative" style={{ width: 200, height: 200 }}>
       {showGlow && (
         <span
           aria-hidden
-          className="ace-glow-pulse absolute -inset-4 rounded-full pointer-events-none"
+          className="ace-glow-pulse absolute -inset-6 rounded-full pointer-events-none"
         />
       )}
       <div className={`relative ${wrapperClass}`}>
