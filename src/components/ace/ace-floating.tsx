@@ -83,7 +83,10 @@ export function AceFloating() {
   if (HIDE_PATHS.some((p) => pathname?.startsWith(p))) return null;
 
   const isOpen = phase !== "closed";
-  const allowInteract = phase === "open";
+  // Bubble + backdrop accept taps anytime they're visible — including during
+  // the opening/popped windows, so the X works even on a fast double-tap.
+  // Only "closing" disables further taps so stray taps don't reopen.
+  const interactive = phase === "opening" || phase === "popped" || phase === "open";
 
   // Ace state during the lifecycle
   const renderedAceState: AceState =
@@ -93,17 +96,17 @@ export function AceFloating() {
         ? chatState
         : "idle";
 
-  // Reveal the closed circle only when fully closed; everything else shows
-  // the full character so transitions stay smooth.
   const closedFaceOpacity = phase === "closed" ? 1 : 0;
   const fullCharOpacity = phase === "closed" ? 0 : 1;
 
-  // Bubble visibility — when fully closed, scaled to 0; once any other phase
-  // engages, springs to scaleY(1).
-  const bubbleScaleY =
-    phase === "closed" || phase === "closing" ? 0 : 1;
-  const bubbleOpacity =
-    phase === "closed" || phase === "closing" ? 0 : 1;
+  // Bubble stays mounted at full 70dvh — visibility comes from scaleY +
+  // opacity, never from height. (Animating height triggers reflow on every
+  // frame and looks janky on mobile.)
+  const bubbleHidden = phase === "closed" || phase === "closing";
+  const bubbleTransform = bubbleHidden
+    ? "scaleY(0) translateY(8px)"
+    : "scaleY(1) translateY(0)";
+  const bubbleOpacity = bubbleHidden ? 0 : 1;
 
   const handleTap = () => {
     if (phase === "closed") {
@@ -112,26 +115,27 @@ export function AceFloating() {
     }
   };
 
-  const close = () => {
+  const close = (e?: React.MouseEvent | React.PointerEvent) => {
+    e?.stopPropagation();
     if (phase === "closed" || phase === "closing") return;
     setPhase("closing");
   };
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — only catches taps OUTSIDE the bubble. Tints the page. */}
       <div
         onClick={close}
         aria-hidden
         className="fixed inset-0 z-40 bg-black/40"
         style={{
           opacity: isOpen ? 1 : 0,
-          pointerEvents: allowInteract ? "auto" : "none",
+          pointerEvents: interactive ? "auto" : "none",
           transition: "opacity 250ms ease",
         }}
       />
 
-      {/* Speech bubble */}
+      {/* Speech bubble — always mounted at full 70dvh, hidden via scaleY. */}
       <div
         className="fixed z-50 bg-white flex flex-col overflow-hidden"
         style={{
@@ -142,20 +146,24 @@ export function AceFloating() {
           maxHeight: `calc(100dvh - ${BUBBLE_BOTTOM + 24}px)`,
           borderRadius: "20px 20px 4px 20px",
           boxShadow: "0 8px 40px rgba(0,0,0,0.15)",
-          transformOrigin: "bottom right",
-          transform: `scaleY(${bubbleScaleY})`,
+          transformOrigin: "bottom center",
+          transform: bubbleTransform,
           opacity: bubbleOpacity,
-          pointerEvents: allowInteract ? "auto" : "none",
+          pointerEvents: interactive ? "auto" : "none",
           transition:
-            "transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease",
+            "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease",
         }}
       >
-        {/* Just an X button — no header per redesign */}
+        {/* X button — explicit stopPropagation so a parent doesn't swallow it.
+            pointer-events: auto covers the case where some ancestor was set
+            to none mid-animation. */}
         <button
           type="button"
-          onClick={close}
+          onClick={(e) => close(e)}
+          onPointerDown={(e) => e.stopPropagation()}
           aria-label="Close Ace"
-          className="absolute top-2 right-2 z-10 w-11 h-11 rounded-full hover:bg-gray-100 flex items-center justify-center text-navy"
+          className="absolute top-2 right-2 w-11 h-11 rounded-full hover:bg-gray-100 flex items-center justify-center text-navy"
+          style={{ zIndex: 51, pointerEvents: "auto" }}
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path
@@ -169,7 +177,7 @@ export function AceFloating() {
 
         {/* Panel content */}
         <AceChat
-          onClose={close}
+          onClose={() => close()}
           onAceState={setChatState}
           onUnread={setHasUnread}
         />
@@ -178,7 +186,7 @@ export function AceFloating() {
       {/* Tail — small white triangle pointing down at Ace */}
       <span
         aria-hidden
-        className="fixed z-50"
+        className="fixed z-50 pointer-events-none"
         style={{
           right: ACE_RIGHT + (OPEN_PX - 20) / 2,
           bottom: BUBBLE_BOTTOM - TAIL_GAP,
