@@ -20,6 +20,7 @@ interface Message {
 }
 
 type LimitState = null | "user_hour" | "daily";
+type IntroPhase = "popping" | "excited" | "idle" | "leaving" | "gone";
 
 const SIGN_IN_PROMPT =
   "Hey! Sign in to chat with me — I can give you personalized help once I know who you are 😊";
@@ -46,8 +47,28 @@ export function AceChat({ onClose, onAceState }: Props) {
   const [error, setError] = useState("");
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [limitState, setLimitState] = useState<LimitState>(null);
+  const [introPhase, setIntroPhase] = useState<IntroPhase>("popping");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fresh-mount intro sequence: pop → excited jump → settle to idle.
+  useEffect(() => {
+    const t1 = window.setTimeout(() => setIntroPhase("excited"), 400);
+    const t2 = window.setTimeout(() => setIntroPhase("idle"), 900);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, []);
+
+  // Fade Ace out of the welcome state once the conversation starts.
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (introPhase === "leaving" || introPhase === "gone") return;
+    setIntroPhase("leaving");
+    const t = window.setTimeout(() => setIntroPhase("gone"), 300);
+    return () => window.clearTimeout(t);
+  }, [messages.length, introPhase]);
 
   useEffect(() => {
     let alive = true;
@@ -265,35 +286,43 @@ export function AceChat({ onClose, onAceState }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-          {messages.length === 0 && signedIn !== false && (
-            <div className="min-h-full flex flex-col items-center justify-center text-center py-10">
-              <p className="font-heading text-xl font-bold text-navy">
-                Hey! I&apos;m Ace 👋
-              </p>
-              <p className="text-sm text-muted-foreground mt-2 max-w-xs">
-                Ask me anything about gear, sizing, or how NearGear works.
-              </p>
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mt-8 mb-3 self-start">
-                Suggested
-              </p>
-              <div className="flex flex-wrap gap-2 self-start">
-                {prompts.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => sendMessage(p)}
-                    className="text-sm border border-orange/40 text-orange rounded-full px-3 py-1.5 hover:bg-orange/5"
-                  >
-                    {p}
-                  </button>
-                ))}
+          {(messages.length === 0 || introPhase === "leaving") &&
+            signedIn !== false && (
+              <div className="min-h-full flex flex-col items-center justify-center text-center py-8">
+                <AceIntro phase={introPhase} />
+                {messages.length === 0 && (
+                  <>
+                    <p className="font-heading text-xl font-bold text-navy mt-4">
+                      Hey! I&apos;m Ace 👋
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2 max-w-xs">
+                      Ask me anything about gear, sizing, or how NearGear
+                      works.
+                    </p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mt-8 mb-3 self-start">
+                      Suggested
+                    </p>
+                    <div className="flex flex-wrap gap-2 self-start">
+                      {prompts.map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => sendMessage(p)}
+                          className="text-sm border border-orange/40 text-orange rounded-full px-3 py-1.5 hover:bg-orange/5"
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
-            </div>
-          )}
+            )}
 
           {messages.length === 0 && signedIn === false && (
-            <div className="min-h-full flex flex-col items-center justify-center text-center py-10">
-              <p className="font-heading text-xl font-bold text-navy">
+            <div className="min-h-full flex flex-col items-center justify-center text-center py-8">
+              <AceIntro phase={introPhase} />
+              <p className="font-heading text-xl font-bold text-navy mt-4">
                 Hey! I&apos;m Ace 👋
               </p>
               <p className="text-sm text-muted-foreground mt-2 max-w-xs leading-relaxed">
@@ -408,5 +437,33 @@ export function AceChat({ onClose, onAceState }: Props) {
         </div>
       </div>
     </>
+  );
+}
+
+function AceIntro({ phase }: { phase: IntroPhase }) {
+  if (phase === "gone") return null;
+
+  const characterState: AceState =
+    phase === "excited" ? "excited" : "idle";
+  const wrapperClass =
+    phase === "popping"
+      ? "ace-intro-pop"
+      : phase === "leaving"
+        ? "ace-intro-leave"
+        : "";
+  const showGlow = phase !== "leaving";
+
+  return (
+    <div className="relative" style={{ width: 160, height: 160 }}>
+      {showGlow && (
+        <span
+          aria-hidden
+          className="ace-glow-pulse absolute -inset-4 rounded-full pointer-events-none"
+        />
+      )}
+      <div className={`relative ${wrapperClass}`}>
+        <AceCharacter state={characterState} size="lg" />
+      </div>
+    </div>
   );
 }

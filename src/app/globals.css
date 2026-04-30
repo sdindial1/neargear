@@ -456,6 +456,35 @@
   animation: ace-drawer-up 250ms ease-out;
 }
 
+/* Ace welcome-state intro */
+@keyframes ace-pop-in {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes ace-fade-out {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.8); opacity: 0; }
+}
+@keyframes ace-glow-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
+.ace-intro-pop {
+  animation: ace-pop-in 400ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.ace-intro-leave {
+  animation: ace-fade-out 300ms ease-in both;
+}
+.ace-glow-pulse {
+  animation: ace-glow-pulse 3s ease-in-out infinite;
+  background: radial-gradient(
+    circle,
+    rgba(255, 107, 53, 0.25) 0%,
+    rgba(255, 107, 53, 0) 70%
+  );
+}
+
 /* Success check pop-in */
 @keyframes success-pop {
   0% { transform: scale(0.4); opacity: 0; }
