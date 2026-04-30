@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Loader2, LogIn, Send, X } from "lucide-react";
+import { Loader2, LogIn, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
@@ -43,7 +43,7 @@ function shouldShowPhotoTips(text: string): boolean {
  * component only renders the top bar, the message list (or welcome state),
  * and the sticky input.
  */
-export function AceChat({ onClose, onAceState }: Props) {
+export function AceChat({ onAceState }: Props) {
   const ctx = useAceContext();
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -248,28 +248,10 @@ export function AceChat({ onClose, onAceState }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <div className="min-w-0">
-          <p className="font-heading font-bold text-navy leading-none text-base">
-            Ace
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            NearGear AI
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close Ace"
-          className="p-2 -mr-1 rounded-full hover:bg-gray-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
-        >
-          <X className="w-5 h-5 text-navy" />
-        </button>
-      </div>
-
-      {/* Content area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      {/* Content area — bubble shell renders its own X button at top-right.
+          Top padding leaves room for that button so content never sits
+          underneath it. */}
+      <div className="flex-1 overflow-y-auto px-4 pt-12 pb-4 space-y-3">
         {messages.length === 0 && signedIn !== false && (
           <div className="min-h-full flex flex-col items-center justify-center text-center">
             <p className="font-heading text-xl font-bold text-navy">
