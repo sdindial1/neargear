@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { createClient } from "@/lib/supabase/client";
+import { fireNotification } from "@/lib/notifications/trigger";
 import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
 import { Button } from "@/components/ui/button";
@@ -202,6 +203,7 @@ function ProfileMeetupsPageInner() {
     setRows((prev) =>
       prev.map((r) => (r.id === m.id ? { ...r, status: "scheduled" } : r)),
     );
+    void fireNotification({ event: "meetup_accepted", meetupId: m.id });
     router.push(`/meetups/${m.id}`);
   };
 
@@ -223,6 +225,7 @@ function ProfileMeetupsPageInner() {
         r.id === m.id ? { ...r, status: "cancelled_seller" } : r,
       ),
     );
+    void fireNotification({ event: "meetup_declined", meetupId: m.id });
   };
 
   if (loading) {

@@ -42,6 +42,7 @@ export default async function AdminPage() {
     listingsRes,
     meetupsRes,
     transactionsRes,
+    reportsRes,
   ] = await Promise.all([
     admin.from("users").select("*").order("created_at", { ascending: false }),
     admin
@@ -62,6 +63,12 @@ export default async function AdminPage() {
         "id, gross_amount, platform_fee, net_amount, auto_completed, created_at, buyer_id, seller_id, listing:listings!listing_id(title), buyer:users!buyer_id(full_name), seller:users!seller_id(full_name)",
       )
       .order("created_at", { ascending: false }),
+    admin
+      .from("reports")
+      .select(
+        "id, reason, details, status, created_at, reporter_id, reported_listing_id, reported_user_id, reporter:users!reporter_id(full_name, email), reported_listing:listings!reported_listing_id(title), reported_user:users!reported_user_id(full_name, email)",
+      )
+      .order("created_at", { ascending: false }),
   ]);
 
   const payload: AdminPayload = {
@@ -71,6 +78,7 @@ export default async function AdminPage() {
     meetups: (meetupsRes.data ?? []) as unknown as AdminPayload["meetups"],
     transactions: (transactionsRes.data ??
       []) as unknown as AdminPayload["transactions"],
+    reports: (reportsRes.data ?? []) as unknown as AdminPayload["reports"],
   };
 
   return <AdminDashboard payload={payload} />;

@@ -75,12 +75,27 @@ interface AdminTransaction {
   seller?: { full_name: string | null } | null;
 }
 
+interface AdminReport {
+  id: string;
+  reason: string;
+  details: string | null;
+  status: string;
+  created_at: string;
+  reporter_id: string;
+  reported_listing_id: string | null;
+  reported_user_id: string | null;
+  reporter?: { full_name: string | null; email: string } | null;
+  reported_listing?: { title: string } | null;
+  reported_user?: { full_name: string | null; email: string } | null;
+}
+
 export interface AdminPayload {
   fetchedAt: string;
   users: AdminUser[];
   listings: AdminListing[];
   meetups: AdminMeetup[];
   transactions: AdminTransaction[];
+  reports: AdminReport[];
 }
 
 function fmtMoney(cents: number): string {
@@ -831,7 +846,168 @@ export function AdminDashboard({ payload }: { payload: AdminPayload }) {
             </table>
           </div>
         </section>
+
+        {/* Reports */}
+        <ReportsSection reports={payload.reports} />
       </div>
     </main>
+  );
+}
+
+function ReportsSection({ reports }: { reports: AdminReport[] }) {
+  const router = useRouter();
+  const [statusFilter, setStatusFilter] = useState<string>("pending");
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const filtered = useMemo(() => {
+    if (statusFilter === "all") return reports;
+    return reports.filter((r) => r.status === statusFilter);
+  }, [reports, statusFilter]);
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const r of reports) c[r.status] = (c[r.status] ?? 0) + 1;
+    return c;
+  }, [reports]);
+
+  const update = async (id: string, status: "dismissed" | "actioned") => {
+    setBusyId(id);
+    const res = await fetch(`/api/admin/reports/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    setBusyId(null);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast.error(`Failed: ${body.error ?? res.status}`);
+      return;
+    }
+    toast.success(status === "dismissed" ? "Report dismissed" : "Marked actioned");
+    router.refresh();
+  };
+
+  return (
+    <section className="bg-white text-navy rounded-2xl p-4 md:p-6">
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between mb-4">
+        <h2 className="font-heading text-xl font-bold">
+          Reports{" "}
+          {counts.pending ? (
+            <span className="ml-2 text-sm font-semibold text-red-600">
+              {counts.pending} pending
+            </span>
+          ) : null}
+        </h2>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => setStatusFilter(v ?? "pending")}
+        >
+          <SelectTrigger className="h-9 w-[160px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="actioned">Actioned</SelectItem>
+            <SelectItem value="dismissed">Dismissed</SelectItem>
+            <SelectItem value="all">All</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="py-6 text-center text-muted-foreground text-sm">
+          No reports.
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {filtered.map((r) => {
+            const targetIsListing = !!r.reported_listing_id;
+            const targetLabel = targetIsListing
+              ? r.reported_listing?.title || "(missing listing)"
+              : r.reported_user?.full_name ||
+                r.reported_user?.email ||
+                "(missing user)";
+            const targetHref = targetIsListing
+              ? `/listings/${r.reported_listing_id}`
+              : `/profile`;
+            return (
+              <li
+                key={r.id}
+                className="border rounded-xl p-3 flex flex-col sm:flex-row gap-3 sm:items-start"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <Badge
+                      className={
+                        r.status === "pending"
+                          ? "bg-amber-100 text-amber-800"
+                          : r.status === "actioned"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-200 text-gray-700"
+                      }
+                    >
+                      {r.status}
+                    </Badge>
+                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      {targetIsListing ? "Listing" : "User"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {fmtDate(r.created_at)}
+                    </span>
+                  </div>
+                  <p className="font-semibold text-navy mt-1">
+                    {r.reason}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Target:{" "}
+                    <Link
+                      href={targetHref}
+                      target="_blank"
+                      className="text-orange hover:underline"
+                    >
+                      {targetLabel}
+                    </Link>
+                    {" · "}
+                    Reporter: {r.reporter?.full_name || r.reporter?.email || "?"}
+                  </p>
+                  {r.details && (
+                    <p className="text-sm text-navy/90 mt-2 bg-gray-50 rounded-lg p-2">
+                      {r.details}
+                    </p>
+                  )}
+                </div>
+                {r.status === "pending" && (
+                  <div className="flex sm:flex-col gap-2 flex-shrink-0">
+                    <Link href={targetHref} target="_blank">
+                      <Button
+                        variant="outline"
+                        className="h-8 px-3 text-xs"
+                      >
+                        Take Action
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="outline"
+                      onClick={() => update(r.id, "dismissed")}
+                      disabled={busyId === r.id}
+                      className="h-8 px-3 text-xs"
+                    >
+                      Dismiss
+                    </Button>
+                    <Button
+                      onClick={() => update(r.id, "actioned")}
+                      disabled={busyId === r.id}
+                      className="h-8 px-3 text-xs bg-orange hover:bg-orange-light text-white"
+                    >
+                      Mark Done
+                    </Button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

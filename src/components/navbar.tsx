@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LogOut, Receipt, UserCircle, Wallet } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
+import { NotificationBell } from "@/components/notification-bell";
 
 interface SignedInUser {
   id: string;
@@ -98,7 +99,9 @@ export function Navbar() {
           </Link>
 
           {user ? (
-            <DropdownMenu>
+            <div className="flex items-center gap-1">
+              <NotificationBell userId={user.id} />
+              <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 text-sm cursor-pointer">
                 <span className="hidden sm:inline text-white/80">
                   Welcome {user.full_name?.split(" ")[0] || "back"}
@@ -140,6 +143,7 @@ export function Navbar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            </div>
           ) : (
             <Link href="/auth/login" className="text-sm text-white/70">
               Sign In

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { calculatePlatformFee } from "@/lib/fees";
+import { fireNotification } from "@/lib/notifications/trigger";
 import { TransactionCelebration } from "@/components/transaction-celebration";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
 
@@ -108,16 +109,27 @@ export function CompleteTransactionSection({
       .update({ status: "sold" })
       .eq("id", listingId);
 
-    await supabase.from("transactions").insert({
-      meetup_id: meetupId,
-      listing_id: listingId,
-      buyer_id: buyerId,
-      seller_id: sellerId,
-      gross_amount: offeredPriceCents,
-      platform_fee: fee,
-      net_amount: offeredPriceCents - fee,
-      retail_price: retailPriceCents,
-    });
+    const { data: tx } = await supabase
+      .from("transactions")
+      .insert({
+        meetup_id: meetupId,
+        listing_id: listingId,
+        buyer_id: buyerId,
+        seller_id: sellerId,
+        gross_amount: offeredPriceCents,
+        platform_fee: fee,
+        net_amount: offeredPriceCents - fee,
+        retail_price: retailPriceCents,
+      })
+      .select("id")
+      .single();
+
+    if (tx?.id) {
+      void fireNotification({
+        event: "transaction_complete",
+        transactionId: tx.id,
+      });
+    }
 
     setPhase("celebrating");
   };

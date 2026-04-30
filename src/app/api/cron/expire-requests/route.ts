@@ -1,10 +1,14 @@
 import * as Sentry from "@sentry/nextjs";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { notifyWishlistReactivation } from "@/lib/notifications";
+import { sendMeetupReminderSMS } from "@/lib/notifications/sms";
+import { createNotification } from "@/lib/notifications/inapp";
 import { calculatePlatformFee } from "@/lib/fees";
 
 const STALE_HOURS = 48;
 const COMPLETION_STALE_HOURS = 24;
+const REMINDER_LEAD_MINUTES = 150; // ~2.5h
+const REMINDER_LOWER_MINUTES = 90; // ~1.5h floor so jobs running every 30m are covered
 
 function checkCronAuth(request: Request): Response | null {
   if (process.env.NODE_ENV !== "production") return null;
@@ -138,11 +142,99 @@ async function runExpiry() {
     }
   }
 
+  // ---- 2-hour SMS reminder pass ------------------------------------------
+  const now = Date.now();
+  const reminderLowerIso = new Date(
+    now + REMINDER_LOWER_MINUTES * 60 * 1000,
+  ).toISOString();
+  const reminderUpperIso = new Date(
+    now + REMINDER_LEAD_MINUTES * 60 * 1000,
+  ).toISOString();
+
+  let remindersSent = 0;
+  const { data: upcoming, error: upcomingErr } = await supabase
+    .from("meetups")
+    .select(
+      `id, meetup_window_start, meetup_location, reminder_sent,
+       buyer:users!buyer_id(phone, id),
+       seller:users!seller_id(phone, id),
+       listing:listings!listing_id(title)`,
+    )
+    .eq("status", "scheduled")
+    .eq("reminder_sent", false)
+    .gte("meetup_window_start", reminderLowerIso)
+    .lte("meetup_window_start", reminderUpperIso);
+
+  if (!upcomingErr && upcoming) {
+    for (const m of upcoming) {
+      const row = m as unknown as {
+        id: string;
+        meetup_location: string | null;
+        buyer: { id: string; phone: string | null } | null;
+        seller: { id: string; phone: string | null } | null;
+        listing: { title: string } | null;
+      };
+      let zoneName = "your meetup spot";
+      let zoneAddress = "Address shared in app";
+      if (row.meetup_location) {
+        try {
+          const parsed = JSON.parse(row.meetup_location) as {
+            name?: string;
+            address?: string;
+          };
+          zoneName = parsed.name || zoneName;
+          zoneAddress = parsed.address || zoneAddress;
+        } catch {}
+      }
+      const title = row.listing?.title || "your meetup";
+
+      try {
+        await Promise.all([
+          sendMeetupReminderSMS({
+            toPhone: row.buyer?.phone ?? null,
+            listingTitle: title,
+            zoneName,
+            zoneAddress,
+          }),
+          sendMeetupReminderSMS({
+            toPhone: row.seller?.phone ?? null,
+            listingTitle: title,
+            zoneName,
+            zoneAddress,
+          }),
+          createNotification({
+            userId: row.buyer?.id ?? null,
+            type: "meetup_reminder",
+            title: "Meetup in ~2 hours",
+            body: `Your meetup for ${title} starts soon at ${zoneName}.`,
+            link: `/meetups/${row.id}`,
+          }),
+          createNotification({
+            userId: row.seller?.id ?? null,
+            type: "meetup_reminder",
+            title: "Meetup in ~2 hours",
+            body: `Your meetup for ${title} starts soon at ${zoneName}.`,
+            link: `/meetups/${row.id}`,
+          }),
+        ]);
+
+        await supabase
+          .from("meetups")
+          .update({ reminder_sent: true })
+          .eq("id", row.id);
+        remindersSent++;
+      } catch (err) {
+        console.error(`[reminder] meetup ${row.id} failed:`, err);
+      }
+    }
+  }
+
   return Response.json({
     ok: true,
     expired: expired.length,
     notified: notifiedTotal,
     autoCompleted,
+    remindersSent,
     cutoff: cutoffIso,
     completionCutoff: completionCutoffIso,
   });

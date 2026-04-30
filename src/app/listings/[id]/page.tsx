@@ -7,6 +7,8 @@ import { Separator } from "@/components/ui/separator";
 import { SaveButton } from "@/components/save-button";
 import { SizeRecommendation } from "@/components/size-recommendation";
 import { ListingCard } from "@/components/listing-card";
+import { SellerReviews } from "@/components/seller-reviews";
+import { ReportButton } from "@/components/report-button";
 import { formatCondition } from "@/lib/utils";
 import {
   AlertCircle,
@@ -234,6 +236,15 @@ export default async function ListingPage({
             </div>
           )}
 
+          {listing.seller && listing.seller_id && (
+            <SellerReviews
+              sellerId={listing.seller_id}
+              sellerName={listing.seller.full_name || "this seller"}
+              initialAvgRating={listing.seller.avg_rating ?? null}
+              initialReviewCount={listing.seller.review_count ?? null}
+            />
+          )}
+
           <Separator className="my-4" />
 
           <h3 className="font-heading font-semibold text-navy mb-3">
@@ -295,6 +306,9 @@ export default async function ListingPage({
             <div className="flex items-center gap-1">
               <Eye className="w-3.5 h-3.5" /> {listing.views || 0} views
             </div>
+            {!isOwner && (
+              <ReportButton target={{ type: "listing", id: listing.id }} />
+            )}
           </div>
 
           {similarListings.length > 0 && (

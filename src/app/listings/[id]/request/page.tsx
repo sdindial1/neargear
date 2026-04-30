@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { calculateDeposit } from "@/lib/fees";
 import { ensurePublicUserRow } from "@/lib/ensure-profile";
+import { fireNotification } from "@/lib/notifications/trigger";
 import {
   getAllZonesByCombinedDistance,
   getSuggestedMeetupLocationsByZip,
@@ -303,6 +304,8 @@ function RequestToBuyPageInner() {
       .from("listings")
       .update({ status: "pending" })
       .eq("id", listing.id);
+
+    void fireNotification({ event: "meetup_requested", meetupId: meetup.id });
 
     router.push(`/meetups/${meetup.id}/confirmation`);
   };
