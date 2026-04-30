@@ -14,15 +14,8 @@ import { Label } from "@/components/ui/label";
 import { ChevronLeft, Loader2, Save } from "lucide-react";
 import { getZipcodeCity, isValidZipcodeFormat } from "@/lib/zipcodes";
 import { sanitizeText, LIMITS } from "@/lib/sanitize";
+import { formatPhone, isValidUSPhone, toE164 } from "@/lib/phone";
 import type { User } from "@/types/database";
-
-function formatPhone(input: string): string {
-  const digits = input.replace(/\D/g, "").replace(/^1/, "").slice(0, 10);
-  if (digits.length === 0) return "";
-  if (digits.length < 4) return `(${digits}`;
-  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-}
 
 function ProfileEditInner() {
   const router = useRouter();
@@ -72,7 +65,6 @@ function ProfileEditInner() {
 
     const safeName = sanitizeText(fullName, LIMITS.NAME);
     const safeCity = sanitizeText(city, LIMITS.NAME);
-    const phoneDigits = phone.replace(/\D/g, "");
 
     if (!safeName) {
       setError("Name is required.");
@@ -82,15 +74,15 @@ function ProfileEditInner() {
       setError("Zipcode must be 5 digits.");
       return;
     }
-    if (phoneDigits && phoneDigits.length !== 10) {
-      setError("Phone must be 10 digits.");
+    if (phone && !isValidUSPhone(phone)) {
+      setError("Phone must be a 10-digit US number.");
       return;
     }
 
     if (!userId) return;
     setSaving(true);
 
-    const e164 = phoneDigits ? `+1${phoneDigits}` : null;
+    const e164 = toE164(phone);
 
     const { error: updateError } = await supabase
       .from("users")

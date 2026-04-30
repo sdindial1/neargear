@@ -17,6 +17,7 @@ import {
 import { ArrowLeft, ArrowRight, Loader2, UserPlus } from "lucide-react";
 import { DFW_CITIES } from "@/lib/constants";
 import { isValidZipcodeFormat } from "@/lib/zipcodes";
+import { formatPhone, isValidUSPhone, toE164 } from "@/lib/phone";
 
 function SignupInner() {
   const [step, setStep] = useState(1);
@@ -27,6 +28,7 @@ function SignupInner() {
   const [lastName, setLastName] = useState("");
   const [city, setCity] = useState("");
   const [zipcode, setZipcode] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -37,16 +39,23 @@ function SignupInner() {
 
   const handleSignup = async () => {
     setError("");
+
+    if (phone && !isValidUSPhone(phone)) {
+      setError("Phone must be a 10-digit US number, or leave blank.");
+      return;
+    }
+
     setLoading(true);
 
     const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+    const phoneE164 = toE164(phone);
 
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
-        data: { full_name: fullName, city, zipcode },
+        data: { full_name: fullName, city, zipcode, phone: phoneE164 },
       },
     });
 
@@ -63,6 +72,7 @@ function SignupInner() {
         full_name: fullName,
         city,
         zipcode,
+        phone: phoneE164,
       });
     }
 
@@ -241,6 +251,24 @@ function SignupInner() {
                   <p className="text-xs text-muted-foreground">
                     Used to find safe meetup spots near you.
                   </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="phone">Mobile number</Label>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    For meetup reminders via text. Optional.
+                  </p>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel-national"
+                    placeholder="(555) 555-5555"
+                    className="input-large"
+                    value={phone}
+                    onChange={(e) => setPhone(formatPhone(e.target.value))}
+                    maxLength={14}
+                  />
                 </div>
 
                 {error && (
