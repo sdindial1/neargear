@@ -28,6 +28,7 @@ export interface User {
   blackout_until: string | null;
   account_status: "active" | "flagged" | "banned" | null;
   zipcode: string | null;
+  phone: string | null;
   created_at: string;
 }
 

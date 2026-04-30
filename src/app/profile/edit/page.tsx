@@ -16,6 +16,14 @@ import { getZipcodeCity, isValidZipcodeFormat } from "@/lib/zipcodes";
 import { sanitizeText, LIMITS } from "@/lib/sanitize";
 import type { User } from "@/types/database";
 
+function formatPhone(input: string): string {
+  const digits = input.replace(/\D/g, "").replace(/^1/, "").slice(0, 10);
+  if (digits.length === 0) return "";
+  if (digits.length < 4) return `(${digits}`;
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
 function ProfileEditInner() {
   const router = useRouter();
   const supabase = createClient();
@@ -25,6 +33,7 @@ function ProfileEditInner() {
   const [fullName, setFullName] = useState("");
   const [city, setCity] = useState("");
   const [zipcode, setZipcode] = useState("");
+  const [phone, setPhone] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,6 +51,7 @@ function ProfileEditInner() {
         setFullName(u.full_name || "");
         setCity(u.city || "");
         setZipcode(u.zipcode || "");
+        setPhone(formatPhone(u.phone || ""));
       }
       setLoading(false);
     }
@@ -62,6 +72,7 @@ function ProfileEditInner() {
 
     const safeName = sanitizeText(fullName, LIMITS.NAME);
     const safeCity = sanitizeText(city, LIMITS.NAME);
+    const phoneDigits = phone.replace(/\D/g, "");
 
     if (!safeName) {
       setError("Name is required.");
@@ -71,9 +82,15 @@ function ProfileEditInner() {
       setError("Zipcode must be 5 digits.");
       return;
     }
+    if (phoneDigits && phoneDigits.length !== 10) {
+      setError("Phone must be 10 digits.");
+      return;
+    }
 
     if (!userId) return;
     setSaving(true);
+
+    const e164 = phoneDigits ? `+1${phoneDigits}` : null;
 
     const { error: updateError } = await supabase
       .from("users")
@@ -81,6 +98,7 @@ function ProfileEditInner() {
         full_name: safeName,
         city: safeCity || null,
         zipcode: zipcode || null,
+        phone: e164,
       })
       .eq("id", userId);
 
@@ -162,6 +180,30 @@ function ProfileEditInner() {
                 maxLength={LIMITS.NAME}
                 placeholder="Frisco"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">
+                Mobile number{" "}
+                <span className="text-xs text-muted-foreground font-normal">
+                  (for meetup reminders)
+                </span>
+              </Label>
+              <Input
+                id="phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel-national"
+                className="input-large"
+                value={phone}
+                onChange={(e) => setPhone(formatPhone(e.target.value))}
+                placeholder="(555) 555-5555"
+                maxLength={14}
+              />
+              <p className="text-xs text-muted-foreground">
+                Optional. We&apos;ll text you 2 hours before each meetup. US
+                numbers only.
+              </p>
             </div>
 
             {error && (
