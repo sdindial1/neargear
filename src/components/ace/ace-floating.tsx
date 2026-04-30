@@ -15,8 +15,6 @@ const ACE_RIGHT = 24;
 const TAIL_GAP = 14;
 const BUBBLE_BOTTOM = ACE_BOTTOM + OPEN_PX + TAIL_GAP;
 
-type Phase = "closed" | "opening" | "popped" | "open" | "closing";
-
 /**
  * Minimal "chat button" face — two dot eyes + smile. Used only while the
  * panel is closed; tapping it morphs into the full AceCharacter.
@@ -39,8 +37,8 @@ function ClosedFace() {
 
 export function AceFloating() {
   const pathname = usePathname();
-  const [phase, setPhase] = useState<Phase>("closed");
-  const [chatState, setChatState] = useState<AceState>("idle");
+  const [isOpen, setIsOpen] = useState(false);
+  const [aceState, setAceState] = useState<AceState>("idle");
   const [hasUnread, setHasUnread] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
@@ -53,72 +51,39 @@ export function AceFloating() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSignedIn(!!session?.user);
-      if (!session?.user) setPhase("closed");
+      if (!session?.user) setIsOpen(false);
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  // Open phase machine: opening (300ms grow) → popped (jump) → open
+  // Intro animation: excited on open, idle after 900ms. Plays once per open.
+  // Chat callbacks (thinking/responding/alert) override later — the timer
+  // only flips back to idle if the state is still "excited" at fire time,
+  // so a fast tap-and-send doesn't get clobbered.
   useEffect(() => {
-    if (phase !== "opening") return;
-    const t1 = window.setTimeout(() => setPhase("popped"), 350);
-    const t2 = window.setTimeout(() => setPhase("open"), 900);
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-  }, [phase]);
-
-  // Close transition end → fully closed
-  useEffect(() => {
-    if (phase !== "closing") return;
-    const t = window.setTimeout(() => {
-      setPhase("closed");
-      setChatState("idle");
-    }, 350);
-    return () => window.clearTimeout(t);
-  }, [phase]);
+    if (isOpen) {
+      setAceState("excited");
+      const t = window.setTimeout(() => {
+        setAceState((s) => (s === "excited" ? "idle" : s));
+      }, 900);
+      return () => window.clearTimeout(t);
+    }
+    setAceState("idle");
+  }, [isOpen]);
 
   if (signedIn === null || !signedIn) return null;
   if (HIDE_PATHS.some((p) => pathname?.startsWith(p))) return null;
 
-  const isOpen = phase !== "closed";
-  // Bubble + backdrop accept taps anytime they're visible — including during
-  // the opening/popped windows, so the X works even on a fast double-tap.
-  // Only "closing" disables further taps so stray taps don't reopen.
-  const interactive = phase === "opening" || phase === "popped" || phase === "open";
-
-  // Ace state during the lifecycle
-  const renderedAceState: AceState =
-    phase === "popped"
-      ? "excited"
-      : phase === "open"
-        ? chatState
-        : "idle";
-
-  const closedFaceOpacity = phase === "closed" ? 1 : 0;
-  const fullCharOpacity = phase === "closed" ? 0 : 1;
-
-  // Bubble stays mounted at full 70dvh — visibility comes from scaleY +
-  // opacity, never from height. (Animating height triggers reflow on every
-  // frame and looks janky on mobile.)
-  const bubbleHidden = phase === "closed" || phase === "closing";
-  const bubbleTransform = bubbleHidden
-    ? "scaleY(0) translateY(8px)"
-    : "scaleY(1) translateY(0)";
-  const bubbleOpacity = bubbleHidden ? 0 : 1;
-
-  const handleTap = () => {
-    if (phase === "closed") {
-      setHasUnread(false);
-      setPhase("opening");
-    }
+  const open = () => {
+    if (isOpen) return;
+    setHasUnread(false);
+    setIsOpen(true);
   };
 
   const close = (e?: React.MouseEvent | React.PointerEvent) => {
     e?.stopPropagation();
-    if (phase === "closed" || phase === "closing") return;
-    setPhase("closing");
+    if (!isOpen) return;
+    setIsOpen(false);
   };
 
   return (
@@ -130,12 +95,12 @@ export function AceFloating() {
         className="fixed inset-0 z-40 bg-black/40"
         style={{
           opacity: isOpen ? 1 : 0,
-          pointerEvents: interactive ? "auto" : "none",
+          pointerEvents: isOpen ? "auto" : "none",
           transition: "opacity 250ms ease",
         }}
       />
 
-      {/* Speech bubble — always mounted at full 70dvh, hidden via scaleY. */}
+      {/* Speech bubble — always mounted, hidden via scaleY when closed. */}
       <div
         className="fixed z-50 bg-white flex flex-col overflow-hidden"
         style={{
@@ -147,16 +112,15 @@ export function AceFloating() {
           borderRadius: "20px 20px 4px 20px",
           boxShadow: "0 8px 40px rgba(0,0,0,0.15)",
           transformOrigin: "bottom center",
-          transform: bubbleTransform,
-          opacity: bubbleOpacity,
-          pointerEvents: interactive ? "auto" : "none",
+          transform: isOpen
+            ? "scaleY(1) translateY(0)"
+            : "scaleY(0) translateY(8px)",
+          opacity: isOpen ? 1 : 0,
+          pointerEvents: isOpen ? "auto" : "none",
           transition:
             "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease",
         }}
       >
-        {/* X button — explicit stopPropagation so a parent doesn't swallow it.
-            pointer-events: auto covers the case where some ancestor was set
-            to none mid-animation. */}
         <button
           type="button"
           onClick={(e) => close(e)}
@@ -175,10 +139,9 @@ export function AceFloating() {
           </svg>
         </button>
 
-        {/* Panel content */}
         <AceChat
           onClose={() => close()}
-          onAceState={setChatState}
+          onAceState={setAceState}
           onUnread={setHasUnread}
         />
       </div>
@@ -195,17 +158,16 @@ export function AceFloating() {
           background: "white",
           clipPath: "polygon(50% 100%, 0 0, 100% 0)",
           filter: "drop-shadow(0 4px 6px rgba(0,0,0,0.08))",
-          opacity: bubbleOpacity,
+          opacity: isOpen ? 1 : 0,
           transition: "opacity 200ms ease",
         }}
       />
 
       {/* Ace himself — always rendered, fixed bottom-right.
-          Closed = simple orange circle; open = full character.
-          Both visuals are layered so the swap is a smooth crossfade. */}
+          Closed circle and full character are layered and crossfade. */}
       <button
         type="button"
-        onClick={handleTap}
+        onClick={open}
         aria-label={isOpen ? "Ace assistant" : "Open Ace"}
         className="fixed z-[60] flex items-center justify-center"
         style={{
@@ -235,8 +197,8 @@ export function AceFloating() {
           aria-hidden
           className="absolute inset-0 flex items-center justify-center"
           style={{
-            transform: phase === "closed" ? "scale(1)" : "scale(1.6)",
-            opacity: closedFaceOpacity,
+            transform: isOpen ? "scale(1.6)" : "scale(1)",
+            opacity: isOpen ? 0 : 1,
             transition:
               "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease",
           }}
@@ -275,18 +237,13 @@ export function AceFloating() {
           aria-hidden={!isOpen}
           className="absolute inset-0 flex items-center justify-center"
           style={{
-            transform:
-              phase === "closed"
-                ? "scale(0.62)"
-                : phase === "closing"
-                  ? "scale(0.62)"
-                  : "scale(1)",
-            opacity: fullCharOpacity,
+            transform: isOpen ? "scale(1)" : "scale(0.62)",
+            opacity: isOpen ? 1 : 0,
             transition:
               "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease",
           }}
         >
-          <AceCharacter state={renderedAceState} size="md" />
+          <AceCharacter state={aceState} size="md" />
         </div>
       </button>
     </>
