@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Loader2, LogIn, Send } from "lucide-react";
+import { Loader2, LogIn, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
-import type { AceState } from "./ace-character";
+import { AceCharacter, type AceState } from "./ace-character";
 import { PhotoTipsCard } from "./photo-tips-card";
 import { useAceContext, suggestedPrompts } from "@/hooks/useAceContext";
 
@@ -38,12 +38,11 @@ function shouldShowPhotoTips(text: string): boolean {
 }
 
 /**
- * Chat panel content for the speech-bubble redesign. The bubble shell,
- * backdrop, and the Ace character itself live in ace-floating.tsx — this
- * component only renders the top bar, the message list (or welcome state),
- * and the sticky input.
+ * Bottom-drawer chat with its own backdrop. Slides up from the bottom
+ * when ace-floating opens it and renders a small Ace avatar + state
+ * indicator in the header.
  */
-export function AceChat({ onAceState }: Props) {
+export function AceChat({ onClose, onAceState }: Props) {
   const ctx = useAceContext();
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -247,11 +246,38 @@ export function AceChat({ onAceState }: Props) {
           : "Ask Ace anything...";
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Content area — bubble shell renders its own X button at top-right.
-          Top padding leaves room for that button so content never sits
-          underneath it. */}
-      <div className="flex-1 overflow-y-auto px-4 pt-12 pb-4 space-y-3">
+    <>
+      <div
+        className="fixed inset-0 z-[70] bg-black/50"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="fixed inset-x-0 bottom-0 z-[71] bg-white rounded-t-3xl shadow-2xl flex flex-col ace-drawer-enter h-[65dvh] max-h-[65dvh]">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b">
+          <AceCharacter
+            state={sending ? "thinking" : "idle"}
+            size="sm"
+            className="flex-shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <p className="font-heading font-bold text-navy leading-none">
+              Ace
+            </p>
+            <p className="text-[11px] text-muted-foreground">NearGear AI</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close Ace"
+            className="p-2 rounded-full hover:bg-gray-100"
+          >
+            <X className="w-5 h-5 text-navy" />
+          </button>
+        </div>
+
+        {/* Content area */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 && signedIn !== false && (
           <div className="min-h-full flex flex-col items-center justify-center text-center">
             <p className="font-heading text-xl font-bold text-navy">
@@ -383,6 +409,7 @@ export function AceChat({ onAceState }: Props) {
           )}
         </Button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

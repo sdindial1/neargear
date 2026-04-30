@@ -1,27 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { AceCharacter, type AceState } from "./ace-character";
 import { AceChat } from "./ace-chat";
 
+const STORAGE_KEY = "neargear:ace:position";
+const TAP_THRESHOLD_PX = 6;
 const HIDE_PATHS = ["/auth", "/admin"];
+const SIZE = 56;
 
-const CLOSED_PX = 56;
-const OPEN_PX = 90;
-const ACE_BOTTOM = 100;
-const ACE_RIGHT = 24;
-const TAIL_GAP = 14;
-const BUBBLE_BOTTOM = ACE_BOTTOM + OPEN_PX + TAIL_GAP;
+interface Position {
+  x: number;
+  y: number;
+}
 
-/**
- * Minimal "chat button" face — two dot eyes + smile. Used only while the
- * panel is closed; tapping it morphs into the full AceCharacter.
- */
+function defaultPosition(): Position {
+  if (typeof window === "undefined") return { x: 0, y: 0 };
+  return {
+    x: window.innerWidth - SIZE - 24,
+    y: window.innerHeight - SIZE - 100,
+  };
+}
+
+function clamp(p: Position): Position {
+  if (typeof window === "undefined") return p;
+  const maxX = window.innerWidth - SIZE - 8;
+  const maxY = window.innerHeight - SIZE - 8;
+  return {
+    x: Math.max(8, Math.min(maxX, p.x)),
+    y: Math.max(8, Math.min(maxY, p.y)),
+  };
+}
+
 function ClosedFace() {
   return (
-    <svg width={CLOSED_PX} height={CLOSED_PX} viewBox="0 0 56 56">
+    <svg width={SIZE} height={SIZE} viewBox="0 0 56 56">
       <circle cx="22" cy="24" r="2.5" fill="#0d2438" />
       <circle cx="34" cy="24" r="2.5" fill="#0d2438" />
       <path
@@ -37,11 +51,42 @@ function ClosedFace() {
 
 export function AceFloating() {
   const pathname = usePathname();
-  const [isOpen, setIsOpen] = useState(false);
-  const [aceState, setAceState] = useState<AceState>("idle");
+  const [pos, setPos] = useState<Position | null>(null);
+  const [open, setOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    moved: boolean;
+    pointerId: number | null;
+  } | null>(null);
+
+  // Load saved position / set default
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Position;
+        setPos(clamp(parsed));
+        return;
+      }
+    } catch {}
+    setPos(defaultPosition());
+  }, []);
+
+  // Reclamp on viewport resize
+  useEffect(() => {
+    const onResize = () => {
+      setPos((p) => (p ? clamp(p) : p));
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Auth presence
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -51,201 +96,93 @@ export function AceFloating() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSignedIn(!!session?.user);
-      if (!session?.user) setIsOpen(false);
+      if (!session?.user) setOpen(false);
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  // Intro animation: excited on open, idle after 900ms. Plays once per open.
-  // Chat callbacks (thinking/responding/alert) override later — the timer
-  // only flips back to idle if the state is still "excited" at fire time,
-  // so a fast tap-and-send doesn't get clobbered.
-  useEffect(() => {
-    if (isOpen) {
-      setAceState("excited");
-      const t = window.setTimeout(() => {
-        setAceState((s) => (s === "excited" ? "idle" : s));
-      }, 900);
-      return () => window.clearTimeout(t);
+  const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (open) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+      pointerId: e.pointerId,
+    };
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (open) return;
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < TAP_THRESHOLD_PX) return;
+    drag.moved = true;
+    setPos((prev) => (prev ? clamp({ x: prev.x + dx, y: prev.y + dy }) : prev));
+    drag.startX = e.clientX;
+    drag.startY = e.clientY;
+  };
+
+  const onPointerUp = () => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag) return;
+    if (drag.moved) {
+      try {
+        if (pos) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pos));
+      } catch {}
+      return;
     }
-    setAceState("idle");
-  }, [isOpen]);
+    setHasUnread(false);
+    setOpen(true);
+  };
 
   if (signedIn === null || !signedIn) return null;
   if (HIDE_PATHS.some((p) => pathname?.startsWith(p))) return null;
-
-  const open = () => {
-    if (isOpen) return;
-    setHasUnread(false);
-    setIsOpen(true);
-  };
-
-  const close = (e?: React.MouseEvent | React.PointerEvent) => {
-    e?.stopPropagation();
-    if (!isOpen) return;
-    setIsOpen(false);
-  };
+  if (!pos) return null;
 
   return (
     <>
-      {/* Backdrop — only catches taps OUTSIDE the bubble. Tints the page. */}
-      <div
-        onClick={close}
-        aria-hidden
-        className="fixed inset-0 z-40 bg-black/40"
-        style={{
-          opacity: isOpen ? 1 : 0,
-          pointerEvents: isOpen ? "auto" : "none",
-          transition: "opacity 250ms ease",
-        }}
-      />
-
-      {/* Speech bubble — always mounted, hidden via scaleY when closed. */}
-      <div
-        className="fixed z-50 bg-white flex flex-col overflow-hidden"
-        style={{
-          right: ACE_RIGHT,
-          width: `calc(100vw - ${ACE_RIGHT * 2}px)`,
-          bottom: BUBBLE_BOTTOM,
-          height: "70dvh",
-          maxHeight: `calc(100dvh - ${BUBBLE_BOTTOM + 24}px)`,
-          borderRadius: "20px 20px 4px 20px",
-          boxShadow: "0 8px 40px rgba(0,0,0,0.15)",
-          transformOrigin: "bottom center",
-          transform: isOpen
-            ? "scaleY(1) translateY(0)"
-            : "scaleY(0) translateY(8px)",
-          opacity: isOpen ? 1 : 0,
-          pointerEvents: isOpen ? "auto" : "none",
-          transition:
-            "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease",
-        }}
-      >
-        <button
-          type="button"
-          onClick={(e) => close(e)}
-          onPointerDown={(e) => e.stopPropagation()}
-          aria-label="Close Ace"
-          className="absolute top-2 right-2 w-11 h-11 rounded-full hover:bg-gray-100 flex items-center justify-center text-navy"
-          style={{ zIndex: 51, pointerEvents: "auto" }}
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path
-              d="M5 5l10 10M15 5l-10 10"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-
-        <AceChat
-          onClose={() => close()}
-          onAceState={setAceState}
-          onUnread={setHasUnread}
-        />
-      </div>
-
-      {/* Tail — small white triangle pointing down at Ace */}
-      <span
-        aria-hidden
-        className="fixed z-50 pointer-events-none"
-        style={{
-          right: ACE_RIGHT + (OPEN_PX - 20) / 2,
-          bottom: BUBBLE_BOTTOM - TAIL_GAP,
-          width: 20,
-          height: TAIL_GAP,
-          background: "white",
-          clipPath: "polygon(50% 100%, 0 0, 100% 0)",
-          filter: "drop-shadow(0 4px 6px rgba(0,0,0,0.08))",
-          opacity: isOpen ? 1 : 0,
-          transition: "opacity 200ms ease",
-        }}
-      />
-
-      {/* Ace himself — always rendered, fixed bottom-right.
-          Closed circle and full character are layered and crossfade. */}
       <button
         type="button"
-        onClick={open}
-        aria-label={isOpen ? "Ace assistant" : "Open Ace"}
-        className="fixed z-[60] flex items-center justify-center"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => {
+          dragRef.current = null;
+        }}
+        aria-label="Open Ace"
+        className="fixed z-[60] rounded-full flex items-center justify-center"
         style={{
-          right: ACE_RIGHT - (OPEN_PX - CLOSED_PX) / 2,
-          bottom: ACE_BOTTOM - (OPEN_PX - CLOSED_PX) / 2,
-          width: OPEN_PX,
-          height: OPEN_PX,
-          background: "transparent",
+          left: pos.x,
+          top: pos.y,
+          width: SIZE,
+          height: SIZE,
+          background: "#ff6b35",
+          boxShadow:
+            "0 4px 20px rgba(255, 107, 53, 0.45), 0 0 0 1px rgba(255, 107, 53, 0.1)",
+          touchAction: "none",
+          WebkitTapHighlightColor: "transparent",
           border: "none",
           padding: 0,
-          cursor: isOpen ? "default" : "pointer",
-          WebkitTapHighlightColor: "transparent",
+          animation: "ace-breathe 3s ease-in-out infinite",
         }}
       >
-        {/* Glow halo (only visible while expanded) */}
-        <span
-          aria-hidden
-          className="ace-glow-pulse absolute -inset-3 rounded-full pointer-events-none"
-          style={{
-            opacity: isOpen ? 1 : 0,
-            transition: "opacity 250ms ease",
-          }}
-        />
-
-        {/* Closed-state simple circle */}
-        <div
-          aria-hidden
-          className="absolute inset-0 flex items-center justify-center"
-          style={{
-            transform: isOpen ? "scale(1.6)" : "scale(1)",
-            opacity: isOpen ? 0 : 1,
-            transition:
-              "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease",
-          }}
-        >
-          <div
-            style={{
-              width: CLOSED_PX,
-              height: CLOSED_PX,
-              borderRadius: "50%",
-              background: "#ff6b35",
-              boxShadow:
-                "0 4px 20px rgba(255, 107, 53, 0.45), 0 0 0 1px rgba(255, 107, 53, 0.1)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              animation: "ace-breathe 3s ease-in-out infinite",
-            }}
-          >
-            <ClosedFace />
-          </div>
-          {hasUnread && (
-            <span
-              className="absolute rounded-full bg-red-500 ring-2 ring-white"
-              style={{
-                top: "calc(50% - 26px)",
-                right: "calc(50% - 26px)",
-                width: 12,
-                height: 12,
-              }}
-            />
-          )}
-        </div>
-
-        {/* Open-state full Ace character */}
-        <div
-          aria-hidden={!isOpen}
-          className="absolute inset-0 flex items-center justify-center"
-          style={{
-            transform: isOpen ? "scale(1)" : "scale(0.62)",
-            opacity: isOpen ? 1 : 0,
-            transition:
-              "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 200ms ease",
-          }}
-        >
-          <AceCharacter state={aceState} size="md" />
-        </div>
+        <ClosedFace />
+        {hasUnread && (
+          <span className="absolute top-1 right-1 w-3 h-3 rounded-full bg-red-500 ring-2 ring-white" />
+        )}
       </button>
+
+      {open && (
+        <AceChat
+          onClose={() => setOpen(false)}
+          onAceState={() => {}}
+          onUnread={setHasUnread}
+        />
+      )}
     </>
   );
 }
