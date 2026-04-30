@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
 export type AcePage =
@@ -51,6 +52,26 @@ export function useAceContext(): AceContext {
   const pathname = usePathname() ?? "/";
   const supabase = useMemo(() => createClient(), []);
   const [ctx, setCtx] = useState<AceContext>({ page: detectPage(pathname) });
+  const [authUser, setAuthUser] = useState<User | null>(null);
+
+  // Subscribe once to auth state — avoids competing getUser() calls that
+  // race with the SDK's internal auth lock and surface as
+  // "Lock was released because another request stole it".
+  useEffect(() => {
+    let alive = true;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (alive) setAuthUser(session?.user ?? null);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null);
+    });
+    return () => {
+      alive = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   useEffect(() => {
     let alive = true;
@@ -59,9 +80,7 @@ export function useAceContext(): AceContext {
     const load = async () => {
       const next: AceContext = { page };
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = authUser;
       if (user) {
         const { data: profile } = await supabase
           .from("users")
@@ -155,7 +174,7 @@ export function useAceContext(): AceContext {
     return () => {
       alive = false;
     };
-  }, [pathname, supabase]);
+  }, [pathname, supabase, authUser]);
 
   return ctx;
 }

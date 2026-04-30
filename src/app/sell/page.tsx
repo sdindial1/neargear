@@ -25,6 +25,7 @@ import {
 import type { AIListingAnalysis } from "@/types/ai";
 import { dataUrlToBlob, resizeImage } from "@/lib/image";
 import { formatCondition } from "@/lib/utils";
+import { ensurePublicUserRow } from "@/lib/ensure-profile";
 import {
   AlertCircle,
   ArrowLeft,
@@ -169,6 +170,10 @@ function SellPageInner() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    if (user) {
+      await ensurePublicUserRow(supabase, user);
+    }
 
     const folder = user?.id ?? "anonymous";
     const photoUrls: string[] = [];

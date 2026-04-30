@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { calculateDeposit } from "@/lib/fees";
+import { ensurePublicUserRow } from "@/lib/ensure-profile";
 import {
   getAllZonesByCombinedDistance,
   getSuggestedMeetupLocationsByZip,
@@ -226,6 +227,16 @@ function RequestToBuyPageInner() {
       return;
     setSubmitting(true);
     setSubmitError("");
+
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    if (!authUser) {
+      setSubmitError("Please sign in to send a request.");
+      setSubmitting(false);
+      return;
+    }
+    await ensurePublicUserRow(supabase, authUser);
 
     const start = new Date(selectedDate);
     start.setHours(selectedWindow.startHour, 0, 0, 0);
