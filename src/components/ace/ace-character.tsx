@@ -17,7 +17,7 @@ interface Props {
 
 const SIZES: Record<NonNullable<Props["size"]>, number> = {
   sm: 56,
-  md: 96,
+  md: 90,
   lg: 200,
 };
 

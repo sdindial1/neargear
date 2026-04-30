@@ -6,7 +6,7 @@ import { Loader2, LogIn, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
-import { AceCharacter, type AceState } from "./ace-character";
+import type { AceState } from "./ace-character";
 import { PhotoTipsCard } from "./photo-tips-card";
 import { useAceContext, suggestedPrompts } from "@/hooks/useAceContext";
 
@@ -20,7 +20,6 @@ interface Message {
 }
 
 type LimitState = null | "user_hour" | "daily";
-type IntroPhase = "popping" | "excited" | "idle" | "leaving" | "gone";
 
 const SIGN_IN_PROMPT =
   "Hey! Sign in to chat with me — I can give you personalized help once I know who you are 😊";
@@ -38,6 +37,12 @@ function shouldShowPhotoTips(text: string): boolean {
   return PHOTO_TRIGGERS.some((t) => lower.includes(t));
 }
 
+/**
+ * Chat panel content for the speech-bubble redesign. The bubble shell,
+ * backdrop, and the Ace character itself live in ace-floating.tsx — this
+ * component only renders the top bar, the message list (or welcome state),
+ * and the sticky input.
+ */
 export function AceChat({ onClose, onAceState }: Props) {
   const ctx = useAceContext();
   const supabase = useMemo(() => createClient(), []);
@@ -47,28 +52,8 @@ export function AceChat({ onClose, onAceState }: Props) {
   const [error, setError] = useState("");
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [limitState, setLimitState] = useState<LimitState>(null);
-  const [introPhase, setIntroPhase] = useState<IntroPhase>("popping");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Fresh-mount intro sequence: pop → excited jump → settle to idle.
-  useEffect(() => {
-    const t1 = window.setTimeout(() => setIntroPhase("excited"), 400);
-    const t2 = window.setTimeout(() => setIntroPhase("idle"), 900);
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-  }, []);
-
-  // Fade Ace out of the welcome state once the conversation starts.
-  useEffect(() => {
-    if (messages.length === 0) return;
-    if (introPhase === "leaving" || introPhase === "gone") return;
-    setIntroPhase("leaving");
-    const t = window.setTimeout(() => setIntroPhase("gone"), 300);
-    return () => window.clearTimeout(t);
-  }, [messages.length, introPhase]);
 
   useEffect(() => {
     let alive = true;
@@ -124,8 +109,7 @@ export function AceChat({ onClose, onAceState }: Props) {
       role: "assistant",
       content: "",
       pending: true,
-      showsPhotoTips:
-        ctx.page === "sell" && shouldShowPhotoTips(text),
+      showsPhotoTips: ctx.page === "sell" && shouldShowPhotoTips(text),
     };
     setMessages((prev) => [...prev, userMsg, aceMsg]);
     setInput("");
@@ -172,9 +156,7 @@ export function AceChat({ onClose, onAceState }: Props) {
         const msg = json.message || "Try again later.";
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === aceMsg.id
-              ? { ...m, content: msg, pending: false }
-              : m,
+            m.id === aceMsg.id ? { ...m, content: msg, pending: false } : m,
           ),
         );
         if (json.error === "rate_limit") setLimitState("user_hour");
@@ -255,220 +237,169 @@ export function AceChat({ onClose, onAceState }: Props) {
     }
   };
 
-  return (
-    <>
-      <div
-        className="fixed inset-0 z-[70] bg-black/50"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div className="fixed inset-x-0 bottom-0 z-[71] bg-white rounded-t-3xl shadow-2xl flex flex-col ace-drawer-enter h-[65dvh] max-h-[65dvh]">
-        <div className="flex items-center gap-3 px-4 py-3 border-b">
-          <AceCharacter
-            state={sending ? "thinking" : "idle"}
-            size="sm"
-            className="flex-shrink-0"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="font-heading font-bold text-navy leading-none">
-              Ace
-            </p>
-            <p className="text-[11px] text-muted-foreground">NearGear AI</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close Ace"
-            className="p-2 rounded-full hover:bg-gray-100"
-          >
-            <X className="w-5 h-5 text-navy" />
-          </button>
-        </div>
+  const placeholder =
+    signedIn === false
+      ? "Sign in to chat"
+      : limitState === "user_hour"
+        ? "Try again in an hour"
+        : limitState === "daily"
+          ? "Ace is back tomorrow"
+          : "Ask Ace anything...";
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-          {(messages.length === 0 || introPhase === "leaving") &&
-            signedIn !== false && (
-              <div className="min-h-full flex flex-col items-center justify-center text-center py-8">
-                <AceIntro phase={introPhase} />
-                {messages.length === 0 && (
-                  <>
-                    <p className="font-heading text-xl font-bold text-navy mt-4">
-                      Hey! I&apos;m Ace 👋
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-2 max-w-xs">
-                      Ask me anything about gear, sizing, or how NearGear
-                      works.
-                    </p>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mt-8 mb-3 self-start">
-                      Suggested
-                    </p>
-                    <div className="flex flex-wrap gap-2 self-start">
-                      {prompts.map((p) => (
-                        <button
-                          key={p}
-                          type="button"
-                          onClick={() => sendMessage(p)}
-                          className="text-sm border border-orange/40 text-orange rounded-full px-3 py-1.5 hover:bg-orange/5"
-                        >
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                  </>
+  return (
+    <div className="flex flex-col h-full">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="min-w-0">
+          <p className="font-heading font-bold text-navy leading-none text-base">
+            Ace
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            NearGear AI
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close Ace"
+          className="p-2 -mr-1 rounded-full hover:bg-gray-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
+        >
+          <X className="w-5 h-5 text-navy" />
+        </button>
+      </div>
+
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        {messages.length === 0 && signedIn !== false && (
+          <div className="min-h-full flex flex-col items-center justify-center text-center">
+            <p className="font-heading text-xl font-bold text-navy">
+              Hey! I&apos;m Ace 👋
+            </p>
+            <p className="text-sm text-muted-foreground mt-2 max-w-xs">
+              Ask me anything about gear, sizing, or how NearGear works.
+            </p>
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mt-8 mb-3 self-start">
+              Suggested
+            </p>
+            <div className="grid grid-cols-2 gap-2 w-full">
+              {prompts.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => sendMessage(p)}
+                  className="text-sm border border-orange/40 text-orange rounded-xl px-3 py-2 hover:bg-orange/5 leading-tight text-left"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {messages.length === 0 && signedIn === false && (
+          <div className="min-h-full flex flex-col items-center justify-center text-center">
+            <p className="font-heading text-xl font-bold text-navy">
+              Hey! I&apos;m Ace 👋
+            </p>
+            <p className="text-sm text-muted-foreground mt-2 max-w-xs leading-relaxed">
+              {SIGN_IN_PROMPT}
+            </p>
+            <Link href="/auth/login" className="mt-5 inline-block">
+              <Button className="btn-primary h-11 px-6">
+                <LogIn className="w-4 h-4" /> Sign In
+              </Button>
+            </Link>
+          </div>
+        )}
+
+        {messages.map((m) =>
+          m.role === "user" ? (
+            <div key={m.id} className="flex justify-end">
+              <div className="max-w-[80%] rounded-2xl rounded-br-md bg-orange text-white px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap">
+                {m.content}
+              </div>
+            </div>
+          ) : (
+            <div key={m.id} className="flex">
+              <div className="flex-1 min-w-0">
+                {m.content && (
+                  <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-gray-100 text-navy px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap">
+                    {m.content}
+                    {m.pending && (
+                      <span className="inline-block w-2 h-3 bg-orange animate-pulse align-middle ml-1" />
+                    )}
+                  </div>
+                )}
+                {!m.content && m.pending && (
+                  <div className="inline-flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Ace is thinking...
+                  </div>
+                )}
+                {m.showsPhotoTips && !m.pending && <PhotoTipsCard />}
+                {m.showsSignIn && !m.pending && (
+                  <Link href="/auth/login" className="inline-block mt-2">
+                    <Button className="btn-primary h-10 px-4">
+                      <LogIn className="w-4 h-4" /> Sign In
+                    </Button>
+                  </Link>
                 )}
               </div>
-            )}
-
-          {messages.length === 0 && signedIn === false && (
-            <div className="min-h-full flex flex-col items-center justify-center text-center py-8">
-              <AceIntro phase={introPhase} />
-              <p className="font-heading text-xl font-bold text-navy mt-4">
-                Hey! I&apos;m Ace 👋
-              </p>
-              <p className="text-sm text-muted-foreground mt-2 max-w-xs leading-relaxed">
-                {SIGN_IN_PROMPT}
-              </p>
-              <Link href="/auth/login" className="mt-5 inline-block">
-                <Button className="btn-primary h-11 px-6">
-                  <LogIn className="w-4 h-4" /> Sign In
-                </Button>
-              </Link>
             </div>
-          )}
+          ),
+        )}
 
-          {messages.map((m) =>
-            m.role === "user" ? (
-              <div key={m.id} className="flex justify-end">
-                <div className="max-w-[80%] rounded-2xl rounded-br-md bg-orange text-white px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap">
-                  {m.content}
-                </div>
-              </div>
-            ) : (
-              <div key={m.id} className="flex gap-2">
-                <div className="flex-shrink-0 mt-0.5">
-                  <AceCharacter state="idle" size="sm" className="w-7 h-7" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-muted-foreground font-semibold mb-0.5">
-                    Ace
-                  </p>
-                  {m.content && (
-                    <div className="max-w-[90%] rounded-2xl rounded-bl-md bg-gray-100 text-navy px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap">
-                      {m.content}
-                      {m.pending && (
-                        <span className="inline-block w-2 h-3 bg-orange animate-pulse align-middle ml-1" />
-                      )}
-                    </div>
-                  )}
-                  {!m.content && m.pending && (
-                    <div className="inline-flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Ace is thinking…
-                    </div>
-                  )}
-                  {m.showsPhotoTips && !m.pending && <PhotoTipsCard />}
-                  {m.showsSignIn && !m.pending && (
-                    <Link href="/auth/login" className="inline-block mt-2">
-                      <Button className="btn-primary h-10 px-4">
-                        <LogIn className="w-4 h-4" /> Sign In
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              </div>
-            ),
-          )}
+        {error && (
+          <p className="text-xs text-red-600 bg-red-50 rounded-xl p-3">
+            {error}
+          </p>
+        )}
 
-          {error && (
-            <p className="text-xs text-red-600 bg-red-50 rounded-xl p-3">
-              {error}
-            </p>
-          )}
-
-          <div ref={bottomRef} />
-        </div>
-
-        <div className="border-t p-3 flex gap-2 items-end safe-bottom">
-          <Input
-            ref={inputRef}
-            placeholder={
-              signedIn === false
-                ? "Sign in to chat"
-                : limitState === "user_hour"
-                  ? "Try again in an hour"
-                  : limitState === "daily"
-                    ? "Ace is back tomorrow"
-                    : "Ask Ace anything…"
-            }
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onFocus={(e) => {
-              if (signedIn === false) {
-                e.currentTarget.blur();
-                promptSignIn();
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage(input);
-              }
-            }}
-            disabled={limitState !== null}
-            readOnly={signedIn === false}
-            className="input-large flex-1"
-          />
-          <Button
-            onClick={() => sendMessage(input)}
-            disabled={
-              !input.trim() ||
-              sending ||
-              limitState !== null ||
-              signedIn === false
-            }
-            className="btn-primary h-[52px] px-4"
-          >
-            {sending ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Send className="w-5 h-5" />
-            )}
-          </Button>
-        </div>
+        <div ref={bottomRef} />
       </div>
-    </>
-  );
-}
 
-function AceIntro({ phase }: { phase: IntroPhase }) {
-  if (phase === "gone") return null;
-
-  // Hero SVG (with helmet "A" badge + highlights) for the pop-in moment,
-  // then crossfade to the smaller state SVGs that drive the ongoing loop.
-  const characterState: AceState =
-    phase === "popping"
-      ? "hero"
-      : phase === "excited"
-        ? "excited"
-        : "idle";
-  const wrapperClass =
-    phase === "popping"
-      ? "ace-intro-pop"
-      : phase === "leaving"
-        ? "ace-intro-leave"
-        : "";
-  const showGlow = phase !== "leaving";
-
-  return (
-    <div className="relative" style={{ width: 200, height: 200 }}>
-      {showGlow && (
-        <span
-          aria-hidden
-          className="ace-glow-pulse absolute -inset-6 rounded-full pointer-events-none"
+      {/* Input bar */}
+      <div
+        className="border-t p-3 flex gap-2 items-end"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)" }}
+      >
+        <Input
+          ref={inputRef}
+          placeholder={placeholder}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onFocus={(e) => {
+            if (signedIn === false) {
+              e.currentTarget.blur();
+              promptSignIn();
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage(input);
+            }
+          }}
+          disabled={limitState !== null}
+          readOnly={signedIn === false}
+          className="input-large flex-1"
         />
-      )}
-      <div className={`relative ${wrapperClass}`}>
-        <AceCharacter state={characterState} size="lg" />
+        <Button
+          onClick={() => sendMessage(input)}
+          disabled={
+            !input.trim() ||
+            sending ||
+            limitState !== null ||
+            signedIn === false
+          }
+          className="btn-primary h-[52px] px-4"
+        >
+          {sending ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <Send className="w-5 h-5" />
+          )}
+        </Button>
       </div>
     </div>
   );
