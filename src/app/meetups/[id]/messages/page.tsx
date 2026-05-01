@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -277,22 +278,68 @@ function MeetupMessagesPageInner() {
   }, [messages.length]);
 
   const sendBody = async (body: string) => {
-    if (!ctx || !userId || !body.trim() || sending) return;
+    if (!ctx || !userId || !body.trim() || sending) return false;
     setSending(true);
     setSendError("");
     const otherId = userId === ctx.buyer_id ? ctx.seller_id : ctx.buyer_id;
-    const { error: sendErr } = await supabase.from("messages").insert({
-      listing_id: ctx.listing_id,
-      meetup_id: ctx.id,
-      sender_id: userId,
-      receiver_id: otherId,
-      body: body.trim(),
-    });
+
+    // Insert with meetup_id (post-009). If migration 009 hasn't been run
+    // the column won't exist — retry without it so the chat still works.
+    let inserted: Msg | null = null;
+    let sendErr: { message?: string; code?: string } | null = null;
+
+    const first = await supabase
+      .from("messages")
+      .insert({
+        listing_id: ctx.listing_id,
+        meetup_id: ctx.id,
+        sender_id: userId,
+        receiver_id: otherId,
+        body: body.trim(),
+      })
+      .select()
+      .single();
+
+    if (
+      first.error &&
+      /meetup_id|schema cache|column/i.test(first.error.message ?? "")
+    ) {
+      const fallback = await supabase
+        .from("messages")
+        .insert({
+          listing_id: ctx.listing_id,
+          sender_id: userId,
+          receiver_id: otherId,
+          body: body.trim(),
+        })
+        .select()
+        .single();
+      sendErr = fallback.error;
+      inserted = (fallback.data as Msg | null) ?? null;
+    } else {
+      sendErr = first.error;
+      inserted = (first.data as Msg | null) ?? null;
+    }
+
     setSending(false);
+
     if (sendErr) {
-      setSendError(sendErr.message);
+      const msg = sendErr.message || "Couldn't send the message.";
+      console.error("[messages] insert failed", sendErr);
+      setSendError(msg);
+      toast.error(msg);
       return false;
     }
+
+    // Append optimistically so the sender sees their own message immediately,
+    // independent of whether the realtime echo arrives. Realtime will dedupe
+    // via the existing id check.
+    if (inserted) {
+      setMessages((prev) =>
+        prev.find((x) => x.id === inserted!.id) ? prev : [...prev, inserted!],
+      );
+    }
+
     return true;
   };
 
