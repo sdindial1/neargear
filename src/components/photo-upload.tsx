@@ -1,16 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Camera, ImagePlus, Loader2, X } from "lucide-react";
-
-export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+import toast from "react-hot-toast";
+import { Camera, ImagePlus, Loader2, X } from "lucide-react";
+import { MAX_PHOTOS, validatePhotos } from "@/lib/photo-upload";
 
 export interface PhotoUploadProps {
   photos: File[];
   onPhotosChange: (photos: File[]) => void;
   max?: number;
   min?: number;
-  maxBytes?: number;
 }
 
 const HIDDEN_INPUT_STYLE: React.CSSProperties = {
@@ -29,84 +28,36 @@ const HIDDEN_INPUT_STYLE: React.CSSProperties = {
 export function PhotoUpload({
   photos,
   onPhotosChange,
-  max = 5,
+  max = MAX_PHOTOS,
   min = 2,
-  maxBytes = MAX_PHOTO_BYTES,
 }: PhotoUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previews, setPreviews] = useState<string[]>([]);
-  const [error, setError] = useState("");
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
-    console.log(
-      "[PhotoUpload] previews effect — rebuilding from",
-      photos.length,
-      "photos",
-    );
     const urls = photos.map((f) => URL.createObjectURL(f));
     setPreviews(urls);
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, [photos]);
 
   const openPicker = () => {
-    console.log(
-      "[PhotoUpload] openPicker clicked; inputRef.current =",
-      inputRef.current ? "<input mounted>" : "NULL",
-    );
     inputRef.current?.click();
-    console.log("[PhotoUpload] inputRef.click() called");
   };
 
   const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    console.log(
-      "[PhotoUpload] onChange fired — files:",
-      fileList?.length ?? 0,
-    );
-    const incoming = Array.from(fileList ?? []);
+    const incoming = Array.from(e.target.files ?? []);
     e.target.value = "";
+    if (incoming.length === 0) return;
 
-    if (incoming.length === 0) {
-      console.log("[PhotoUpload] no files in event — bailing");
-      return;
-    }
+    const { valid, errors } = validatePhotos(incoming, photos.length);
+    for (const err of errors) toast.error(err, { duration: 4000 });
+    if (!valid.length) return;
 
-    console.log(
-      "[PhotoUpload] incoming:",
-      incoming.map((f) => ({ name: f.name, size: f.size, type: f.type })),
-    );
-    setError("");
-
-    const oversize = incoming.find((f) => f.size > maxBytes);
-    if (oversize) {
-      const mb = Math.floor(maxBytes / 1024 / 1024);
-      console.log(
-        "[PhotoUpload] rejecting oversize file:",
-        oversize.name,
-        oversize.size,
-      );
-      setError(`"${oversize.name}" is over ${mb}MB. Pick a smaller photo.`);
-      return;
-    }
-
-    const remaining = max - photos.length;
-    if (remaining <= 0) {
-      console.log("[PhotoUpload] at capacity — ignoring");
-      return;
-    }
-
-    const accepted = incoming.slice(0, remaining);
-    console.log(
-      "[PhotoUpload] accepting",
-      accepted.length,
-      "file(s); photos will become",
-      photos.length + accepted.length,
-    );
-    setPendingCount((p) => p + accepted.length);
-    onPhotosChange([...photos, ...accepted]);
+    setPendingCount((p) => p + valid.length);
+    onPhotosChange([...photos, ...valid]);
     setTimeout(
-      () => setPendingCount((p) => Math.max(0, p - accepted.length)),
+      () => setPendingCount((p) => Math.max(0, p - valid.length)),
       500,
     );
   };
@@ -117,13 +68,21 @@ export function PhotoUpload({
 
   const count = photos.length;
   const atCapacity = count >= max;
+  const counterClass = atCapacity
+    ? "text-orange font-semibold"
+    : count >= 8
+      ? "text-orange"
+      : "text-muted-foreground";
+  const counterText = atCapacity
+    ? "Max photos reached"
+    : `${count}/${max} photos · Minimum ${min} required`;
 
   return (
     <div className="space-y-3">
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
         multiple
         onChange={handleSelect}
         style={HIDDEN_INPUT_STYLE}
@@ -189,17 +148,8 @@ export function PhotoUpload({
               </button>
             )}
           </div>
-          <p className="text-xs text-muted-foreground text-center">
-            {count}/{max} photos · Minimum {min} required
-          </p>
+          <p className={`text-xs text-center ${counterClass}`}>{counterText}</p>
         </>
-      )}
-
-      {error && (
-        <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 rounded-xl p-3">
-          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-          {error}
-        </div>
       )}
     </div>
   );

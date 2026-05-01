@@ -27,6 +27,7 @@ import {
 } from "@/lib/constants";
 import { sanitizeText, LIMITS } from "@/lib/sanitize";
 import { dataUrlToBlob, resizeImage } from "@/lib/image";
+import { MAX_PHOTOS, validatePhotos } from "@/lib/photo-upload";
 import {
   ChevronLeft,
   Loader2,
@@ -38,7 +39,6 @@ import {
 } from "lucide-react";
 import type { Listing } from "@/types/database";
 
-const MAX_PHOTOS = 7;
 
 function ListingEditInner({ id }: { id: string }) {
   const router = useRouter();
@@ -113,13 +113,16 @@ function ListingEditInner({ id }: { id: string }) {
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length || !listing) return;
-    setUploading(true);
 
-    const slotsLeft = MAX_PHOTOS - photoUrls.length;
-    const accepted = files.slice(0, slotsLeft);
+    const { valid, errors } = validatePhotos(files, photoUrls.length);
+    for (const err of errors) toast.error(err, { duration: 4000 });
+    if (e.target) e.target.value = "";
+    if (!valid.length) return;
+
+    setUploading(true);
     const newUrls: string[] = [];
 
-    for (const file of accepted) {
+    for (const file of valid) {
       try {
         const dataUrl = await resizeImage(file, 1024, 0.85);
         const blob = await dataUrlToBlob(dataUrl);
@@ -147,7 +150,6 @@ function ListingEditInner({ id }: { id: string }) {
       toast.success(`Added ${newUrls.length} photo${newUrls.length > 1 ? "s" : ""}`);
     }
     setUploading(false);
-    if (e.target) e.target.value = "";
   };
 
   const removePhoto = (idx: number) => {
@@ -277,7 +279,22 @@ function ListingEditInner({ id }: { id: string }) {
           >
             {/* Photos */}
             <div className="space-y-2">
-              <Label>Photos ({photoUrls.length}/{MAX_PHOTOS})</Label>
+              <div className="flex items-baseline justify-between">
+                <Label>Photos</Label>
+                <span
+                  className={`text-xs font-semibold tabular-nums ${
+                    photoUrls.length >= MAX_PHOTOS
+                      ? "text-orange"
+                      : photoUrls.length >= 8
+                        ? "text-orange"
+                        : "text-muted-foreground"
+                  }`}
+                >
+                  {photoUrls.length >= MAX_PHOTOS
+                    ? "Max photos reached"
+                    : `${photoUrls.length} / ${MAX_PHOTOS} photos`}
+                </span>
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {photoUrls.map((url, i) => (
                   <div

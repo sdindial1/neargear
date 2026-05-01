@@ -44,7 +44,8 @@ interface TxDetail {
   meetup?: {
     id: string;
     meetup_location: string | null;
-    meetup_time: string | null;
+    meetup_window_start: string | null;
+    meetup_window_end: string | null;
   } | null;
 }
 
@@ -78,7 +79,7 @@ function TransactionDetailInner({ id }: { id: string }) {
            listing:listings!listing_id(id, title, photo_urls, sport, category, condition),
            buyer:users!buyer_id(id, full_name),
            seller:users!seller_id(id, full_name),
-           meetup:meetups!meetup_id(id, meetup_location, meetup_time)`,
+           meetup:meetups!meetup_id(id, meetup_location, meetup_window_start, meetup_window_end)`,
         )
         .eq("id", id)
         .single();
@@ -154,8 +155,8 @@ function TransactionDetailInner({ id }: { id: string }) {
     day: "numeric",
     year: "numeric",
   });
-  const meetupTime = tx.meetup?.meetup_time
-    ? new Date(tx.meetup.meetup_time).toLocaleString("en-US", {
+  const meetupTime = tx.meetup?.meetup_window_start
+    ? new Date(tx.meetup.meetup_window_start).toLocaleString("en-US", {
         month: "short",
         day: "numeric",
         hour: "numeric",

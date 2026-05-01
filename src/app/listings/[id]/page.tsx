@@ -9,6 +9,7 @@ import { SizeRecommendation } from "@/components/size-recommendation";
 import { ListingCard } from "@/components/listing-card";
 import { SellerReviews } from "@/components/seller-reviews";
 import { ReportButton } from "@/components/report-button";
+import { ShareButton } from "@/components/share-button";
 import { formatCondition } from "@/lib/utils";
 import {
   AlertCircle,
@@ -38,6 +39,60 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   sold: { label: "Sold", className: "bg-gray-200 text-gray-700" },
   removed: { label: "Removed", className: "bg-gray-200 text-gray-700" },
 };
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createServerSupabaseClient();
+  const { data: listing } = await supabase
+    .from("listings")
+    .select(
+      "title, sport, condition, price, photo_urls, city, seller:users!seller_id(city)",
+    )
+    .eq("id", id)
+    .single();
+
+  if (!listing) {
+    return { title: "Listing — NearGear" };
+  }
+
+  const dollars = listing.price ? `$${(listing.price / 100).toFixed(0)}` : "";
+  const seller = (listing as unknown as { seller?: { city?: string } }).seller;
+  const city = listing.city || seller?.city || "DFW";
+  const conditionMap: Record<string, string> = {
+    like_new: "Like New",
+    good: "Good",
+    fair: "Fair",
+    poor: "Poor",
+  };
+  const conditionLabel = conditionMap[listing.condition] ?? listing.condition;
+  const description = `${conditionLabel} ${listing.sport} gear · ${dollars} · ${city}. Find youth sports gear near you on NearGear.`;
+  const ogTitle = `${listing.title} — NearGear`;
+  const photo = (listing.photo_urls as string[] | null)?.[0];
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://near-gear.com";
+  const url = `${baseUrl}/listings/${id}`;
+
+  return {
+    title: ogTitle,
+    description,
+    openGraph: {
+      title: ogTitle,
+      description: `${conditionLabel} condition · ${dollars} · ${city}`,
+      images: photo ? [photo] : [],
+      url,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: ogTitle,
+      description: `${conditionLabel} condition · ${dollars} · ${city}`,
+      images: photo ? [photo] : [],
+    },
+  };
+}
 
 export default async function ListingPage({
   params,
@@ -165,9 +220,21 @@ export default async function ListingPage({
             )}
           </div>
 
-          <h1 className="font-heading text-2xl md:text-3xl font-bold text-navy">
-            {listing.title}
-          </h1>
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="font-heading text-2xl md:text-3xl font-bold text-navy">
+              {listing.title}
+            </h1>
+            <ShareButton
+              title={`${listing.title} — NearGear`}
+              text={`Check out this ${listing.sport} gear on NearGear — ${listing.title} for $${price}${
+                listing.city || listing.seller?.city
+                  ? ` in ${listing.city || listing.seller?.city}`
+                  : ""
+              }`}
+              className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-full border border-orange/40 text-orange hover:bg-orange/5"
+              label=""
+            />
+          </div>
 
           {isPending && !isOwner ? (
             <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { calculatePlatformFee } from "@/lib/fees";
@@ -58,6 +58,35 @@ export function CompleteTransactionSection({
 
   const [phase, setPhase] = useState<Phase>(initialPhase);
   const [error, setError] = useState("");
+
+  // While the first confirmer is in "waiting", subscribe to UPDATE events
+  // on this meetup. When the second person finishes the flow and the row
+  // flips to "completed", flip our phase to "celebrating" so the first
+  // confirmer sees the confetti too — not just the second person.
+  useEffect(() => {
+    if (phase !== "waiting") return;
+    const channel = supabase
+      .channel(`meetup-complete-${meetupId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "meetups",
+          filter: `id=eq.${meetupId}`,
+        },
+        (payload) => {
+          const next = payload.new as { status?: string };
+          if (next.status === "completed") {
+            setPhase("celebrating");
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [phase, supabase, meetupId]);
 
   if (!isBuyer && !isSeller) return null;
 
