@@ -6,11 +6,15 @@ import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getDirectionsUrl } from "@/lib/safezones";
 import {
   AlertCircle,
   ArrowLeft,
+  Calendar,
   ImageIcon,
   Loader2,
+  MapPin,
+  Navigation,
   Send,
   User as UserIcon,
 } from "lucide-react";
@@ -30,9 +34,57 @@ interface MeetupCtx {
   buyer_id: string;
   seller_id: string;
   listing_id: string;
+  offered_price: number | null;
+  meetup_window_start: string | null;
+  meetup_window_end: string | null;
+  meetup_location: string | null;
   buyer?: { id: string; full_name: string | null };
   seller?: { id: string; full_name: string | null };
   listing?: { id: string; title: string; photo_urls: string[] };
+}
+
+interface ParsedLocation {
+  name: string;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+}
+
+function parseLocation(raw: string | null): ParsedLocation | null {
+  if (!raw) return null;
+  try {
+    const p = JSON.parse(raw) as {
+      type?: string;
+      name?: string;
+      address?: string;
+      lat?: number;
+      lng?: number;
+    };
+    if (p.type === "home_seller") {
+      return {
+        name: "Seller's home",
+        address: p.address ?? null,
+        lat: null,
+        lng: null,
+      };
+    }
+    if (p.type === "home_buyer") {
+      return {
+        name: "Buyer's home",
+        address: p.address ?? null,
+        lat: null,
+        lng: null,
+      };
+    }
+    return {
+      name: p.name ?? "Meetup spot",
+      address: p.address ?? null,
+      lat: p.lat ?? null,
+      lng: p.lng ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function formatTime(iso: string): string {
@@ -57,6 +109,45 @@ function formatDayHeader(iso: string): string {
     month: "short",
     day: "numeric",
   });
+}
+
+function formatMeetupDate(start: string | null, end: string | null): string {
+  if (!start) return "TBD";
+  const s = new Date(start);
+  const day = s.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  if (!end) {
+    return `${day} · ${formatTime(start)}`;
+  }
+  return `${day} · ${formatTime(start)} – ${formatTime(end)}`;
+}
+
+function AceAvatar({ size = 32 }: { size?: number }) {
+  return (
+    <div
+      className="rounded-full bg-orange flex items-center justify-center flex-shrink-0"
+      style={{
+        width: size,
+        height: size,
+        boxShadow: "0 2px 6px rgba(255, 107, 53, 0.4)",
+      }}
+    >
+      <svg width={size} height={size} viewBox="0 0 56 56">
+        <circle cx="22" cy="24" r="2.5" fill="#0d2438" />
+        <circle cx="34" cy="24" r="2.5" fill="#0d2438" />
+        <path
+          d="M 22 34 Q 28 39 34 34"
+          stroke="#0d2438"
+          strokeWidth={2.2}
+          strokeLinecap="round"
+          fill="none"
+        />
+      </svg>
+    </div>
+  );
 }
 
 function MeetupMessagesPageInner() {
@@ -89,7 +180,8 @@ function MeetupMessagesPageInner() {
       const { data: m, error: mErr } = await supabase
         .from("meetups")
         .select(
-          `id, buyer_id, seller_id, listing_id,
+          `id, buyer_id, seller_id, listing_id, offered_price,
+           meetup_window_start, meetup_window_end, meetup_location,
            listing:listings!listing_id(id, title, photo_urls),
            buyer:users!buyer_id(id, full_name),
            seller:users!seller_id(id, full_name)`,
@@ -171,26 +263,35 @@ function MeetupMessagesPageInner() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  const handleSend = async () => {
-    if (!ctx || !userId || !input.trim() || sending) return;
+  const sendBody = async (body: string) => {
+    if (!ctx || !userId || !body.trim() || sending) return;
     setSending(true);
     setSendError("");
-    const body = input.trim();
-    const otherId =
-      userId === ctx.buyer_id ? ctx.seller_id : ctx.buyer_id;
-    setInput("");
-
+    const otherId = userId === ctx.buyer_id ? ctx.seller_id : ctx.buyer_id;
     const { error: sendErr } = await supabase.from("messages").insert({
       listing_id: ctx.listing_id,
       sender_id: userId,
       receiver_id: otherId,
-      body,
+      body: body.trim(),
     });
     setSending(false);
     if (sendErr) {
       setSendError(sendErr.message);
-      setInput(body);
+      return false;
     }
+    return true;
+  };
+
+  const handleSend = async () => {
+    const body = input.trim();
+    if (!body) return;
+    setInput("");
+    const ok = await sendBody(body);
+    if (!ok) setInput(body);
+  };
+
+  const sendChip = async (body: string) => {
+    await sendBody(body);
   };
 
   if (loading) {
@@ -224,6 +325,42 @@ function MeetupMessagesPageInner() {
   const isBuyer = userId === ctx.buyer_id;
   const otherParty = isBuyer ? ctx.seller : ctx.buyer;
   const otherName = otherParty?.full_name || "the other party";
+  const otherFirst = otherName.split(" ")[0];
+
+  const location = parseLocation(ctx.meetup_location);
+  const dateLine = formatMeetupDate(
+    ctx.meetup_window_start,
+    ctx.meetup_window_end,
+  );
+  const offered = ctx.offered_price
+    ? `$${(ctx.offered_price / 100).toFixed(0)}`
+    : null;
+  const directionsUrl = location
+    ? getDirectionsUrl({
+        lat: location.lat,
+        lng: location.lng,
+        address: location.address,
+        label: location.name,
+      })
+    : null;
+
+  const aceMessage = `Hey! 👋 Your meetup for ${
+    ctx.listing?.title ?? "your item"
+  } is confirmed.
+
+📅 ${dateLine}
+📍 ${location?.name ?? "TBD"}${
+    offered ? `\n💰 ${offered}` : ""
+  }
+
+Use this chat to firm up the exact time with ${otherFirst}. Good luck! 🤝`;
+
+  const showQuickReplies = messages.length < 3;
+  const quickChips = [
+    "👋 When works for you?",
+    `📍 See you at ${location?.name ?? "the meetup spot"}!`,
+    "✅ I'll be there on time!",
+  ];
 
   let lastDayHeader = "";
   let lastTimestamp = 0;
@@ -257,15 +394,57 @@ function MeetupMessagesPageInner() {
             </Link>
           </div>
         </div>
+
+        {/* Compact meetup details strip */}
+        <div className="border-t bg-gray-50">
+          <div className="max-w-lg mx-auto px-3 py-2 flex items-center gap-3 text-[12px]">
+            <div className="flex items-center gap-1.5 text-navy/80 min-w-0">
+              <Calendar className="w-3.5 h-3.5 flex-shrink-0 text-orange" />
+              <span className="truncate">{dateLine}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-navy/80 min-w-0">
+              <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-orange" />
+              <span className="truncate">{location?.name ?? "TBD"}</span>
+            </div>
+            {directionsUrl && (
+              <a
+                href={directionsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto flex-shrink-0 inline-flex items-center gap-1 text-orange font-semibold hover:underline"
+              >
+                <Navigation className="w-3 h-3" />
+                Directions
+              </a>
+            )}
+          </div>
+        </div>
       </header>
 
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-lg mx-auto px-3 py-4 space-y-1">
-          <div className="text-center text-xs text-muted-foreground bg-white border rounded-xl px-4 py-3 mb-2">
-            You&apos;re now connected with{" "}
-            <span className="font-semibold text-navy">{otherName}</span>. Use
-            this to firm up your meetup time and location.
+        <div className="max-w-lg mx-auto px-3 py-4 space-y-2">
+          {/* Ace opener — UI only, never persisted */}
+          <div className="flex gap-2 items-start mt-2">
+            <AceAvatar size={32} />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold text-orange mb-1 ml-1">
+                Ace
+              </p>
+              <div className="max-w-[88%] rounded-2xl rounded-bl-md bg-navy text-white px-3.5 py-2.5">
+                <p className="text-sm leading-relaxed whitespace-pre-line">
+                  {aceMessage}
+                </p>
+              </div>
+            </div>
           </div>
+
+          {messages.length === 0 && showQuickReplies && (
+            <div className="text-center pt-6 pb-2">
+              <p className="text-xs text-muted-foreground font-semibold">
+                Start the conversation 👇
+              </p>
+            </div>
+          )}
 
           {messages.map((m) => {
             const mine = m.sender_id === userId;
@@ -310,8 +489,31 @@ function MeetupMessagesPageInner() {
         </div>
       </main>
 
-      <div className="sticky bottom-0 bg-white border-t p-3 safe-bottom">
-        <div className="max-w-lg mx-auto flex gap-2 items-end">
+      <div
+        className="sticky bottom-0 bg-white border-t"
+        style={{
+          paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+        }}
+      >
+        {showQuickReplies && (
+          <div className="max-w-lg mx-auto px-3 pt-3 pb-1">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              {quickChips.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => sendChip(c)}
+                  disabled={sending}
+                  className="flex-shrink-0 h-9 px-3 rounded-full border border-orange/40 text-orange text-sm font-semibold hover:bg-orange/5 disabled:opacity-50"
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="max-w-lg mx-auto px-3 pt-3 flex gap-2 items-end">
           <Input
             placeholder="Message"
             value={input}
@@ -337,7 +539,7 @@ function MeetupMessagesPageInner() {
           </Button>
         </div>
         {sendError && (
-          <p className="max-w-lg mx-auto mt-2 text-xs text-red-600">
+          <p className="max-w-lg mx-auto px-3 mt-2 text-xs text-red-600">
             {sendError}
           </p>
         )}
