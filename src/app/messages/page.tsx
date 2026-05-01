@@ -14,8 +14,17 @@ import {
   MessageCircle,
 } from "lucide-react";
 
+// Show any meetup that's still "live" — not just the four post-accept
+// statuses from the original spec. Sellers often have unread messages
+// from a `requested` meetup (buyer asking a question before they accept)
+// and need to see those threads here. Terminal states (completed,
+// cancelled_*, no_show_*, disputed, item_dispute) are excluded so the
+// list doesn't grow forever.
 const ACTIVE_STATUSES = [
+  "requested",
+  "countered",
   "scheduled",
+  "deposit_pending",
   "buyer_confirmed",
   "seller_confirmed",
   "payment_processing",
@@ -144,20 +153,29 @@ function MessagesInner() {
           ].sort((a, b) => b.created_at.localeCompare(a.created_at));
           const lastMessage = candidates[0] ?? null;
 
-          // Unread count for this user
-          const { count } = await supabase
-            .from("messages")
-            .select("id", { count: "exact", head: true })
-            .or(
-              `meetup_id.eq.${m.id},and(listing_id.eq.${m.listing_id},sender_id.in.(${m.buyer_id},${m.seller_id}),receiver_id.eq.${user.id})`,
-            )
-            .eq("receiver_id", user.id)
-            .eq("read", false);
+          // Unread count: messages tagged with meetup_id (new) plus legacy
+          // messages on the same listing+pair that pre-date migration 009.
+          const [{ count: countByMeetup }, { count: countLegacy }] =
+            await Promise.all([
+              supabase
+                .from("messages")
+                .select("id", { count: "exact", head: true })
+                .eq("meetup_id", m.id)
+                .eq("receiver_id", user.id)
+                .eq("read", false),
+              supabase
+                .from("messages")
+                .select("id", { count: "exact", head: true })
+                .is("meetup_id", null)
+                .eq("listing_id", m.listing_id)
+                .eq("receiver_id", user.id)
+                .eq("read", false),
+            ]);
 
           return {
             meetup: m,
             lastMessage,
-            unread: count ?? 0,
+            unread: (countByMeetup ?? 0) + (countLegacy ?? 0),
             activityIso:
               lastMessage?.created_at ||
               m.meetup_window_start ||
