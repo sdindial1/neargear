@@ -416,12 +416,58 @@ function MeetupMessagesPageInner() {
 
 Use this chat to firm up the exact time with ${otherFirst}. Good luck! 🤝`;
 
-  const showQuickReplies = messages.length < 3;
-  const quickChips = [
-    "👋 When works for you?",
-    `📍 See you at ${location?.name ?? "the meetup spot"}!`,
-    "✅ I'll be there on time!",
-  ];
+  // Phase: before meetup day → during meetup day → after window ends.
+  // Compares today's date vs the meetup's start date (calendar day),
+  // then promotes to "after" once the window's end has passed.
+  const startDate = ctx.meetup_window_start
+    ? new Date(ctx.meetup_window_start)
+    : null;
+  const endDate = ctx.meetup_window_end
+    ? new Date(ctx.meetup_window_end)
+    : null;
+
+  let phase: "before" | "during" | "after" = "before";
+  if (endDate && Date.now() > endDate.getTime()) {
+    phase = "after";
+  } else if (startDate) {
+    const startDay = new Date(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+    ).getTime();
+    const now = new Date();
+    const todayDay = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    ).getTime();
+    if (todayDay > startDay) phase = "after";
+    else if (todayDay === startDay) phase = "during";
+    else phase = "before";
+  }
+
+  const zoneName = location?.name ?? "the meetup spot";
+  const quickChips =
+    phase === "before"
+      ? [
+          "👋 Hey! When works best for you?",
+          `📍 See you at ${zoneName}!`,
+          "✅ Looking forward to it!",
+          "🙏 Thanks for the quick response!",
+        ]
+      : phase === "during"
+        ? [
+            "🚗 On my way now!",
+            "✅ I'm here!",
+            "⏱️ Running a few minutes late, be right there!",
+            `📍 I'm at ${zoneName}`,
+          ]
+        : [
+            "🤝 Great doing business with you!",
+            "⭐ Just left you a review!",
+            "👏 Smooth transaction, thanks!",
+            "🙌 Hope to do business again!",
+          ];
 
   let lastDayHeader = "";
   let lastTimestamp = 0;
@@ -499,7 +545,7 @@ Use this chat to firm up the exact time with ${otherFirst}. Good luck! 🤝`;
             </div>
           </div>
 
-          {messages.length === 0 && showQuickReplies && (
+          {messages.length === 0 && (
             <div className="text-center pt-6 pb-2">
               <p className="text-xs text-muted-foreground font-semibold">
                 Start the conversation 👇
@@ -556,23 +602,23 @@ Use this chat to firm up the exact time with ${otherFirst}. Good luck! 🤝`;
           paddingBottom: "max(16px, env(safe-area-inset-bottom))",
         }}
       >
-        {showQuickReplies && (
-          <div className="max-w-lg mx-auto px-3 pt-3 pb-1">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              {quickChips.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => sendChip(c)}
-                  disabled={sending}
-                  className="flex-shrink-0 h-9 px-3 rounded-full border border-orange/40 text-orange text-sm font-semibold hover:bg-orange/5 disabled:opacity-50"
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
+        {/* Persistent quick-reply chips — phase auto-switches before / day-of /
+            after the meetup. Always visible above the input. */}
+        <div className="max-w-lg mx-auto px-3 pt-3 pb-1">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar">
+            {quickChips.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => sendChip(c)}
+                disabled={sending}
+                className="flex-shrink-0 h-9 px-3 rounded-full border border-orange/40 text-orange text-sm font-semibold hover:bg-orange/5 disabled:opacity-50"
+              >
+                {c}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
 
         <div className="max-w-lg mx-auto px-3 pt-3 flex gap-2 items-end">
           <Input
