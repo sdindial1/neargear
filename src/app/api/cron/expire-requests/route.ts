@@ -207,14 +207,14 @@ async function runExpiry() {
             type: "meetup_reminder",
             title: "Meetup in ~2 hours",
             body: `Your meetup for ${title} starts soon at ${zoneName}.`,
-            link: `/meetups/${row.id}`,
+            link: `/meetups/${row.id}/messages`,
           }),
           createNotification({
             userId: row.seller?.id ?? null,
             type: "meetup_reminder",
             title: "Meetup in ~2 hours",
             body: `Your meetup for ${title} starts soon at ${zoneName}.`,
-            link: `/meetups/${row.id}`,
+            link: `/meetups/${row.id}/messages`,
           }),
         ]);
 

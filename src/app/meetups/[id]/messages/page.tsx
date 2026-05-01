@@ -202,14 +202,26 @@ function MeetupMessagesPageInner() {
       }
       setCtx(meetupCtx);
 
-      const orFilter = `and(sender_id.eq.${meetupCtx.buyer_id},receiver_id.eq.${meetupCtx.seller_id}),and(sender_id.eq.${meetupCtx.seller_id},receiver_id.eq.${meetupCtx.buyer_id})`;
-      const { data: msgs } = await supabase
+      // Prefer fetching by meetup_id (broadened RLS in migration 009);
+      // fall back to the legacy sender/receiver pair filter for messages
+      // inserted before the column was added.
+      const { data: byMeetup } = await supabase
         .from("messages")
         .select("*")
-        .eq("listing_id", meetupCtx.listing_id)
-        .or(orFilter)
+        .eq("meetup_id", meetupCtx.id)
         .order("created_at", { ascending: true });
-      setMessages((msgs as Msg[]) || []);
+      let msgs = (byMeetup as Msg[]) || [];
+      if (msgs.length === 0) {
+        const orFilter = `and(sender_id.eq.${meetupCtx.buyer_id},receiver_id.eq.${meetupCtx.seller_id}),and(sender_id.eq.${meetupCtx.seller_id},receiver_id.eq.${meetupCtx.buyer_id})`;
+        const { data: legacy } = await supabase
+          .from("messages")
+          .select("*")
+          .eq("listing_id", meetupCtx.listing_id)
+          .or(orFilter)
+          .order("created_at", { ascending: true });
+        msgs = (legacy as Msg[]) || [];
+      }
+      setMessages(msgs);
 
       await supabase
         .from("messages")
@@ -236,11 +248,12 @@ function MeetupMessagesPageInner() {
           filter: `listing_id=eq.${ctx.listing_id}`,
         },
         (payload) => {
-          const m = payload.new as Msg;
-          const isOurThread =
+          const m = payload.new as Msg & { meetup_id?: string | null };
+          const matchesMeetupId = m.meetup_id === ctx.id;
+          const matchesPair =
             (m.sender_id === ctx.buyer_id && m.receiver_id === ctx.seller_id) ||
             (m.sender_id === ctx.seller_id && m.receiver_id === ctx.buyer_id);
-          if (!isOurThread) return;
+          if (!matchesMeetupId && !matchesPair) return;
           setMessages((prev) =>
             prev.find((x) => x.id === m.id) ? prev : [...prev, m],
           );
@@ -270,6 +283,7 @@ function MeetupMessagesPageInner() {
     const otherId = userId === ctx.buyer_id ? ctx.seller_id : ctx.buyer_id;
     const { error: sendErr } = await supabase.from("messages").insert({
       listing_id: ctx.listing_id,
+      meetup_id: ctx.id,
       sender_id: userId,
       receiver_id: otherId,
       body: body.trim(),

@@ -99,7 +99,7 @@ export function Navbar() {
           </Link>
 
           {user ? (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-4">
               <NotificationBell userId={user.id} />
               <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 text-sm cursor-pointer">

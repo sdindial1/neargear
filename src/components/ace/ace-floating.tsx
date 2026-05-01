@@ -5,10 +5,15 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AceChat } from "./ace-chat";
 
-const STORAGE_KEY = "neargear:ace:position";
+// Bumped from "neargear:ace:position" so older 56px-era positions reset
+// to the new bottom-120 / right-16 default and never drift onto the left
+// half of the screen.
+const STORAGE_KEY = "neargear:ace:position:v2";
 const TAP_THRESHOLD_PX = 6;
 const HIDE_PATHS = ["/auth", "/admin"];
-const SIZE = 56;
+const SIZE = 48;
+const DEFAULT_RIGHT = 16;
+const DEFAULT_BOTTOM = 120;
 
 interface Position {
   x: number;
@@ -18,8 +23,8 @@ interface Position {
 function defaultPosition(): Position {
   if (typeof window === "undefined") return { x: 0, y: 0 };
   return {
-    x: window.innerWidth - SIZE - 24,
-    y: window.innerHeight - SIZE - 100,
+    x: window.innerWidth - SIZE - DEFAULT_RIGHT,
+    y: window.innerHeight - SIZE - DEFAULT_BOTTOM,
   };
 }
 
