@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { getDirectionsUrl } from "@/lib/safezones";
 import { MeetupCountdown } from "@/components/meetup-countdown";
 import { CompleteTransactionSection } from "@/components/complete-transaction-section";
+import { ItemDisputeButton } from "@/components/item-dispute-modal";
 import {
+  AlertTriangle,
   Calendar,
   Clock,
   ImageIcon,
@@ -124,6 +126,13 @@ export default async function MeetupDetailPage({
   const depositDollars = ((meetup.deposit_amount || 0) / 100).toFixed(2);
   const start = new Date(meetup.meetup_window_start);
   const end = new Date(meetup.meetup_window_end);
+
+  // "Report Item Issue" is buyer-only and only during the active window
+  // for a scheduled meetup.
+  const now = Date.now();
+  const inWindow = now >= start.getTime() && now <= end.getTime();
+  const showItemDispute =
+    isBuyer && meetup.status === "scheduled" && inWindow;
 
   const directionsUrl = location
     ? getDirectionsUrl({
@@ -320,6 +329,22 @@ export default async function MeetupDetailPage({
             </div>
           </dl>
         </div>
+
+        {showItemDispute && (
+          <div className="mt-4 text-center">
+            <ItemDisputeButton
+              meetupId={meetup.id}
+              trigger={
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border border-red-300 text-red-600 text-xs font-semibold hover:bg-red-50"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" /> Report Item Issue
+                </button>
+              }
+            />
+          </div>
+        )}
       </main>
 
       <div className="fixed bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 right-0 bg-white border-t p-3">

@@ -26,6 +26,8 @@ import type { AIListingAnalysis } from "@/types/ai";
 import { dataUrlToBlob, resizeImage } from "@/lib/image";
 import { formatCondition } from "@/lib/utils";
 import { ensurePublicUserRow } from "@/lib/ensure-profile";
+import { isSellerSuspended } from "@/lib/strikes";
+import { SuspensionScreen } from "@/components/suspension-screen";
 import {
   AlertCircle,
   ArrowLeft,
@@ -63,6 +65,42 @@ function SellPageInner() {
   const supabase = createClient();
   const pendingRef = useRef<boolean>(false);
   const reanalyzeInputRef = useRef<HTMLInputElement>(null);
+
+  const [suspensionLoading, setSuspensionLoading] = useState(true);
+  const [suspension, setSuspension] = useState<{
+    suspension_ends_at: string | null;
+    suspended_permanently: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        if (alive) setSuspensionLoading(false);
+        return;
+      }
+      const { data } = await supabase
+        .from("users")
+        .select("suspension_ends_at, suspended_permanently")
+        .eq("id", user.id)
+        .single();
+      if (alive) {
+        setSuspension(
+          (data as {
+            suspension_ends_at: string | null;
+            suspended_permanently: boolean;
+          } | null) ?? null,
+        );
+        setSuspensionLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [supabase]);
 
   const [step, setStep] = useState<Step>("photos");
   const [photos, setPhotos] = useState<File[]>([]);
@@ -265,6 +303,19 @@ function SellPageInner() {
 
     router.push(`/listings/${listing.id}`);
   };
+
+  if (
+    !suspensionLoading &&
+    suspension &&
+    isSellerSuspended(suspension)
+  ) {
+    return (
+      <SuspensionScreen
+        suspensionEndsAt={suspension.suspension_ends_at}
+        permanent={!!suspension.suspended_permanently}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">

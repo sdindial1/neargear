@@ -7,7 +7,11 @@ export type NotificationType =
   | "transaction_complete"
   | "meetup_reminder"
   | "wishlist_reactivated"
-  | "review_received";
+  | "review_received"
+  | "strike_issued"
+  | "no_show_prompt"
+  | "item_dispute_reported"
+  | "item_dispute_filed";
 
 export interface CreateNotificationInput {
   userId: string | null;

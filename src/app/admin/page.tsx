@@ -43,6 +43,8 @@ export default async function AdminPage() {
     meetupsRes,
     transactionsRes,
     reportsRes,
+    strikesRes,
+    disputesRes,
   ] = await Promise.all([
     admin.from("users").select("*").order("created_at", { ascending: false }),
     admin
@@ -69,6 +71,19 @@ export default async function AdminPage() {
         "id, reason, details, status, created_at, reporter_id, reported_listing_id, reported_user_id, reporter:users!reporter_id(full_name, email), reported_listing:listings!reported_listing_id(title), reported_user:users!reported_user_id(full_name, email)",
       )
       .order("created_at", { ascending: false }),
+    admin
+      .from("strikes")
+      .select(
+        "id, user_id, meetup_id, type, issued_by, notes, created_at, user:users!user_id(full_name, email, strike_count)",
+      )
+      .order("created_at", { ascending: false }),
+    admin
+      .from("meetups")
+      .select(
+        "id, item_dispute_reported_at, item_dispute_reason, item_dispute_notes, status, buyer_id, seller_id, listing:listings!listing_id(title), buyer:users!buyer_id(full_name, email), seller:users!seller_id(full_name, email)",
+      )
+      .eq("status", "item_dispute")
+      .order("item_dispute_reported_at", { ascending: false }),
   ]);
 
   const payload: AdminPayload = {
@@ -79,6 +94,8 @@ export default async function AdminPage() {
     transactions: (transactionsRes.data ??
       []) as unknown as AdminPayload["transactions"],
     reports: (reportsRes.data ?? []) as unknown as AdminPayload["reports"],
+    strikes: (strikesRes.data ?? []) as unknown as AdminPayload["strikes"],
+    disputes: (disputesRes.data ?? []) as unknown as AdminPayload["disputes"],
   };
 
   return <AdminDashboard payload={payload} />;

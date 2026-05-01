@@ -229,12 +229,65 @@ async function runExpiry() {
     }
   }
 
+  // ---- No-show prompt pass --------------------------------------------
+  // Meetups whose window ended >1h ago, still scheduled, and we haven't
+  // pinged the parties yet → ask both "did your meetup happen?".
+  const noShowCutoffIso = new Date(
+    Date.now() - 60 * 60 * 1000,
+  ).toISOString();
+  let noShowPromptsSent = 0;
+
+  const { data: pendingNoShows } = await supabase
+    .from("meetups")
+    .select(
+      `id, buyer_id, seller_id, listing:listings!listing_id(title)`,
+    )
+    .eq("status", "scheduled")
+    .is("no_show_prompt_sent_at", null)
+    .lte("meetup_window_end", noShowCutoffIso);
+
+  for (const row of pendingNoShows ?? []) {
+    const r = row as unknown as {
+      id: string;
+      buyer_id: string | null;
+      seller_id: string | null;
+      listing: { title: string } | null;
+    };
+    const title = r.listing?.title ?? "your meetup";
+    try {
+      await Promise.all([
+        createNotification({
+          userId: r.buyer_id,
+          type: "no_show_prompt",
+          title: "Did your meetup happen?",
+          body: `Let us know what happened with ${title}.`,
+          link: `/meetups/${r.id}/no-show`,
+        }),
+        createNotification({
+          userId: r.seller_id,
+          type: "no_show_prompt",
+          title: "Did your meetup happen?",
+          body: `Let us know what happened with ${title}.`,
+          link: `/meetups/${r.id}/no-show`,
+        }),
+      ]);
+      await supabase
+        .from("meetups")
+        .update({ no_show_prompt_sent_at: new Date().toISOString() })
+        .eq("id", r.id);
+      noShowPromptsSent++;
+    } catch (err) {
+      console.error(`[no-show prompt] meetup ${r.id} failed:`, err);
+    }
+  }
+
   return Response.json({
     ok: true,
     expired: expired.length,
     notified: notifiedTotal,
     autoCompleted,
     remindersSent,
+    noShowPromptsSent,
     cutoff: cutoffIso,
     completionCutoff: completionCutoffIso,
   });

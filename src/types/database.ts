@@ -29,6 +29,9 @@ export interface User {
   account_status: "active" | "flagged" | "banned" | null;
   zipcode: string | null;
   phone: string | null;
+  strike_count: number | null;
+  suspension_ends_at: string | null;
+  suspended_permanently: boolean | null;
   created_at: string;
 }
 

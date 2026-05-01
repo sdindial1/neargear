@@ -157,6 +157,9 @@ function ProfilePageInner() {
       <main className="page-with-nav flex-1">
         <div className="max-w-2xl mx-auto w-full px-4 py-6">
           {/* Profile header */}
+          {/* Strike status banner */}
+          <StrikeBanner user={user} />
+
           <div className="text-center mb-6">
             <div className="w-20 h-20 rounded-full bg-orange mx-auto flex items-center justify-center text-white text-3xl font-bold mb-3">
               {user.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
@@ -363,6 +366,47 @@ function ProfilePageInner() {
 }
 
 import { AuthGate } from "@/components/auth-gate";
+import { isSellerSuspended } from "@/lib/strikes";
+
+function StrikeBanner({ user }: { user: User }) {
+  const strikes = user.strike_count ?? 0;
+  const permanent = !!user.suspended_permanently;
+  const suspended = isSellerSuspended({
+    suspension_ends_at: user.suspension_ends_at,
+    suspended_permanently: permanent,
+  });
+
+  if (strikes === 0 && !suspended) return null;
+
+  if (permanent) {
+    return (
+      <div className="bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3 mb-4 text-sm">
+        🚫 Your selling access has been permanently removed.
+      </div>
+    );
+  }
+  if (suspended && user.suspension_ends_at) {
+    const end = new Date(user.suspension_ends_at).toLocaleDateString(
+      "en-US",
+      { month: "long", day: "numeric", year: "numeric" },
+    );
+    return (
+      <div className="bg-orange/10 border border-orange/30 text-orange-900 rounded-xl px-4 py-3 mb-4 text-sm">
+        🚫 Your selling access is suspended until{" "}
+        <span className="font-semibold">{end}</span>.
+      </div>
+    );
+  }
+  if (strikes > 0) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 text-yellow-900 rounded-xl px-4 py-3 mb-4 text-sm">
+        ⚠️ You have {strikes} strike{strikes === 1 ? "" : "s"}. 5 strikes
+        results in selling suspension.
+      </div>
+    );
+  }
+  return null;
+}
 
 export default function ProfilePage() {
   return (

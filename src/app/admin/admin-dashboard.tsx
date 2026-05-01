@@ -89,6 +89,34 @@ interface AdminReport {
   reported_user?: { full_name: string | null; email: string } | null;
 }
 
+interface AdminStrike {
+  id: string;
+  user_id: string;
+  meetup_id: string | null;
+  type: string;
+  issued_by: string;
+  notes: string | null;
+  created_at: string;
+  user?: {
+    full_name: string | null;
+    email: string;
+    strike_count: number | null;
+  } | null;
+}
+
+interface AdminDispute {
+  id: string;
+  status: string;
+  item_dispute_reported_at: string | null;
+  item_dispute_reason: string | null;
+  item_dispute_notes: string | null;
+  buyer_id: string;
+  seller_id: string;
+  listing?: { title: string } | null;
+  buyer?: { full_name: string | null; email: string } | null;
+  seller?: { full_name: string | null; email: string } | null;
+}
+
 export interface AdminPayload {
   fetchedAt: string;
   users: AdminUser[];
@@ -96,6 +124,8 @@ export interface AdminPayload {
   meetups: AdminMeetup[];
   transactions: AdminTransaction[];
   reports: AdminReport[];
+  strikes: AdminStrike[];
+  disputes: AdminDispute[];
 }
 
 function fmtMoney(cents: number): string {
@@ -849,6 +879,12 @@ export function AdminDashboard({ payload }: { payload: AdminPayload }) {
 
         {/* Reports */}
         <ReportsSection reports={payload.reports} />
+
+        {/* Strikes */}
+        <StrikesSection strikes={payload.strikes} />
+
+        {/* Item Disputes */}
+        <DisputesSection disputes={payload.disputes} />
       </div>
     </main>
   );
@@ -1006,6 +1042,153 @@ function ReportsSection({ reports }: { reports: AdminReport[] }) {
               </li>
             );
           })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+const STRIKE_TYPE_LABEL: Record<string, string> = {
+  buyer_no_show: "Buyer no-show",
+  seller_no_show: "Seller no-show",
+  item_not_as_described: "Item not as described",
+  late_cancel_buyer: "Late cancel (buyer)",
+  late_cancel_seller: "Late cancel (seller)",
+};
+
+function StrikesSection({ strikes }: { strikes: AdminStrike[] }) {
+  return (
+    <section className="bg-white text-navy rounded-2xl p-4 md:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-heading text-xl font-bold">Strikes</h2>
+        <span className="text-xs text-muted-foreground">
+          {strikes.length} total
+        </span>
+      </div>
+      {strikes.length === 0 ? (
+        <p className="py-6 text-center text-muted-foreground text-sm">
+          No strikes yet.
+        </p>
+      ) : (
+        <div className="overflow-x-auto -mx-4 md:mx-0">
+          <table className="w-full text-sm min-w-[700px]">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b">
+                <th className="py-2 px-3">When</th>
+                <th className="py-2 px-3">User</th>
+                <th className="py-2 px-3">Total</th>
+                <th className="py-2 px-3">Type</th>
+                <th className="py-2 px-3">Issued by</th>
+                <th className="py-2 px-3">Meetup</th>
+              </tr>
+            </thead>
+            <tbody>
+              {strikes.map((s) => (
+                <tr key={s.id} className="border-b last:border-0">
+                  <td className="py-2 px-3 text-muted-foreground text-xs">
+                    {fmtDate(s.created_at)}
+                  </td>
+                  <td className="py-2 px-3">
+                    <p className="font-semibold text-navy">
+                      {s.user?.full_name || "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {s.user?.email}
+                    </p>
+                  </td>
+                  <td className="py-2 px-3 tabular-nums font-semibold">
+                    {s.user?.strike_count ?? "—"}
+                  </td>
+                  <td className="py-2 px-3 text-xs">
+                    {STRIKE_TYPE_LABEL[s.type] || s.type}
+                  </td>
+                  <td className="py-2 px-3 text-xs capitalize">
+                    {s.issued_by}
+                  </td>
+                  <td className="py-2 px-3">
+                    {s.meetup_id ? (
+                      <Link
+                        href={`/meetups/${s.meetup_id}`}
+                        target="_blank"
+                        className="text-orange text-xs hover:underline"
+                      >
+                        View
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DisputesSection({ disputes }: { disputes: AdminDispute[] }) {
+  return (
+    <section className="bg-white text-navy rounded-2xl p-4 md:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-heading text-xl font-bold">
+          Item Disputes
+          {disputes.length > 0 && (
+            <span className="ml-2 text-sm font-semibold text-red-600">
+              {disputes.length} pending
+            </span>
+          )}
+        </h2>
+      </div>
+      {disputes.length === 0 ? (
+        <p className="py-6 text-center text-muted-foreground text-sm">
+          No item disputes.
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {disputes.map((d) => (
+            <li
+              key={d.id}
+              className="border rounded-xl p-3 flex flex-col sm:flex-row gap-3 sm:items-start"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <Badge className="bg-red-100 text-red-700">
+                    item_dispute
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {d.item_dispute_reported_at
+                      ? fmtDate(d.item_dispute_reported_at)
+                      : "—"}
+                  </span>
+                </div>
+                <p className="font-semibold text-navy mt-1">
+                  {d.listing?.title || "(missing listing)"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Buyer: {d.buyer?.full_name || d.buyer?.email || "?"} ·
+                  Seller: {d.seller?.full_name || d.seller?.email || "?"}
+                </p>
+                <p className="text-sm text-navy/90 mt-2">
+                  <span className="font-semibold">Reason:</span>{" "}
+                  {d.item_dispute_reason || "—"}
+                </p>
+                {d.item_dispute_notes && (
+                  <p className="text-sm text-navy/90 mt-1 bg-gray-50 rounded-lg p-2">
+                    {d.item_dispute_notes}
+                  </p>
+                )}
+              </div>
+              <div className="flex sm:flex-col gap-2 flex-shrink-0">
+                <Link href={`/meetups/${d.id}`} target="_blank">
+                  <Button variant="outline" className="h-8 px-3 text-xs">
+                    View Meetup
+                  </Button>
+                </Link>
+              </div>
+            </li>
+          ))}
         </ul>
       )}
     </section>
