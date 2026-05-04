@@ -10,6 +10,7 @@ import { ListingCard } from "@/components/listing-card";
 import { SellerReviews } from "@/components/seller-reviews";
 import { ReportButton } from "@/components/report-button";
 import { ShareButton } from "@/components/share-button";
+import { FoundingBadge } from "@/components/founding-badge";
 import { formatCondition } from "@/lib/utils";
 import {
   AlertCircle,
@@ -105,7 +106,7 @@ export default async function ListingPage({
   const { data: listing } = await supabase
     .from("listings")
     .select(
-      "*, seller:users!seller_id(full_name, avg_rating, review_count, city, avatar_url, created_at)",
+      "*, seller:users!seller_id(full_name, avg_rating, review_count, city, avatar_url, created_at, is_founding_member)",
     )
     .eq("id", id)
     .single();
@@ -277,9 +278,12 @@ export default async function ListingPage({
                   {listing.seller.full_name?.charAt(0) || "?"}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-navy truncate">
-                    {listing.seller.full_name || "Seller"}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-navy truncate">
+                      {listing.seller.full_name || "Seller"}
+                    </p>
+                    {listing.seller.is_founding_member && <FoundingBadge size="sm" />}
+                  </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Star className="w-3.5 h-3.5 fill-orange text-orange" />
                     <span>{listing.seller.avg_rating?.toFixed(1) || "New"}</span>

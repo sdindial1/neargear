@@ -32,6 +32,12 @@ export interface User {
   strike_count: number | null;
   suspension_ends_at: string | null;
   suspended_permanently: boolean | null;
+  is_founding_member: boolean | null;
+  family_name: string | null;
+  spouse_name: string | null;
+  spouse_phone: string | null;
+  spouse_email: string | null;
+  active_profile: "primary" | "spouse" | null;
   created_at: string;
 }
 

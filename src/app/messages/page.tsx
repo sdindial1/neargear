@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
 import { AuthGate } from "@/components/auth-gate";
 import { Button } from "@/components/ui/button";
+import { ProfileSwitcher } from "@/components/profile-switcher";
 import {
   Calendar,
   Loader2,
@@ -239,9 +240,12 @@ function MessagesInner() {
       <Navbar />
       <main className="page-with-nav flex-1">
         <div className="max-w-2xl mx-auto w-full px-4 py-4">
-          <h1 className="font-heading text-2xl font-bold text-navy mb-4">
-            Messages
-          </h1>
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <h1 className="font-heading text-2xl font-bold text-navy">
+              Messages
+            </h1>
+            <ProfileSwitcher variant="compact" />
+          </div>
           <ul className="space-y-2">
             {conversations.map((c) => {
               const m = c.meetup;

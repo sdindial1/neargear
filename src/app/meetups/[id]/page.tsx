@@ -82,7 +82,7 @@ export default async function MeetupDetailPage({
       `*,
        listing:listings!listing_id(id, title, photo_urls, price, retail_price),
        buyer:users!buyer_id(id, full_name, avg_rating, city),
-       seller:users!seller_id(id, full_name, avg_rating, city)`,
+       seller:users!seller_id(id, full_name, avg_rating, city, is_founding_member)`,
     )
     .eq("id", id)
     .single();
@@ -181,6 +181,9 @@ export default async function MeetupDetailPage({
                 sellerCompletedAt={meetup.seller_completed_at ?? null}
                 offeredPriceCents={meetup.offered_price ?? 0}
                 retailPriceCents={meetup.listing?.retail_price ?? null}
+                sellerIsFoundingMember={
+                  Boolean(meetup.seller?.is_founding_member)
+                }
               />
             </div>
           )}
@@ -327,6 +330,17 @@ export default async function MeetupDetailPage({
                 ${depositDollars}
               </dd>
             </div>
+            {meetup.seller?.is_founding_member && (
+              <div className="flex justify-between pt-1">
+                <dt className="text-muted-foreground">NearGear Fee</dt>
+                <dd className="font-semibold text-green-700 tabular-nums">
+                  $0.00{" "}
+                  <span className="text-[11px] font-normal text-green-700/80">
+                    (Founding Family ⭐)
+                  </span>
+                </dd>
+              </div>
+            )}
           </dl>
         </div>
 

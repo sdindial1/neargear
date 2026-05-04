@@ -15,11 +15,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Download,
   ImageIcon,
   Loader2,
+  Mail,
   RefreshCw,
   Search,
   ShieldCheck,
+  Star,
   Trash2,
 } from "lucide-react";
 
@@ -30,7 +33,19 @@ interface AdminUser {
   city: string | null;
   zipcode: string | null;
   account_status: string | null;
+  is_founding_member: boolean | null;
   created_at: string;
+}
+
+interface AdminWaitlistEntry {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
+interface FoundingSpotsCounter {
+  spots_claimed: number;
+  total_spots: number;
 }
 
 interface AdminListing {
@@ -126,6 +141,8 @@ export interface AdminPayload {
   reports: AdminReport[];
   strikes: AdminStrike[];
   disputes: AdminDispute[];
+  foundingSpots: FoundingSpotsCounter;
+  waitlist: AdminWaitlistEntry[];
 }
 
 function fmtMoney(cents: number): string {
@@ -877,6 +894,15 @@ export function AdminDashboard({ payload }: { payload: AdminPayload }) {
           </div>
         </section>
 
+        {/* Founding Family */}
+        <FoundingSection
+          users={payload.users}
+          spots={payload.foundingSpots}
+        />
+
+        {/* Waitlist */}
+        <WaitlistSection waitlist={payload.waitlist} />
+
         {/* Reports */}
         <ReportsSection reports={payload.reports} />
 
@@ -1190,6 +1216,235 @@ function DisputesSection({ disputes }: { disputes: AdminDispute[] }) {
             </li>
           ))}
         </ul>
+      )}
+    </section>
+  );
+}
+
+function FoundingSection({
+  users,
+  spots,
+}: {
+  users: AdminUser[];
+  spots: FoundingSpotsCounter;
+}) {
+  const router = useRouter();
+  const [grantingId, setGrantingId] = useState<string | null>(null);
+  const [grantInput, setGrantInput] = useState("");
+
+  const founders = useMemo(
+    () =>
+      users
+        .filter((u) => u.is_founding_member)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    [users],
+  );
+
+  const grantCandidates = useMemo(() => {
+    const q = grantInput.trim().toLowerCase();
+    if (!q) return [];
+    return users
+      .filter((u) => !u.is_founding_member)
+      .filter(
+        (u) =>
+          u.email.toLowerCase().includes(q) ||
+          (u.full_name ?? "").toLowerCase().includes(q),
+      )
+      .slice(0, 5);
+  }, [users, grantInput]);
+
+  const grant = async (userId: string) => {
+    setGrantingId(userId);
+    const res = await fetch(`/api/admin/founding/grant/${userId}`, {
+      method: "POST",
+    });
+    setGrantingId(null);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast.error(`Failed: ${body.error ?? res.status}`);
+      return;
+    }
+    setGrantInput("");
+    toast.success("Founding status granted");
+    router.refresh();
+  };
+
+  const claimedPct =
+    spots.total_spots > 0
+      ? Math.min(100, (spots.spots_claimed / spots.total_spots) * 100)
+      : 0;
+
+  return (
+    <section className="bg-white text-navy rounded-2xl p-4 md:p-6">
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <h2 className="font-heading text-xl font-bold flex items-center gap-2">
+          <Star className="w-5 h-5 fill-orange text-orange" />
+          Founding Family
+        </h2>
+        <span className="text-sm font-semibold text-navy tabular-nums">
+          {spots.spots_claimed} / {spots.total_spots} claimed
+        </span>
+      </div>
+
+      <div className="h-2 rounded-full bg-gray-100 overflow-hidden mb-4">
+        <div
+          className="h-full bg-orange transition-all duration-500"
+          style={{ width: `${claimedPct}%` }}
+        />
+      </div>
+
+      <div className="bg-gray-50 rounded-xl p-3 mb-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+          Manually grant founding status
+        </p>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search non-founders by name or email"
+            value={grantInput}
+            onChange={(e) => setGrantInput(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
+        {grantCandidates.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {grantCandidates.map((u) => (
+              <li
+                key={u.id}
+                className="flex items-center justify-between gap-2 bg-white border rounded-lg px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-navy truncate">
+                    {u.full_name || "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {u.email}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => grant(u.id)}
+                  disabled={grantingId === u.id}
+                  className="h-8 px-3 text-xs bg-orange hover:bg-orange-light text-white"
+                >
+                  {grantingId === u.id ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <>
+                      <Star className="w-3 h-3" /> Grant
+                    </>
+                  )}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {founders.length === 0 ? (
+        <p className="py-6 text-center text-muted-foreground text-sm">
+          No founding members yet.
+        </p>
+      ) : (
+        <div className="overflow-x-auto -mx-4 md:mx-0">
+          <table className="w-full text-sm min-w-[500px]">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b">
+                <th className="py-2 px-3">#</th>
+                <th className="py-2 px-3">Name</th>
+                <th className="py-2 px-3">Email</th>
+                <th className="py-2 px-3">Joined</th>
+              </tr>
+            </thead>
+            <tbody>
+              {founders.map((u, i) => (
+                <tr key={u.id} className="border-b last:border-0">
+                  <td className="py-2 px-3 text-muted-foreground tabular-nums">
+                    {i + 1}
+                  </td>
+                  <td className="py-2 px-3 font-medium">
+                    {u.full_name || "—"}
+                  </td>
+                  <td className="py-2 px-3 text-muted-foreground">
+                    {u.email}
+                  </td>
+                  <td className="py-2 px-3 text-muted-foreground">
+                    {fmtDate(u.created_at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function WaitlistSection({ waitlist }: { waitlist: AdminWaitlistEntry[] }) {
+  const exportCsv = () => {
+    if (waitlist.length === 0) return;
+    const header = "email,created_at\n";
+    const rows = waitlist
+      .map((w) => `${w.email.replace(/"/g, '""')},${w.created_at}`)
+      .join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `neargear-waitlist-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <section className="bg-white text-navy rounded-2xl p-4 md:p-6">
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <h2 className="font-heading text-xl font-bold flex items-center gap-2">
+          <Mail className="w-5 h-5 text-orange" />
+          Waitlist
+          <span className="text-sm font-semibold text-muted-foreground">
+            ({waitlist.length})
+          </span>
+        </h2>
+        <Button
+          type="button"
+          onClick={exportCsv}
+          disabled={waitlist.length === 0}
+          variant="outline"
+          className="h-9"
+        >
+          <Download className="w-4 h-4" /> Export CSV
+        </Button>
+      </div>
+
+      {waitlist.length === 0 ? (
+        <p className="py-6 text-center text-muted-foreground text-sm">
+          No waitlist signups yet.
+        </p>
+      ) : (
+        <div className="overflow-x-auto -mx-4 md:mx-0">
+          <table className="w-full text-sm min-w-[400px]">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b">
+                <th className="py-2 px-3">Email</th>
+                <th className="py-2 px-3">Joined</th>
+              </tr>
+            </thead>
+            <tbody>
+              {waitlist.map((w) => (
+                <tr key={w.id} className="border-b last:border-0">
+                  <td className="py-2 px-3 font-medium">{w.email}</td>
+                  <td className="py-2 px-3 text-muted-foreground">
+                    {fmtDate(w.created_at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

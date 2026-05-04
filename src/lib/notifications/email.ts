@@ -187,3 +187,38 @@ export async function sendTransactionCompleteEmails(opts: {
     sendOrLog(buyer.email, "Enjoy your new gear! 🏅", buyerHtml),
   ]);
 }
+
+// ----- Founding Family welcome -----
+
+export async function sendFoundingWelcomeEmail(opts: {
+  to: EmailParty;
+  spotsRemaining: number;
+  totalSpots: number;
+}): Promise<void> {
+  const { to, spotsRemaining, totalSpots } = opts;
+  const homeHref = `${appUrl()}/`;
+
+  const html = emailShell({
+    preheader: `You're one of only ${totalSpots} DFW founding families on NearGear.`,
+    bodyHtml: `
+      <p>Hi ${escapeHtml(firstName(to.fullName))},</p>
+      <p>Welcome to the <strong>NearGear Founding Family</strong> ⭐</p>
+      <p>You're one of only <strong>${totalSpots}</strong> DFW families with this spot — a permanent thank-you for backing NearGear from day one.</p>
+      <p style="margin:18px 0 6px;"><strong>What you get, forever:</strong></p>
+      <ul style="margin:0 0 10px;padding-left:20px;line-height:1.7;">
+        <li><strong>Zero platform fees.</strong> Every sale you make on NearGear keeps 100% of the sale price. No fees, today or ever.</li>
+        <li><strong>Founding Family badge.</strong> Your profile carries the exclusive ⭐ badge so other families know you were here first.</li>
+        <li><strong>A direct line.</strong> Your feedback shapes how NearGear grows. Reply to this email any time.</li>
+      </ul>
+      <p style="color:#7a8896;font-size:13px;">${spotsRemaining} of ${totalSpots} spots still available for other DFW families.</p>
+      ${ctaButton(homeHref, "Open NearGear")}
+      <p>Thanks for being one of the first.<br/>The NearGear Team</p>
+    `,
+  });
+
+  await sendOrLog(
+    to.email,
+    "Welcome to the NearGear Founding Family ⭐",
+    html,
+  );
+}

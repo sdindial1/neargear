@@ -13,6 +13,7 @@ import {
 import { LogOut, Receipt, UserCircle, Wallet } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { NotificationBell } from "@/components/notification-bell";
+import { ProfileSwitcher } from "@/components/profile-switcher";
 
 interface SignedInUser {
   id: string;
@@ -100,6 +101,7 @@ export function Navbar() {
 
           {user ? (
             <div className="flex items-center gap-4">
+              <ProfileSwitcher variant="navbar" />
               <NotificationBell userId={user.id} />
               <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 text-sm cursor-pointer">

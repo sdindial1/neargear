@@ -19,6 +19,7 @@ interface Props {
   sellerCompletedAt: string | null;
   offeredPriceCents: number;
   retailPriceCents: number | null;
+  sellerIsFoundingMember?: boolean;
 }
 
 type Phase =
@@ -41,6 +42,7 @@ export function CompleteTransactionSection({
   sellerCompletedAt,
   offeredPriceCents,
   retailPriceCents,
+  sellerIsFoundingMember = false,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const isBuyer = currentUserId === buyerId;
@@ -126,7 +128,7 @@ export function CompleteTransactionSection({
     setPhase("processing");
     await new Promise((r) => setTimeout(r, 2000));
 
-    const fee = calculatePlatformFee(offeredPriceCents);
+    const fee = calculatePlatformFee(offeredPriceCents, sellerIsFoundingMember);
 
     await supabase
       .from("meetups")

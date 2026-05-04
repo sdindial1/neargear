@@ -45,6 +45,8 @@ export default async function AdminPage() {
     reportsRes,
     strikesRes,
     disputesRes,
+    foundingSpotsRes,
+    waitlistRes,
   ] = await Promise.all([
     admin.from("users").select("*").order("created_at", { ascending: false }),
     admin
@@ -84,6 +86,15 @@ export default async function AdminPage() {
       )
       .eq("status", "item_dispute")
       .order("item_dispute_reported_at", { ascending: false }),
+    admin
+      .from("founding_spots")
+      .select("spots_claimed, total_spots")
+      .eq("id", 1)
+      .maybeSingle(),
+    admin
+      .from("waitlist")
+      .select("id, email, created_at")
+      .order("created_at", { ascending: false }),
   ]);
 
   const payload: AdminPayload = {
@@ -96,6 +107,11 @@ export default async function AdminPage() {
     reports: (reportsRes.data ?? []) as unknown as AdminPayload["reports"],
     strikes: (strikesRes.data ?? []) as unknown as AdminPayload["strikes"],
     disputes: (disputesRes.data ?? []) as unknown as AdminPayload["disputes"],
+    foundingSpots: {
+      spots_claimed: foundingSpotsRes.data?.spots_claimed ?? 0,
+      total_spots: foundingSpotsRes.data?.total_spots ?? 15,
+    },
+    waitlist: (waitlistRes.data ?? []) as AdminPayload["waitlist"],
   };
 
   return <AdminDashboard payload={payload} />;

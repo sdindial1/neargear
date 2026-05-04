@@ -1,4 +1,8 @@
-export function calculatePlatformFee(priceInCents: number): number {
+export function calculatePlatformFee(
+  priceInCents: number,
+  isFoundingMember: boolean = false,
+): number {
+  if (isFoundingMember) return 0;
   if (priceInCents < 3000) return Math.round(priceInCents * 0.10);
   if (priceInCents < 10000) return Math.round(priceInCents * 0.08);
   if (priceInCents < 30000) return Math.round(priceInCents * 0.07);
@@ -9,8 +13,15 @@ export function calculateDisputeReserve(priceInCents: number): number {
   return Math.round(priceInCents * 0.01);
 }
 
-export function calculateSellerPayout(priceInCents: number): number {
-  return priceInCents - calculatePlatformFee(priceInCents) - calculateDisputeReserve(priceInCents);
+export function calculateSellerPayout(
+  priceInCents: number,
+  isFoundingMember: boolean = false,
+): number {
+  return (
+    priceInCents -
+    calculatePlatformFee(priceInCents, isFoundingMember) -
+    calculateDisputeReserve(priceInCents)
+  );
 }
 
 export function calculateDeposit(priceInCents: number): number {

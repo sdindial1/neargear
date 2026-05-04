@@ -86,7 +86,7 @@ async function runExpiry() {
   const { data: stuck, error: stuckErr } = await supabase
     .from("meetups")
     .select(
-      "id, listing_id, buyer_id, seller_id, offered_price, status, buyer_completed_at, seller_completed_at, listing:listings!listing_id(retail_price)",
+      "id, listing_id, buyer_id, seller_id, offered_price, status, buyer_completed_at, seller_completed_at, listing:listings!listing_id(retail_price), seller:users!seller_id(is_founding_member)",
     )
     .in("status", ["buyer_confirmed", "seller_confirmed"]);
 
@@ -100,7 +100,14 @@ async function runExpiry() {
       if (!ts) continue;
       if (new Date(ts).toISOString() > completionCutoffIso) continue;
 
-      const fee = calculatePlatformFee(m.offered_price ?? 0);
+      const sellerFounding = Boolean(
+        (m as unknown as { seller?: { is_founding_member?: boolean } }).seller
+          ?.is_founding_member,
+      );
+      const fee = calculatePlatformFee(
+        m.offered_price ?? 0,
+        sellerFounding,
+      );
       const nowIso = new Date().toISOString();
 
       await supabase

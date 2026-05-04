@@ -27,6 +27,11 @@ function ProfileEditInner() {
   const [city, setCity] = useState("");
   const [zipcode, setZipcode] = useState("");
   const [phone, setPhone] = useState("");
+  const [familyName, setFamilyName] = useState("");
+  const [spouseFirst, setSpouseFirst] = useState("");
+  const [spouseLast, setSpouseLast] = useState("");
+  const [spousePhone, setSpousePhone] = useState("");
+  const [spouseEmail, setSpouseEmail] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,6 +50,12 @@ function ProfileEditInner() {
         setCity(u.city || "");
         setZipcode(u.zipcode || "");
         setPhone(formatPhone(u.phone || ""));
+        setFamilyName(u.family_name || "");
+        const spouseParts = (u.spouse_name || "").trim().split(/\s+/);
+        setSpouseFirst(spouseParts[0] || "");
+        setSpouseLast(spouseParts.slice(1).join(" "));
+        setSpousePhone(formatPhone(u.spouse_phone || ""));
+        setSpouseEmail(u.spouse_email || "");
       }
       setLoading(false);
     }
@@ -65,6 +76,10 @@ function ProfileEditInner() {
 
     const safeName = sanitizeText(fullName, LIMITS.NAME);
     const safeCity = sanitizeText(city, LIMITS.NAME);
+    const safeFamilyName = sanitizeText(familyName, LIMITS.NAME);
+    const spouseFullRaw = `${spouseFirst.trim()} ${spouseLast.trim()}`.trim();
+    const safeSpouseName = sanitizeText(spouseFullRaw, LIMITS.NAME);
+    const safeSpouseEmail = spouseEmail.trim().toLowerCase();
 
     if (!safeName) {
       setError("Name is required.");
@@ -78,11 +93,23 @@ function ProfileEditInner() {
       setError("Phone must be a 10-digit US number.");
       return;
     }
+    if (spousePhone && !isValidUSPhone(spousePhone)) {
+      setError("Spouse phone must be a 10-digit US number.");
+      return;
+    }
+    if (
+      safeSpouseEmail &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeSpouseEmail)
+    ) {
+      setError("Spouse email looks invalid.");
+      return;
+    }
 
     if (!userId) return;
     setSaving(true);
 
     const e164 = toE164(phone);
+    const spouseE164 = toE164(spousePhone);
 
     const { error: updateError } = await supabase
       .from("users")
@@ -91,6 +118,10 @@ function ProfileEditInner() {
         city: safeCity || null,
         zipcode: zipcode || null,
         phone: e164,
+        family_name: safeFamilyName || null,
+        spouse_name: safeSpouseName || null,
+        spouse_phone: spouseE164,
+        spouse_email: safeSpouseEmail || null,
       })
       .eq("id", userId);
 
@@ -196,6 +227,93 @@ function ProfileEditInner() {
                 Optional. We&apos;ll text you 2 hours before each meetup. US
                 numbers only.
               </p>
+            </div>
+
+            <div className="border-t pt-4 mt-2">
+              <h2 className="font-heading text-lg font-bold text-navy">
+                Household
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+                Optional. Add a family display name and a spouse who shares
+                this account.
+              </p>
+
+              <div className="space-y-2">
+                <Label htmlFor="familyName">Family name</Label>
+                <Input
+                  id="familyName"
+                  className="input-large"
+                  value={familyName}
+                  onChange={(e) => setFamilyName(e.target.value)}
+                  maxLength={LIMITS.NAME}
+                  placeholder="The Dindial Family"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Shows on your profile instead of your full name.
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-sm font-semibold text-navy">
+                  Add a spouse or partner
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Your spouse can use this same account. Switch between
+                  profiles when messaging.
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="spouseFirst">Spouse first name</Label>
+                    <Input
+                      id="spouseFirst"
+                      className="input-large"
+                      value={spouseFirst}
+                      onChange={(e) => setSpouseFirst(e.target.value)}
+                      maxLength={LIMITS.NAME}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="spouseLast">Spouse last name</Label>
+                    <Input
+                      id="spouseLast"
+                      className="input-large"
+                      value={spouseLast}
+                      onChange={(e) => setSpouseLast(e.target.value)}
+                      maxLength={LIMITS.NAME}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 mt-3">
+                  <Label htmlFor="spousePhone">Spouse mobile (optional)</Label>
+                  <Input
+                    id="spousePhone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel-national"
+                    className="input-large"
+                    value={spousePhone}
+                    onChange={(e) => setSpousePhone(formatPhone(e.target.value))}
+                    placeholder="(555) 555-5555"
+                    maxLength={14}
+                  />
+                </div>
+
+                <div className="space-y-1.5 mt-3">
+                  <Label htmlFor="spouseEmail">Spouse email (optional)</Label>
+                  <Input
+                    id="spouseEmail"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    className="input-large"
+                    value={spouseEmail}
+                    onChange={(e) => setSpouseEmail(e.target.value)}
+                    placeholder="spouse@example.com"
+                  />
+                </div>
+              </div>
             </div>
 
             {error && (

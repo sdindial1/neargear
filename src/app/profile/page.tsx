@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SPORTS } from "@/lib/constants";
+import { FoundingBadge } from "@/components/founding-badge";
 import type { User, Child, Listing } from "@/types/database";
 
 function ProfilePageInner() {
@@ -165,8 +166,13 @@ function ProfilePageInner() {
               {user.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
             </div>
             <h1 className="font-heading text-2xl font-bold text-navy">
-              {user.full_name || "User"}
+              {user.family_name || user.full_name || "User"}
             </h1>
+            {user.is_founding_member && (
+              <div className="mt-2 flex justify-center">
+                <FoundingBadge size="md" />
+              </div>
+            )}
             <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
               {user.role && (
                 <Badge className="bg-navy/10 text-navy capitalize">{user.role}</Badge>
