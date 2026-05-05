@@ -1,9 +1,114 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { Camera, ChevronDown, MapPin, Tag } from "lucide-react";
 import { AceCharacter } from "@/components/ace/ace-character";
+
+// Reusable basketball SVG. Each instance gets a unique clipPath id so
+// multiple balls on the page don't collide via #bball-clip duplication.
+function Basketball({
+  size = 60,
+  opacity = 1,
+  className = "",
+  style,
+}: {
+  size?: number;
+  opacity?: number;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const rawId = useId();
+  const clipId = `bball-clip-${rawId.replace(/:/g, "")}`;
+  const clipUrl = `url(#${clipId})`;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 60 60"
+      className={className}
+      style={{ opacity, display: "block", ...style }}
+      aria-hidden
+    >
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx="30" cy="30" r="29" />
+        </clipPath>
+      </defs>
+      <circle cx="30" cy="30" r="29" fill="#e8622a" />
+      <ellipse
+        cx="30"
+        cy="44"
+        rx="22"
+        ry="14"
+        fill="#cc4d1a"
+        clipPath={clipUrl}
+      />
+      <ellipse cx="20" cy="18" rx="11" ry="7" fill="#f07840" opacity="0.6" />
+      <path
+        d="M1 30 Q30 30 59 30"
+        fill="none"
+        stroke="#1a0a00"
+        strokeWidth={2}
+        clipPath={clipUrl}
+      />
+      <path
+        d="M30 1 Q30 30 30 59"
+        fill="none"
+        stroke="#1a0a00"
+        strokeWidth={2}
+        clipPath={clipUrl}
+      />
+      <path
+        d="M17 3 Q5 20 5 30 Q5 44 17 57"
+        fill="none"
+        stroke="#1a0a00"
+        strokeWidth={2}
+        clipPath={clipUrl}
+      />
+      <path
+        d="M43 3 Q55 20 55 30 Q55 44 43 57"
+        fill="none"
+        stroke="#1a0a00"
+        strokeWidth={2}
+        clipPath={clipUrl}
+      />
+      <circle
+        cx="30"
+        cy="30"
+        r="29"
+        fill="none"
+        stroke="#c04010"
+        strokeWidth={1.5}
+      />
+    </svg>
+  );
+}
+
+function BallShadow({
+  width = 40,
+  className = "",
+  style,
+}: {
+  width?: number;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div
+      className={className}
+      aria-hidden
+      style={{
+        width,
+        height: Math.round(width * 0.2),
+        background: "rgba(0,0,0,0.4)",
+        borderRadius: "50%",
+        filter: "blur(4px)",
+        ...style,
+      }}
+    />
+  );
+}
 
 const SPORTS = [
   "Baseball",
@@ -342,10 +447,16 @@ export default function LandingPage() {
           <span className="lp-scroll-cue-text">Scroll to Explore</span>
           <ChevronDown className="lp-scroll-cue-arrow" />
         </div>
+
+        <div className="lp-hero-ball-wrap lp-bball-stack">
+          <Basketball size={72} className="lp-hero-ball" />
+          <BallShadow width={50} className="lp-hero-ball-shadow" />
+        </div>
       </section>
 
       {/* ============== PROBLEM ============== */}
       <section className="lp-section lp-section-cream lp-problem">
+        <Basketball size={48} className="lp-problem-ball" />
         <div className="lp-container lp-grid-2">
           <div className="lp-reveal">
             <div
@@ -376,6 +487,7 @@ export default function LandingPage() {
 
       {/* ============== HOW IT WORKS ============== */}
       <section className="lp-section lp-section-navy lp-hiw">
+        <Basketball size={44} className="lp-works-ball" />
         <div className="lp-container">
           <p className="lp-label lp-center lp-reveal">How It Works</p>
           <h2 className="lp-section-headline lp-center lp-reveal lp-stagger-1">
@@ -404,6 +516,9 @@ export default function LandingPage() {
         <div className="lp-container lp-grid-2">
           <div className="lp-ace-character lp-reveal">
             <div className="lp-ace-glow" aria-hidden />
+            <div className="lp-orbit-wrap">
+              <Basketball size={30} opacity={0.7} />
+            </div>
             <div className="lp-ace-character-inner">
               <AceCharacter state="idle" size="lg" />
             </div>
@@ -462,6 +577,7 @@ export default function LandingPage() {
       </section>
 
       <section className="lp-section lp-section-navy lp-diff lp-diff-center">
+        <Basketball size={200} opacity={0.12} className="lp-diff-bg-ball" />
         <div className="lp-container lp-narrow">
           <p className="lp-label lp-center lp-reveal">No More Tire-Kickers</p>
           <h2 className="lp-section-headline lp-headline-white lp-center lp-reveal lp-stagger-1">
@@ -482,6 +598,9 @@ export default function LandingPage() {
       </section>
 
       <section className="lp-section lp-section-cream lp-diff">
+        <div className="lp-roll-strip">
+          <Basketball size={52} className="lp-roll-ball" />
+        </div>
         <div className="lp-container lp-grid-2">
           <div className="lp-reveal">
             <p className="lp-label lp-label-navy">No More Sketchy Meetups</p>
@@ -593,6 +712,10 @@ export default function LandingPage() {
             Join DFW families buying and selling youth sports gear the smarter
             way.
           </p>
+          <div className="lp-cta-ball-stack lp-reveal lp-stagger-3">
+            <Basketball size={120} className="lp-cta-ball" />
+            <BallShadow width={80} className="lp-cta-ball-shadow" />
+          </div>
           <div className="lp-cta-row lp-reveal lp-stagger-3">
             <Link href="/browse" className="lp-btn lp-btn-white">
               Browse the Marketplace →
@@ -1335,4 +1458,211 @@ const LANDING_CSS = `
   transition: color 0.2s ease;
 }
 .lp-footer-link:hover { color: var(--lp-orange-light); }
+
+/* ============================================================
+   Section basketballs — pure CSS keyframe animations.
+   ============================================================ */
+
+/* Hero — drops from above, settles into a few diminishing bounces */
+@keyframes lp-hero-ball-drop {
+  0%   { transform: translateY(-120px) scaleX(1) scaleY(1); }
+  60%  { transform: translateY(0) scaleX(1.3) scaleY(0.7); }
+  70%  { transform: translateY(-40px) scaleX(0.95) scaleY(1.05); }
+  80%  { transform: translateY(0) scaleX(1.15) scaleY(0.85); }
+  88%  { transform: translateY(-16px) scaleX(0.98) scaleY(1.02); }
+  94%  { transform: translateY(0) scaleX(1.05) scaleY(0.95); }
+  97%  { transform: translateY(-6px) scaleX(1) scaleY(1); }
+  100% { transform: translateY(0) scaleX(1) scaleY(1); }
+}
+@keyframes lp-hero-shadow-drop {
+  0%   { transform: translateX(-50%) scaleX(0.3); opacity: 0; }
+  60%  { transform: translateX(-50%) scaleX(1.3); opacity: 0.5; }
+  70%  { transform: translateX(-50%) scaleX(0.8); opacity: 0.3; }
+  80%  { transform: translateX(-50%) scaleX(1.15); opacity: 0.45; }
+  100% { transform: translateX(-50%) scaleX(1); opacity: 0.4; }
+}
+
+/* Problem — frantic dash left↔right, reads as chaos */
+@keyframes lp-problem-ball {
+  0%   { transform: translateX(0) translateY(0) scaleX(1) scaleY(1); }
+  10%  { transform: translateX(0) translateY(0) scaleX(1.25) scaleY(0.75); }
+  40%  { transform: translateX(var(--travel)) translateY(-60px) scaleX(0.95) scaleY(1.05); }
+  48%  { transform: translateX(var(--travel)) translateY(0) scaleX(1.25) scaleY(0.75); }
+  80%  { transform: translateX(0) translateY(-40px) scaleX(0.95) scaleY(1.05); }
+  100% { transform: translateX(0) translateY(0) scaleX(1.25) scaleY(0.75); }
+}
+
+/* How It Works — calm, deliberate travel between the three step cards */
+@keyframes lp-works-ball {
+  0%, 100% { transform: translateX(0) translateY(0) scaleX(1.2) scaleY(0.8); }
+  25%      { transform: translateX(calc(var(--travel) * 0.5)) translateY(-50px) scaleX(0.95) scaleY(1.05); }
+  45%      { transform: translateX(var(--travel)) translateY(0) scaleX(1.2) scaleY(0.8); }
+  70%      { transform: translateX(calc(var(--travel) * 0.5)) translateY(-50px) scaleX(0.95) scaleY(1.05); }
+}
+
+/* Ace — classic rotate+translate+counter-rotate orbit trick */
+@keyframes lp-ace-orbit {
+  0%   { transform: rotate(0deg) translateX(120px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(120px) rotate(-360deg); }
+}
+
+/* Differentiator (no tire-kickers) — scale up, stop cold */
+@keyframes lp-diff-ball {
+  0%, 100% { transform: translateY(-50%) scale(1); opacity: 0.12; }
+  40%      { transform: translateY(-50%) scale(1.4); opacity: 0.2; }
+  55%      { transform: translateY(-50%) scale(0.95); opacity: 0.1; }
+  65%      { transform: translateY(-50%) scale(1); opacity: 0.12; }
+}
+
+/* Safe Zones — slow roll across the bottom of the section */
+@keyframes lp-roll-ball {
+  0%   { transform: translateX(-80px) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.9; }
+  90%  { opacity: 0.9; }
+  100% { transform: translateX(calc(100vw + 80px)) rotate(720deg); opacity: 0; }
+}
+
+/* Final CTA — slow dramatic bounce, full spotlight */
+@keyframes lp-cta-ball {
+  0%, 100% { transform: translateY(0) scaleX(1.2) scaleY(0.8); }
+  45%      { transform: translateY(-160px) scaleX(0.92) scaleY(1.08); }
+  50%      { transform: translateY(-170px) scaleX(0.9) scaleY(1.1); }
+}
+@keyframes lp-cta-shadow {
+  0%, 100% { transform: translateX(-50%) scaleX(1.3); opacity: 0.5; }
+  50%      { transform: translateX(-50%) scaleX(0.3); opacity: 0.15; }
+}
+
+/* Container utilities */
+.lp-bball-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Hero ball — bottom-right corner of the hero */
+.lp-hero-ball-wrap {
+  position: absolute;
+  bottom: 80px;
+  right: 60px;
+  z-index: 2;
+}
+.lp-hero-ball { animation: lp-hero-ball-drop 2.8s cubic-bezier(0.33,0,0.66,1) infinite; will-change: transform; }
+.lp-hero-ball-shadow { animation: lp-hero-shadow-drop 2.8s cubic-bezier(0.33,0,0.66,1) infinite; will-change: transform, opacity; }
+@media (max-width: 640px) {
+  .lp-hero-ball-wrap { bottom: 28px; right: 18px; }
+  .lp-hero-ball svg, .lp-hero-ball { width: 52px; height: 52px; }
+  .lp-hero-ball-shadow { width: 38px; height: 8px; }
+}
+
+/* Problem ball — bottom-left of the problem section */
+.lp-problem-ball {
+  position: absolute;
+  bottom: 60px;
+  left: 40px;
+  --travel: 180px;
+  animation: lp-problem-ball 1.4s ease-in-out infinite;
+  will-change: transform;
+  z-index: 2;
+}
+@media (max-width: 640px) {
+  .lp-problem-ball {
+    bottom: 32px;
+    left: 20px;
+    --travel: 80px;
+  }
+  .lp-problem-ball svg { width: 38px; height: 38px; }
+}
+
+/* How It Works ball — bottom, left side */
+.lp-works-ball {
+  position: absolute;
+  bottom: 40px;
+  left: 10%;
+  --travel: 200px;
+  animation: lp-works-ball 3s ease-in-out infinite;
+  will-change: transform;
+  z-index: 2;
+}
+@media (max-width: 640px) {
+  .lp-works-ball { --travel: 90px; bottom: 20px; left: 8%; }
+  .lp-works-ball svg { width: 36px; height: 36px; }
+}
+
+/* Ace orbit — wraps around the lg AceCharacter */
+.lp-orbit-wrap {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin-top: -15px;
+  margin-left: -15px;
+  animation: lp-ace-orbit 8s linear infinite;
+  will-change: transform;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Differentiator background ball — large, low opacity, pulsing */
+.lp-diff-bg-ball {
+  position: absolute;
+  right: -40px;
+  top: 50%;
+  animation: lp-diff-ball 3s ease-out infinite;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+/* Safe-zones rolling ball strip */
+.lp-roll-strip {
+  position: absolute;
+  bottom: 30px;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  height: 60px;
+  pointer-events: none;
+}
+.lp-roll-ball {
+  position: absolute;
+  bottom: 0;
+  animation: lp-roll-ball 6s linear infinite;
+  will-change: transform, opacity;
+}
+
+/* CTA ball — center stage, slow dramatic bounce */
+.lp-cta-ball-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 32px;
+}
+.lp-cta-ball {
+  animation: lp-cta-ball 2.2s cubic-bezier(0.33,1,0.68,1) infinite;
+  will-change: transform;
+}
+.lp-cta-ball-shadow {
+  animation: lp-cta-shadow 2.2s cubic-bezier(0.33,1,0.68,1) infinite;
+  will-change: transform, opacity;
+}
+@media (max-width: 640px) {
+  .lp-cta-ball svg, .lp-cta-ball { width: 80px; height: 80px; }
+  .lp-cta-ball-shadow { width: 60px; height: 12px; }
+}
+
+/* Honor reduced-motion preference: balls stay visible but stop moving */
+@media (prefers-reduced-motion: reduce) {
+  .lp-hero-ball,
+  .lp-hero-ball-shadow,
+  .lp-problem-ball,
+  .lp-works-ball,
+  .lp-orbit-wrap,
+  .lp-diff-bg-ball,
+  .lp-roll-ball,
+  .lp-cta-ball,
+  .lp-cta-ball-shadow {
+    animation: none !important;
+  }
+}
 `;
