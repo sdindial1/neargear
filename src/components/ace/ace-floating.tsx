@@ -58,6 +58,7 @@ export function AceFloating() {
   const pathname = usePathname();
   const [pos, setPos] = useState<Position | null>(null);
   const [open, setOpen] = useState(false);
+  const [seededQuestion, setSeededQuestion] = useState<string | null>(null);
   const [hasUnread, setHasUnread] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
@@ -104,6 +105,22 @@ export function AceFloating() {
       if (!session?.user) setOpen(false);
     });
     return () => subscription.unsubscribe();
+  }, []);
+
+  // External "ask Ace this" prompts — used by listing-page chip rows
+  // so a tap can open the drawer with a pre-filled question.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ question?: string }>).detail;
+      const question = detail?.question?.trim();
+      if (!question) return;
+      setSeededQuestion(question);
+      setHasUnread(false);
+      setOpen(true);
+    };
+    window.addEventListener("neargear:ace:ask", handler);
+    return () => window.removeEventListener("neargear:ace:ask", handler);
   }, []);
 
   const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -183,9 +200,13 @@ export function AceFloating() {
 
       {open && (
         <AceChat
-          onClose={() => setOpen(false)}
+          onClose={() => {
+            setOpen(false);
+            setSeededQuestion(null);
+          }}
           onAceState={() => {}}
           onUnread={setHasUnread}
+          initialQuestion={seededQuestion}
         />
       )}
     </>

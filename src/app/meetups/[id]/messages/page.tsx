@@ -414,7 +414,7 @@ function MeetupMessagesPageInner() {
     offered ? `\n💰 ${offered}` : ""
   }
 
-Use this chat to firm up the exact time with ${otherFirst}. Good luck! 🤝`;
+This is your direct line to ${otherFirst}. Now that your meetup is confirmed, you can coordinate the details here. Good luck! 🤝`;
 
   // Phase: before meetup day → during meetup day → after window ends.
   // Compares today's date vs the meetup's start date (calendar day),

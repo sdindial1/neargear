@@ -11,6 +11,7 @@ import { SellerReviews } from "@/components/seller-reviews";
 import { ReportButton } from "@/components/report-button";
 import { ShareButton } from "@/components/share-button";
 import { FoundingBadge } from "@/components/founding-badge";
+import { AskAceSection } from "@/components/ace/ask-ace-section";
 import { formatCondition } from "@/lib/utils";
 import {
   AlertCircle,
@@ -381,6 +382,10 @@ export default async function ListingPage({
               <ReportButton target={{ type: "listing", id: listing.id }} />
             )}
           </div>
+
+          {!isOwner && isActive && (
+            <AskAceSection sport={listing.sport} />
+          )}
 
           {similarListings.length > 0 && (
             <section className="mt-10">

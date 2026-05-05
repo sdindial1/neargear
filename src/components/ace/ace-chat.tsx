@@ -28,6 +28,7 @@ interface Props {
   onClose: () => void;
   onAceState: (state: AceState) => void;
   onUnread: (unread: boolean) => void;
+  initialQuestion?: string | null;
 }
 
 const PHOTO_TRIGGERS = ["photo", "picture", "image", "lighting"];
@@ -42,7 +43,7 @@ function shouldShowPhotoTips(text: string): boolean {
  * when ace-floating opens it and renders a small Ace avatar + state
  * indicator in the header.
  */
-export function AceChat({ onClose, onAceState }: Props) {
+export function AceChat({ onClose, onAceState, initialQuestion }: Props) {
   const ctx = useAceContext();
   const supabase = useMemo(() => createClient(), []);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -53,6 +54,7 @@ export function AceChat({ onClose, onAceState }: Props) {
   const [limitState, setLimitState] = useState<LimitState>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const seededRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -75,6 +77,28 @@ export function AceChat({ onClose, onAceState }: Props) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
+
+  // Auto-send a seeded question (e.g. from a listing-page chip).
+  // Wait for the relevant context to load so Ace answers with listing data,
+  // not without. On listing pages we wait for ctx.listing; elsewhere fire
+  // as soon as auth is resolved. A 1.5s timeout is the floor in case the
+  // context fetch hangs.
+  useEffect(() => {
+    if (!initialQuestion || seededRef.current) return;
+    if (signedIn === null) return;
+    const needsListing = ctx.page === "listing";
+    if (needsListing && !ctx.listing) {
+      const t = setTimeout(() => {
+        if (seededRef.current) return;
+        seededRef.current = true;
+        sendMessage(initialQuestion);
+      }, 1500);
+      return () => clearTimeout(t);
+    }
+    seededRef.current = true;
+    sendMessage(initialQuestion);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuestion, signedIn, ctx.page, ctx.listing]);
 
   const promptSignIn = () => {
     setMessages((prev) => {
