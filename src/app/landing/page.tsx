@@ -136,6 +136,77 @@ export default function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
+  // Bouncing ball: one full arc per section as the user scrolls.
+  // Squash on impact near the ground, stretch near the peak; shadow
+  // shrinks + fades while the ball is high. Bails out under
+  // prefers-reduced-motion.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const ball = document.getElementById("ng-ball");
+    const shadow = document.getElementById("ng-ball-shadow");
+    if (!ball || !shadow) return;
+
+    const SECTIONS = 8;
+    const BASE_Y = 0.86;
+    const MAX_RISE = 0.52;
+    const BALL_SIZE = 56;
+
+    let raf = 0;
+
+    const update = () => {
+      const scrollTop = window.scrollY;
+      const docH =
+        document.documentElement.scrollHeight - window.innerHeight;
+      const progress = docH > 0 ? Math.min(scrollTop / docH, 1) : 0;
+      const vh = window.innerHeight;
+
+      const sectionProgress = (progress * SECTIONS) % 1;
+      const t = sectionProgress;
+
+      const arc = Math.sin(t * Math.PI);
+      const ballYFraction = BASE_Y - arc * MAX_RISE;
+      const ballYPx = ballYFraction * vh - BALL_SIZE / 2;
+
+      const distFromGround = Math.min(t, 1 - t) * 2;
+      let scaleX = 1;
+      let scaleY = 1;
+      if (distFromGround < 0.12) {
+        const s = 1 - distFromGround / 0.12;
+        scaleX = 1 + s * 0.32;
+        scaleY = 1 - s * 0.26;
+      } else if (distFromGround > 0.75) {
+        const s = (distFromGround - 0.75) / 0.25;
+        scaleX = 1 - s * 0.08;
+        scaleY = 1 + s * 0.14;
+      }
+
+      ball.style.top = `${ballYPx}px`;
+      ball.style.transform = `scaleX(${scaleX}) scaleY(${scaleY})`;
+
+      const heightFraction = 1 - ballYFraction / BASE_Y;
+      const shadowScale = Math.max(0.2, 1 - heightFraction * 1.4);
+      shadow.style.transform = `translateX(-50%) scaleX(${shadowScale * 1.8})`;
+      shadow.style.opacity = String(shadowScale * 0.6);
+    };
+
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(update);
+    };
+
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+
   // Live stats from /api/stats. Falls back silently to defaults.
   useEffect(() => {
     let alive = true;
@@ -154,6 +225,63 @@ export default function LandingPage() {
   return (
     <div className="lp-root">
       <style>{LANDING_CSS}</style>
+
+      {/* ============== BOUNCING BALL ============== */}
+      <div
+        className="hidden md:block"
+        aria-hidden
+        style={{
+          position: "fixed",
+          right: 28,
+          top: 0,
+          width: 56,
+          height: "100vh",
+          pointerEvents: "none",
+          zIndex: 50,
+        }}
+      >
+        <div
+          id="ng-ball"
+          style={{
+            position: "absolute",
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle at 35% 35%, #ff8c5a, #ff6b35 50%, #cc4010)",
+            transformOrigin: "center center",
+            willChange: "transform, top",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 11,
+              left: 13,
+              width: 16,
+              height: 9,
+              background: "rgba(255,255,255,0.28)",
+              borderRadius: "50%",
+              transform: "rotate(-30deg)",
+            }}
+          />
+        </div>
+        <div
+          id="ng-ball-shadow"
+          style={{
+            position: "absolute",
+            bottom: "8vh",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: 40,
+            height: 8,
+            background: "rgba(0,0,0,0.35)",
+            borderRadius: "50%",
+            filter: "blur(3px)",
+            willChange: "transform, opacity",
+          }}
+        />
+      </div>
 
       {/* ============== NAV ============== */}
       <nav className={`lp-nav ${scrolled ? "lp-nav-solid" : ""}`}>
