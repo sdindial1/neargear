@@ -7,7 +7,19 @@ export interface ActiveProfileUser {
   spouse_name?: string | null;
   spouse_phone?: string | null;
   phone?: string | null;
+  family_name?: string | null;
   active_profile?: ActiveProfile | string | null;
+}
+
+export function familyDisplayName(
+  user: { full_name: string | null; family_name?: string | null } | null | undefined,
+): string {
+  const explicit = user?.family_name?.trim();
+  if (explicit) return explicit;
+  const parts = (user?.full_name ?? "").trim().split(/\s+/).filter(Boolean);
+  const last = parts[parts.length - 1];
+  if (!last) return "Your Family";
+  return `The ${last} Family`;
 }
 
 export function getActiveProfile(

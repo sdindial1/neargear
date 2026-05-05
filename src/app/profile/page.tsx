@@ -22,6 +22,8 @@ import {
   LogOut,
   UserCircle,
   Package,
+  Users,
+  UserPlus,
 } from "lucide-react";
 import {
   Select,
@@ -32,6 +34,11 @@ import {
 } from "@/components/ui/select";
 import { SPORTS } from "@/lib/constants";
 import { FoundingBadge } from "@/components/founding-badge";
+import {
+  type ActiveProfile,
+  familyDisplayName,
+  writeActiveProfileToStorage,
+} from "@/lib/active-profile";
 import type { User, Child, Listing } from "@/types/database";
 
 function ProfilePageInner() {
@@ -47,6 +54,7 @@ function ProfilePageInner() {
   const [childAge, setChildAge] = useState("");
   const [childSport, setChildSport] = useState("");
   const [saving, setSaving] = useState(false);
+  const [switchingProfile, setSwitchingProfile] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -94,6 +102,28 @@ function ProfilePageInner() {
       setShowAddChild(false);
     }
     setSaving(false);
+  };
+
+  const switchActiveProfile = async (next: ActiveProfile) => {
+    if (!user || switchingProfile) return;
+    if ((user.active_profile ?? "primary") === next) return;
+    setSwitchingProfile(true);
+    const prev = user;
+    setUser({ ...user, active_profile: next });
+    writeActiveProfileToStorage(next);
+    const { error } = await supabase
+      .from("users")
+      .update({ active_profile: next })
+      .eq("id", user.id);
+    setSwitchingProfile(false);
+    if (error) {
+      setUser(prev);
+      writeActiveProfileToStorage(prev.active_profile ?? "primary");
+      return;
+    }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("neargear:profile-switched"));
+    }
   };
 
   const removeChild = async (childId: string) => {
@@ -218,6 +248,13 @@ function ProfilePageInner() {
               <p className="text-xs text-muted-foreground">Earned</p>
             </div>
           </div>
+
+          {/* Family card */}
+          <FamilyCard
+            user={user}
+            switching={switchingProfile}
+            onSwitch={switchActiveProfile}
+          />
 
           <Separator className="mb-6" />
 
@@ -412,6 +449,100 @@ function StrikeBanner({ user }: { user: User }) {
     );
   }
   return null;
+}
+
+function FamilyCard({
+  user,
+  switching,
+  onSwitch,
+}: {
+  user: User;
+  switching: boolean;
+  onSwitch: (next: ActiveProfile) => void;
+}) {
+  const hasSpouse = !!user.spouse_name?.trim();
+
+  if (!hasSpouse) {
+    return (
+      <div className="bg-white rounded-2xl p-4 shadow-sm mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Users className="w-5 h-5 text-orange" />
+          <h2 className="font-heading text-lg font-bold text-navy">Family</h2>
+        </div>
+        <p className="text-sm text-muted-foreground mb-3">
+          Add a spouse or partner to share this account.
+        </p>
+        <Link href="/profile/edit">
+          <Button
+            variant="outline"
+            className="min-h-[40px] border-orange text-orange hover:bg-orange/5"
+          >
+            <UserPlus className="w-4 h-4" /> Add Spouse
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  const active: ActiveProfile =
+    user.active_profile === "spouse" ? "spouse" : "primary";
+  const primaryFirst =
+    (user.full_name ?? "").trim().split(/\s+/)[0] || "Primary";
+  const spouseFirst =
+    (user.spouse_name ?? "").trim().split(/\s+/)[0] || "Spouse";
+
+  const pillBase =
+    "flex-1 min-h-[44px] rounded-full font-semibold text-sm flex items-center justify-center gap-1.5 transition-colors";
+  const activeClass = "bg-orange text-white";
+  const inactiveClass =
+    "bg-white border border-gray-200 text-navy hover:border-orange/40";
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm mb-6">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <Users className="w-5 h-5 text-orange flex-shrink-0" />
+          <h2 className="font-heading text-lg font-bold text-navy truncate">
+            {familyDisplayName(user)}
+          </h2>
+        </div>
+        <Link
+          href="/profile/edit"
+          className="text-xs text-orange font-semibold flex items-center gap-1 flex-shrink-0"
+        >
+          <Pencil className="w-3.5 h-3.5" /> Edit
+        </Link>
+      </div>
+
+      <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2">
+        Active profile
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onSwitch("primary")}
+          disabled={switching}
+          className={`${pillBase} ${active === "primary" ? activeClass : inactiveClass}`}
+        >
+          {active === "primary" && (
+            <Star className="w-3.5 h-3.5 fill-white" />
+          )}
+          {primaryFirst}
+        </button>
+        <button
+          type="button"
+          onClick={() => onSwitch("spouse")}
+          disabled={switching}
+          className={`${pillBase} ${active === "spouse" ? activeClass : inactiveClass}`}
+        >
+          {active === "spouse" && (
+            <Star className="w-3.5 h-3.5 fill-white" />
+          )}
+          {spouseFirst}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function ProfilePage() {

@@ -13,12 +13,14 @@ import {
 import { LogOut, Receipt, UserCircle, Wallet } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { NotificationBell } from "@/components/notification-bell";
-import { ProfileSwitcher } from "@/components/profile-switcher";
+import { getActiveName, type ActiveProfile } from "@/lib/active-profile";
 
 interface SignedInUser {
   id: string;
   email: string | null;
   full_name: string | null;
+  spouse_name: string | null;
+  active_profile: ActiveProfile | null;
 }
 
 export function Navbar() {
@@ -29,16 +31,22 @@ export function Navbar() {
   useEffect(() => {
     let alive = true;
 
-    const fillFullName = async (id: string) => {
+    const fillProfile = async (id: string) => {
       const { data: profile } = await supabase
         .from("users")
-        .select("full_name")
+        .select("full_name, spouse_name, active_profile")
         .eq("id", id)
         .maybeSingle();
       if (!alive) return;
       setUser((prev) =>
         prev && prev.id === id
-          ? { ...prev, full_name: profile?.full_name ?? prev.full_name }
+          ? {
+              ...prev,
+              full_name: profile?.full_name ?? prev.full_name,
+              spouse_name: profile?.spouse_name ?? null,
+              active_profile:
+                (profile?.active_profile as ActiveProfile | null) ?? "primary",
+            }
           : prev,
       );
     };
@@ -54,8 +62,10 @@ export function Navbar() {
         id: session.user.id,
         email: session.user.email ?? null,
         full_name: seedName,
+        spouse_name: null,
+        active_profile: "primary",
       });
-      fillFullName(session.user.id);
+      fillProfile(session.user.id);
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -69,14 +79,33 @@ export function Navbar() {
       applySession(session);
     });
 
+    // Re-pull profile when the active profile is switched elsewhere
+    // (e.g. from the family card on /profile).
+    const onProfileSwitched = () => {
+      setUser((prev) => {
+        if (prev) fillProfile(prev.id);
+        return prev;
+      });
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("neargear:profile-switched", onProfileSwitched);
+    }
+
     return () => {
       alive = false;
       subscription.unsubscribe();
+      if (typeof window !== "undefined") {
+        window.removeEventListener(
+          "neargear:profile-switched",
+          onProfileSwitched,
+        );
+      }
     };
   }, [supabase]);
 
+  const displayName = getActiveName(user) || user?.email || "";
   const initial = (
-    user?.full_name?.charAt(0) ||
+    displayName.charAt(0) ||
     user?.email?.charAt(0) ||
     "?"
   ).toUpperCase();
@@ -101,12 +130,11 @@ export function Navbar() {
 
           {user ? (
             <div className="flex items-center gap-4">
-              <ProfileSwitcher variant="navbar" />
               <NotificationBell userId={user.id} />
               <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 text-sm cursor-pointer">
                 <span className="hidden sm:inline text-white/80">
-                  Welcome {user.full_name?.split(" ")[0] || "back"}
+                  Welcome {displayName.split(" ")[0] || "back"}
                 </span>
                 <span className="w-8 h-8 rounded-full bg-orange flex items-center justify-center text-white text-sm font-bold">
                   {initial}
