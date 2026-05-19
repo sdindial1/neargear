@@ -216,13 +216,13 @@ export default function LandingPage() {
           </div>
         </FlowSection>
 
-        {/* The Reality — outgrown gear photo + navy tint */}
+        {/* The Reality — youth gear/cleats pile + navy tint */}
         <FlowSection
           aria-label="The reality"
           style={{
             backgroundColor: NAVY,
             backgroundImage:
-              'url(https://images.unsplash.com/photo-1551958219-acbc608c6377?w=2400&q=85&auto=format&fit=crop)',
+              'url(https://images.unsplash.com/photo-1517466787929-bc90951d0974?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
@@ -237,11 +237,11 @@ export default function LandingPage() {
           <hr className="relative z-[3] my-[2vw] border-none border-t border-white/40" />
           <div className="relative z-[3]">
             <h2 className={HEADLINE} style={SHADOW_HEADLINE}>
-              $1,200
+              Buy New.
               <br />
-              Per Kid
+              Outgrow.
               <br />
-              Per Season.
+              Repeat.
             </h2>
           </div>
           <hr className="relative z-[3] my-[2vw] border-none border-t border-white/40" />
@@ -249,9 +249,8 @@ export default function LandingPage() {
             className={`relative z-[3] max-w-[50ch] ${BODY}`}
             style={SHADOW_LABEL}
           >
-            The average DFW sports family burns over $1,200 per child every year
-            on gear. Most of it gets outgrown in a single season. There&apos;s a
-            better way.
+            Kids outgrow gear faster than they wear it out. Most of it ends up
+            in garages, attics, and donation piles. There&apos;s a better way.
           </p>
           <hr className="relative z-[3] my-[2vw] border-none border-t border-white/40" />
           <div className="relative z-[3] flex flex-wrap gap-[3vw]">
@@ -285,13 +284,13 @@ export default function LandingPage() {
           </div>
         </FlowSection>
 
-        {/* How It Works — action sports photo + navy tint (white text for contrast) */}
+        {/* How It Works — youth soccer player + navy tint */}
         <FlowSection
           aria-label="How it works"
           style={{
             backgroundColor: NAVY,
             backgroundImage:
-              'url(https://images.unsplash.com/photo-1517649763962-0c623066013b?w=2400&q=85&auto=format&fit=crop)',
+              'url(https://images.unsplash.com/photo-1599050751795-6cdaafbc2319?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
@@ -366,7 +365,7 @@ export default function LandingPage() {
           style={{
             backgroundColor: NAVY_DEEP,
             backgroundImage:
-              'url(https://images.unsplash.com/photo-1567496898669-ee935f5f647a?w=2400&q=85&auto=format&fit=crop)',
+              'url(https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
