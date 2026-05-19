@@ -17,8 +17,8 @@ const CREAM = '#f5f4f0';
 
 const SHADOW_LABEL = { textShadow: '0 2px 12px rgba(0,0,0,0.3)' } as const;
 const SHADOW_HEADLINE = { textShadow: '0 4px 32px rgba(0,0,0,0.4)' } as const;
-// Section 3 has dark text on cream tint — uses a soft white glow instead of a dark shadow.
-const SHADOW_LIGHT = { textShadow: '0 2px 12px rgba(255,255,255,0.3)' } as const;
+// Stronger shadow for section 3 — tighter blur, more opacity for legibility on action photo.
+const SHADOW_STRONG = { textShadow: '0 4px 20px rgba(0,0,0,0.5)' } as const;
 
 const HERO_SPORTS = [
   'Baseball',
@@ -119,6 +119,7 @@ export default function LandingPage() {
         <FlowSection
           aria-label="What NearGear is"
           style={{
+            backgroundColor: ORANGE,
             backgroundImage:
               'url(https://images.unsplash.com/photo-1490578474895-699cd4e2cf59?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
@@ -219,6 +220,7 @@ export default function LandingPage() {
         <FlowSection
           aria-label="The reality"
           style={{
+            backgroundColor: NAVY,
             backgroundImage:
               'url(https://images.unsplash.com/photo-1551958219-acbc608c6377?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
@@ -283,26 +285,27 @@ export default function LandingPage() {
           </div>
         </FlowSection>
 
-        {/* How It Works — phone photographing gear + cream tint (dark text) */}
+        {/* How It Works — action sports photo + navy tint (white text for contrast) */}
         <FlowSection
           aria-label="How it works"
           style={{
+            backgroundColor: NAVY,
             backgroundImage:
-              'url(https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=2400&q=85&auto=format&fit=crop)',
+              'url(https://images.unsplash.com/photo-1517649763962-0c623066013b?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            color: NAVY,
+            color: '#fff',
             position: 'relative',
           }}
         >
-          <SectionBackdrop tint={CREAM} opacity={0.88} />
+          <SectionBackdrop tint={NAVY} opacity={0.82} />
 
-          <p className={`relative z-[3] ${LABEL}`} style={SHADOW_LIGHT}>
+          <p className={`relative z-[3] ${LABEL}`} style={SHADOW_STRONG}>
             How It Works
           </p>
-          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/40" />
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-white/40" />
           <div className="relative z-[3]">
-            <h2 className={HEADLINE} style={SHADOW_LIGHT}>
+            <h2 className={HEADLINE} style={SHADOW_STRONG}>
               Snap.
               <br />
               List.
@@ -310,15 +313,15 @@ export default function LandingPage() {
               Meet.
             </h2>
           </div>
-          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/40" />
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-white/40" />
           <p
             className={`relative z-[3] max-w-[50ch] ${BODY}`}
-            style={SHADOW_LIGHT}
+            style={SHADOW_LABEL}
           >
             Three steps. Under two minutes. Your gear is live and matched to
             local buyers before the kids finish practice.
           </p>
-          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/40" />
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-white/40" />
           <div className="relative z-[3] flex flex-wrap gap-[3vw]">
             <div className="min-w-[180px] flex-1">
               <p className={CARD_HEAD} style={{ color: ORANGE }}>
@@ -348,10 +351,10 @@ export default function LandingPage() {
               </p>
             </div>
           </div>
-          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/40" />
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-white/40" />
           <p
             className="relative z-[3] ml-auto mt-auto max-w-[50ch] text-right text-[clamp(1rem,2.2vw,1.5rem)] italic leading-relaxed opacity-80"
-            style={SHADOW_LIGHT}
+            style={SHADOW_LABEL}
           >
             Free to list. You only pay when you sell.
           </p>
@@ -361,6 +364,7 @@ export default function LandingPage() {
         <FlowSection
           aria-label="Why NearGear"
           style={{
+            backgroundColor: NAVY_DEEP,
             backgroundImage:
               'url(https://images.unsplash.com/photo-1567496898669-ee935f5f647a?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
@@ -461,19 +465,47 @@ export default function LandingPage() {
           </div>
         </FlowSection>
 
-        {/* Ready to Start — family/kid photo + orange tint, primary signup CTA */}
+        {/* Ready to Start — youth athlete photo + orange tint, primary signup CTA */}
         <FlowSection
           aria-label="Ready to start"
           style={{
+            backgroundColor: ORANGE,
             backgroundImage:
-              'url(https://images.unsplash.com/photo-1599142060300-2c0f60a8a3ba?w=2400&q=85&auto=format&fit=crop)',
+              'url(https://images.unsplash.com/photo-1526676037777-05a232554f77?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
             position: 'relative',
           }}
         >
-          <SectionBackdrop tint={ORANGE} opacity={0.78} />
+          {/* Orange tint */}
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: ORANGE,
+              mixBlendMode: 'multiply',
+              opacity: 0.78,
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
+          />
+          {/* Subtle bottom gradient — depth, not a hand-off (this is the last panel) */}
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: '20%',
+              background:
+                'linear-gradient(to bottom, transparent, rgba(204,80,40,0.5))',
+              pointerEvents: 'none',
+              zIndex: 2,
+            }}
+          />
 
           <p className={`relative z-[3] ${LABEL}`} style={SHADOW_LABEL}>
             Ready to Start

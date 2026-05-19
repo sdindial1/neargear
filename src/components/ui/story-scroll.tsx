@@ -23,24 +23,35 @@ export const FlowSection: React.FC<FlowSectionProps> = ({
   style = {},
   children,
   'aria-label': ariaLabel,
-}) => (
-  <section
-    data-flow-section
-    aria-label={ariaLabel}
-    className={cx('relative min-h-[100dvh] w-full overflow-hidden', className)}
-  >
-    <div
-      data-flow-inner
+}) => {
+  // Forward the section's solid backgroundColor to the OUTER element too.
+  // Otherwise, when GSAP rotates the inner panel during scroll-pin transitions,
+  // the corners of the section reveal whatever is behind it (the previous
+  // panel). Solid color on the outer = bulletproof coverage.
+  const outerBg = style.backgroundColor;
+  return (
+    <section
+      data-flow-section
+      aria-label={ariaLabel}
       className={cx(
-        'flow-art-container relative flex min-h-[100dvh] w-full flex-col justify-between gap-6 px-[4vw] pt-24 pb-20',
-        'will-change-transform',
+        'relative min-h-[100dvh] w-full overflow-hidden',
+        className,
       )}
-      style={{ transformOrigin: 'bottom left', ...style }}
+      style={outerBg ? { backgroundColor: outerBg } : undefined}
     >
-      {children}
-    </div>
-  </section>
-);
+      <div
+        data-flow-inner
+        className={cx(
+          'flow-art-container relative flex min-h-[100dvh] w-full flex-col justify-between gap-6 px-[4vw] pt-24 pb-20',
+          'will-change-transform',
+        )}
+        style={{ transformOrigin: 'bottom left', ...style }}
+      >
+        {children}
+      </div>
+    </section>
+  );
+};
 
 export interface FlowArtProps {
   children: React.ReactNode;
