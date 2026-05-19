@@ -4,9 +4,9 @@ import Link from 'next/link';
 import FlowArt, { FlowSection } from '@/components/ui/story-scroll';
 
 const HEADLINE =
-  'text-[clamp(3.5rem,12vw,14rem)] font-heading font-bold leading-[0.85] uppercase tracking-tight';
+  'text-[clamp(2.5rem,10vw,14rem)] font-heading font-bold leading-[0.85] uppercase tracking-tight';
 const LABEL = 'text-xs font-bold uppercase tracking-[0.2em]';
-const BODY = 'text-[clamp(1rem,2.5vw,2rem)] font-normal leading-relaxed';
+const BODY = 'text-[clamp(0.95rem,2vw,2rem)] font-normal leading-relaxed';
 const CARD_HEAD = 'mb-2 text-sm font-bold uppercase tracking-wider';
 const CARD_BODY = 'text-[clamp(0.85rem,1.3vw,1.05rem)] leading-relaxed opacity-75';
 
@@ -18,47 +18,156 @@ const CREAM = '#f5f4f0';
 export default function LandingPage() {
   return (
     <>
-      {/* Fixed corner wordmark + sign-in link — stays put through the GSAP pins */}
-      <div className="pointer-events-none fixed top-4 left-4 right-4 z-50 flex items-center justify-between md:top-6 md:left-8 md:right-8">
+      {/* Fixed full-width nav — solid backdrop so it never blends into panel labels below */}
+      <nav
+        className="fixed top-0 left-0 right-0 z-50 flex h-16 items-center justify-between px-4 md:px-8"
+        style={{
+          backgroundColor: 'rgba(7, 21, 32, 0.92)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        }}
+      >
         <Link
           href="/"
           aria-label="NearGear home"
-          className="pointer-events-auto font-heading text-2xl font-bold tracking-tight text-white drop-shadow-md md:text-3xl"
+          className="font-heading text-xl font-bold tracking-tight text-white md:text-2xl"
         >
           <span>Near</span>
           <span style={{ color: ORANGE }}>Gear</span>
         </Link>
         <Link
           href="/auth/login"
-          className="pointer-events-auto rounded-full bg-black/30 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white backdrop-blur-sm transition hover:bg-black/50 md:text-sm"
+          className="text-xs font-bold uppercase tracking-widest text-white/90 transition hover:text-white md:text-sm"
         >
           Sign In
         </Link>
-      </div>
+      </nav>
 
       <FlowArt aria-label="NearGear story scroll">
-        {/* 01 — Hook */}
+        {/* 01 — Hook (hero photo + orange-multiply tint) */}
         <FlowSection
           aria-label="What NearGear is"
-          style={{ backgroundColor: ORANGE, color: '#fff' }}
+          style={{
+            backgroundImage:
+              'url(https://images.unsplash.com/photo-1490578474895-699cd4e2cf59?w=2400&q=85&auto=format&fit=crop)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            color: '#fff',
+            position: 'relative',
+          }}
         >
-          <p className={LABEL}>01 &mdash; DFW Sports Marketplace</p>
-          <hr className="my-[2vw] border-none border-t border-black/60 opacity-100" />
-          <div>
-            <h1 className={HEADLINE}>
+          {/* Orange tint over the photo — multiply blend keeps detail */}
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: ORANGE,
+              mixBlendMode: 'multiply',
+              opacity: 0.75,
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
+          />
+          {/* Bottom gradient — softens the hand-off into panel 2 (navy) */}
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: '30%',
+              background:
+                'linear-gradient(to bottom, transparent, rgba(7,21,32,0.4))',
+              pointerEvents: 'none',
+              zIndex: 2,
+            }}
+          />
+
+          <p
+            className={`relative z-[3] ${LABEL}`}
+            style={{ textShadow: '0 2px 12px rgba(0,0,0,0.3)' }}
+          >
+            01 &mdash; DFW Sports Marketplace
+          </p>
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/60 opacity-100" />
+          <div className="relative z-[3]">
+            <h1
+              className={HEADLINE}
+              style={{
+                textShadow: '0 4px 32px rgba(0,0,0,0.4)',
+                fontWeight: 900,
+              }}
+            >
               Gear
               <br />
               That
               <br />
               Moves.
             </h1>
+            <p
+              className={`mt-6 max-w-[50ch] ${BODY}`}
+              style={{ textShadow: '0 2px 12px rgba(0,0,0,0.3)' }}
+            >
+              DFW&apos;s AI-powered marketplace for youth sports gear. Buy and sell
+              with local families &mdash; no algorithms, no tire-kickers, just
+              real parents and real gear.
+            </p>
           </div>
-          <hr className="my-[2vw] border-none border-t border-black/60" />
-          <p className={`mt-auto max-w-[50ch] ${BODY}`}>
-            DFW&apos;s AI-powered marketplace for youth sports gear. Buy and sell with
-            local families &mdash; no algorithms, no tire-kickers, just real
-            parents and real gear.
-          </p>
+
+          {/* Bottom band — sport pills + stat callouts, sitting above the photo */}
+          <div
+            className="relative z-[3] mt-auto flex flex-col gap-[2.5vw]"
+            style={{ textShadow: '0 2px 12px rgba(0,0,0,0.3)' }}
+          >
+            <hr className="border-none border-t border-black/60" />
+            <div className="flex flex-wrap gap-2">
+              {[
+                'Baseball',
+                'Softball',
+                'Soccer',
+                'Football',
+                'Basketball',
+                'Volleyball',
+                'Lacrosse',
+                'Hockey',
+                'Tennis',
+                'Golf',
+                'Track',
+                'Swimming',
+                'Gymnastics',
+                'Wrestling',
+              ].map((s) => (
+                <span
+                  key={s}
+                  className="inline-block rounded-full border-[1.5px] border-white/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white md:px-4 md:text-xs"
+                >
+                  {s}
+                </span>
+              ))}
+            </div>
+            <hr className="border-none border-t border-black/60" />
+            <div className="flex flex-wrap items-end justify-between gap-6">
+              <div>
+                <p className="font-heading text-[clamp(2.5rem,7vw,5rem)] font-extrabold leading-none">
+                  $1,200+
+                </p>
+                <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] opacity-80 md:text-xs">
+                  Avg gear spend per kid, per year
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-heading text-[clamp(2.5rem,7vw,5rem)] font-extrabold leading-none">
+                  DFW.
+                </p>
+                <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] opacity-80 md:text-xs">
+                  Built local. Only local.
+                </p>
+              </div>
+            </div>
+          </div>
         </FlowSection>
 
         {/* 02 — The problem */}
