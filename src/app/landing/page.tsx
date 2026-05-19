@@ -15,6 +15,76 @@ const NAVY = '#0d2438';
 const ORANGE = '#ff6b35';
 const CREAM = '#f5f4f0';
 
+const SHADOW_LABEL = { textShadow: '0 2px 12px rgba(0,0,0,0.3)' } as const;
+const SHADOW_HEADLINE = { textShadow: '0 4px 32px rgba(0,0,0,0.4)' } as const;
+// Section 3 has dark text on cream tint — uses a soft white glow instead of a dark shadow.
+const SHADOW_LIGHT = { textShadow: '0 2px 12px rgba(255,255,255,0.3)' } as const;
+
+const HERO_SPORTS = [
+  'Baseball',
+  'Softball',
+  'Soccer',
+  'Football',
+  'Basketball',
+  'Volleyball',
+];
+
+const PILL_BASE: React.CSSProperties = {
+  border: '1px solid rgba(255,255,255,0.4)',
+  padding: '6px 14px',
+  borderRadius: '100px',
+  fontSize: '11px',
+  fontWeight: 700,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+};
+const PILL_MORE: React.CSSProperties = {
+  ...PILL_BASE,
+  border: '1px solid rgba(255,255,255,0.6)',
+  backgroundColor: 'rgba(255,255,255,0.15)',
+};
+
+// Shared tint + bottom-gradient overlays for sections 2-5. Section 1 has
+// its own custom navy-tinted bottom gradient since it hands off to section 2.
+function SectionBackdrop({
+  tint,
+  opacity,
+}: {
+  tint: string;
+  opacity: number;
+}) {
+  return (
+    <>
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundColor: tint,
+          mixBlendMode: 'multiply',
+          opacity,
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}
+      />
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '25%',
+          background:
+            'linear-gradient(to bottom, transparent, rgba(0,0,0,0.3))',
+          pointerEvents: 'none',
+          zIndex: 2,
+        }}
+      />
+    </>
+  );
+}
+
 export default function LandingPage() {
   return (
     <>
@@ -45,7 +115,7 @@ export default function LandingPage() {
       </nav>
 
       <FlowArt aria-label="NearGear story scroll">
-        {/* 01 — Hook (hero photo + orange-multiply tint) */}
+        {/* Hero — baseball photo + orange multiply tint */}
         <FlowSection
           aria-label="What NearGear is"
           style={{
@@ -57,7 +127,6 @@ export default function LandingPage() {
             position: 'relative',
           }}
         >
-          {/* Orange tint over the photo — multiply blend keeps detail */}
           <div
             aria-hidden
             style={{
@@ -70,7 +139,6 @@ export default function LandingPage() {
               zIndex: 1,
             }}
           />
-          {/* Bottom gradient — softens the hand-off into panel 2 (navy) */}
           <div
             aria-hidden
             style={{
@@ -86,20 +154,14 @@ export default function LandingPage() {
             }}
           />
 
-          <p
-            className={`relative z-[3] ${LABEL}`}
-            style={{ textShadow: '0 2px 12px rgba(0,0,0,0.3)' }}
-          >
-            01 &mdash; DFW Sports Marketplace
+          <p className={`relative z-[3] ${LABEL}`} style={SHADOW_LABEL}>
+            DFW Sports Marketplace
           </p>
-          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/60 opacity-100" />
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/60" />
           <div className="relative z-[3]">
             <h1
               className={HEADLINE}
-              style={{
-                textShadow: '0 4px 32px rgba(0,0,0,0.4)',
-                fontWeight: 900,
-              }}
+              style={{ ...SHADOW_HEADLINE, fontWeight: 900 }}
             >
               Gear
               <br />
@@ -109,7 +171,7 @@ export default function LandingPage() {
             </h1>
             <p
               className={`mt-6 max-w-[50ch] ${BODY}`}
-              style={{ textShadow: '0 2px 12px rgba(0,0,0,0.3)' }}
+              style={SHADOW_LABEL}
             >
               DFW&apos;s AI-powered marketplace for youth sports gear. Buy and sell
               with local families &mdash; no algorithms, no tire-kickers, just
@@ -117,36 +179,19 @@ export default function LandingPage() {
             </p>
           </div>
 
-          {/* Bottom band — sport pills + stat callouts, sitting above the photo */}
+          {/* Bottom band — 6 sport pills + "+ 10 more" + stat callouts */}
           <div
             className="relative z-[3] mt-auto flex flex-col gap-[2.5vw]"
-            style={{ textShadow: '0 2px 12px rgba(0,0,0,0.3)' }}
+            style={SHADOW_LABEL}
           >
             <hr className="border-none border-t border-black/60" />
-            <div className="flex flex-wrap gap-2">
-              {[
-                'Baseball',
-                'Softball',
-                'Soccer',
-                'Football',
-                'Basketball',
-                'Volleyball',
-                'Lacrosse',
-                'Hockey',
-                'Tennis',
-                'Golf',
-                'Track',
-                'Swimming',
-                'Gymnastics',
-                'Wrestling',
-              ].map((s) => (
-                <span
-                  key={s}
-                  className="inline-block rounded-full border-[1.5px] border-white/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white md:px-4 md:text-xs"
-                >
+            <div className="flex flex-wrap items-center gap-2">
+              {HERO_SPORTS.map((s) => (
+                <span key={s} style={PILL_BASE}>
                   {s}
                 </span>
               ))}
+              <span style={PILL_MORE}>+ 10 more sports</span>
             </div>
             <hr className="border-none border-t border-black/60" />
             <div className="flex flex-wrap items-end justify-between gap-6">
@@ -170,15 +215,26 @@ export default function LandingPage() {
           </div>
         </FlowSection>
 
-        {/* 02 — The problem */}
+        {/* The Reality — outgrown gear photo + navy tint */}
         <FlowSection
-          aria-label="The problem"
-          style={{ backgroundColor: NAVY, color: '#fff' }}
+          aria-label="The reality"
+          style={{
+            backgroundImage:
+              'url(https://images.unsplash.com/photo-1551958219-acbc608c6377?w=2400&q=85&auto=format&fit=crop)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            color: '#fff',
+            position: 'relative',
+          }}
         >
-          <p className={LABEL}>02 &mdash; The Reality</p>
-          <hr className="my-[2vw] border-none border-t border-white/40" />
-          <div>
-            <h2 className={HEADLINE}>
+          <SectionBackdrop tint={NAVY} opacity={0.85} />
+
+          <p className={`relative z-[3] ${LABEL}`} style={SHADOW_LABEL}>
+            The Reality
+          </p>
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-white/40" />
+          <div className="relative z-[3]">
+            <h2 className={HEADLINE} style={SHADOW_HEADLINE}>
               $1,200
               <br />
               Per Kid
@@ -186,14 +242,17 @@ export default function LandingPage() {
               Per Season.
             </h2>
           </div>
-          <hr className="my-[2vw] border-none border-t border-white/40" />
-          <p className={`max-w-[50ch] ${BODY}`}>
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-white/40" />
+          <p
+            className={`relative z-[3] max-w-[50ch] ${BODY}`}
+            style={SHADOW_LABEL}
+          >
             The average DFW sports family burns over $1,200 per child every year
             on gear. Most of it gets outgrown in a single season. There&apos;s a
             better way.
           </p>
-          <hr className="my-[2vw] border-none border-t border-white/40" />
-          <div className="flex flex-wrap gap-[3vw]">
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-white/40" />
+          <div className="relative z-[3] flex flex-wrap gap-[3vw]">
             <div className="min-w-[180px] flex-1">
               <p className={CARD_HEAD} style={{ color: ORANGE }}>
                 Ghosting
@@ -224,15 +283,26 @@ export default function LandingPage() {
           </div>
         </FlowSection>
 
-        {/* 03 — How it works */}
+        {/* How It Works — phone photographing gear + cream tint (dark text) */}
         <FlowSection
           aria-label="How it works"
-          style={{ backgroundColor: CREAM, color: NAVY }}
+          style={{
+            backgroundImage:
+              'url(https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=2400&q=85&auto=format&fit=crop)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            color: NAVY,
+            position: 'relative',
+          }}
         >
-          <p className={LABEL}>03 &mdash; How It Works</p>
-          <hr className="my-[2vw] border-none border-t border-black/40" />
-          <div>
-            <h2 className={HEADLINE}>
+          <SectionBackdrop tint={CREAM} opacity={0.88} />
+
+          <p className={`relative z-[3] ${LABEL}`} style={SHADOW_LIGHT}>
+            How It Works
+          </p>
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/40" />
+          <div className="relative z-[3]">
+            <h2 className={HEADLINE} style={SHADOW_LIGHT}>
               Snap.
               <br />
               List.
@@ -240,13 +310,16 @@ export default function LandingPage() {
               Meet.
             </h2>
           </div>
-          <hr className="my-[2vw] border-none border-t border-black/40" />
-          <p className={`max-w-[50ch] ${BODY}`}>
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/40" />
+          <p
+            className={`relative z-[3] max-w-[50ch] ${BODY}`}
+            style={SHADOW_LIGHT}
+          >
             Three steps. Under two minutes. Your gear is live and matched to
             local buyers before the kids finish practice.
           </p>
-          <hr className="my-[2vw] border-none border-t border-black/40" />
-          <div className="flex flex-wrap gap-[3vw]">
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/40" />
+          <div className="relative z-[3] flex flex-wrap gap-[3vw]">
             <div className="min-w-[180px] flex-1">
               <p className={CARD_HEAD} style={{ color: ORANGE }}>
                 01 &mdash; Snap
@@ -275,23 +348,38 @@ export default function LandingPage() {
               </p>
             </div>
           </div>
-          <hr className="my-[2vw] border-none border-t border-black/40" />
-          <p className="ml-auto mt-auto max-w-[50ch] text-right text-[clamp(1rem,2.2vw,1.5rem)] italic leading-relaxed opacity-80">
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/40" />
+          <p
+            className="relative z-[3] ml-auto mt-auto max-w-[50ch] text-right text-[clamp(1rem,2.2vw,1.5rem)] italic leading-relaxed opacity-80"
+            style={SHADOW_LIGHT}
+          >
             Free to list. You only pay when you sell.
           </p>
         </FlowSection>
 
-        {/* 04 — The difference */}
+        {/* Why NearGear — sporting goods storefront + deep navy tint */}
         <FlowSection
-          aria-label="The difference"
-          style={{ backgroundColor: NAVY_DEEP, color: '#fff' }}
+          aria-label="Why NearGear"
+          style={{
+            backgroundImage:
+              'url(https://images.unsplash.com/photo-1567496898669-ee935f5f647a?w=2400&q=85&auto=format&fit=crop)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            color: '#fff',
+            position: 'relative',
+          }}
         >
-          <p className={LABEL} style={{ color: ORANGE }}>
-            04 &mdash; The Difference
+          <SectionBackdrop tint={NAVY_DEEP} opacity={0.85} />
+
+          <p
+            className={`relative z-[3] ${LABEL}`}
+            style={{ ...SHADOW_LABEL, color: ORANGE }}
+          >
+            Why NearGear
           </p>
-          <hr className="my-[2vw] border-none border-t border-white/30" />
-          <div>
-            <h2 className={HEADLINE}>
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-white/30" />
+          <div className="relative z-[3]">
+            <h2 className={HEADLINE} style={SHADOW_HEADLINE}>
               Local.
               <br />
               Verified.
@@ -299,15 +387,21 @@ export default function LandingPage() {
               Safe.
             </h2>
           </div>
-          <hr className="my-[2vw] border-none border-t border-white/30" />
-          <p className={`max-w-[50ch] ${BODY}`}>
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-white/30" />
+          <p
+            className={`relative z-[3] max-w-[50ch] ${BODY}`}
+            style={SHADOW_LABEL}
+          >
             We&apos;re not eBay. We&apos;re not Facebook Marketplace. We&apos;re
             built for DFW sports families &mdash; and only DFW sports families.
           </p>
-          <hr className="my-[2vw] border-none border-t border-white/30" />
-          <div className="flex flex-wrap gap-[3vw]">
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-white/30" />
+          <div className="relative z-[3] flex flex-wrap gap-[3vw]">
             <div className="min-w-[180px] flex-1">
-              <p className="mb-2 font-heading text-3xl font-bold" style={{ color: ORANGE }}>
+              <p
+                className="mb-2 font-heading text-3xl font-bold"
+                style={{ color: ORANGE }}
+              >
                 30+
               </p>
               <p className={CARD_BODY}>
@@ -316,7 +410,10 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="min-w-[180px] flex-1">
-              <p className="mb-2 font-heading text-3xl font-bold" style={{ color: ORANGE }}>
+              <p
+                className="mb-2 font-heading text-3xl font-bold"
+                style={{ color: ORANGE }}
+              >
                 14
               </p>
               <p className={CARD_BODY}>
@@ -326,7 +423,10 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="min-w-[180px] flex-1">
-              <p className="mb-2 font-heading text-3xl font-bold" style={{ color: ORANGE }}>
+              <p
+                className="mb-2 font-heading text-3xl font-bold"
+                style={{ color: ORANGE }}
+              >
                 100%
               </p>
               <p className={CARD_BODY}>
@@ -335,8 +435,8 @@ export default function LandingPage() {
               </p>
             </div>
           </div>
-          <hr className="my-[2vw] border-none border-t border-white/30" />
-          <div className="flex flex-wrap gap-[3vw]">
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-white/30" />
+          <div className="relative z-[3] flex flex-wrap gap-[3vw]">
             <div className="min-w-[180px] flex-1">
               <p className={CARD_HEAD}>Ace handles the chat</p>
               <p className={CARD_BODY}>
@@ -361,15 +461,26 @@ export default function LandingPage() {
           </div>
         </FlowSection>
 
-        {/* 05 — Signup CTA */}
+        {/* Ready to Start — family/kid photo + orange tint, primary signup CTA */}
         <FlowSection
-          aria-label="Join NearGear"
-          style={{ backgroundColor: ORANGE, color: '#fff' }}
+          aria-label="Ready to start"
+          style={{
+            backgroundImage:
+              'url(https://images.unsplash.com/photo-1599142060300-2c0f60a8a3ba?w=2400&q=85&auto=format&fit=crop)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            color: '#fff',
+            position: 'relative',
+          }}
         >
-          <p className={LABEL}>05 &mdash; Join Now</p>
-          <hr className="my-[2vw] border-none border-t border-black/60" />
-          <div>
-            <h2 className={HEADLINE}>
+          <SectionBackdrop tint={ORANGE} opacity={0.78} />
+
+          <p className={`relative z-[3] ${LABEL}`} style={SHADOW_LABEL}>
+            Ready to Start
+          </p>
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/60" />
+          <div className="relative z-[3]">
+            <h2 className={HEADLINE} style={SHADOW_HEADLINE}>
               Ready
               <br />
               To
@@ -377,12 +488,15 @@ export default function LandingPage() {
               Start?
             </h2>
           </div>
-          <hr className="my-[2vw] border-none border-t border-black/60" />
-          <p className={`max-w-[50ch] ${BODY}`}>
+          <hr className="relative z-[3] my-[2vw] border-none border-t border-black/60" />
+          <p
+            className={`relative z-[3] max-w-[50ch] ${BODY}`}
+            style={SHADOW_LABEL}
+          >
             Join DFW families buying and selling sports gear the smarter way.
             Free to sign up. Free to list. Founding spots still open.
           </p>
-          <div className="mt-auto flex flex-wrap items-center gap-4 pt-[2vw]">
+          <div className="relative z-[3] mt-auto flex flex-wrap items-center gap-4 pt-[2vw]">
             <Link
               href="/auth/signup"
               className="inline-flex items-center justify-center rounded-full bg-white px-8 py-4 font-heading text-lg font-bold uppercase tracking-wider text-black shadow-lg transition hover:-translate-y-0.5 hover:bg-black hover:text-white md:px-12 md:py-5 md:text-xl"
