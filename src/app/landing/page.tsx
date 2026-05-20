@@ -115,13 +115,13 @@ export default function LandingPage() {
       </nav>
 
       <FlowArt aria-label="NearGear story scroll">
-        {/* Hero — baseball photo + orange multiply tint */}
+        {/* Hero — kids baseball game + orange multiply tint */}
         <FlowSection
           aria-label="What NearGear is"
           style={{
             backgroundColor: ORANGE,
             backgroundImage:
-              'url(https://images.unsplash.com/photo-1490578474895-699cd4e2cf59?w=2400&q=85&auto=format&fit=crop)',
+              'url(https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
@@ -195,13 +195,13 @@ export default function LandingPage() {
               <span style={PILL_MORE}>+ 10 more sports</span>
             </div>
             <hr className="border-none border-t border-black/60" />
-            <div className="flex flex-wrap items-end justify-between gap-6">
+            <div className="grid grid-cols-2 items-end gap-6">
               <div>
                 <p className="font-heading text-[clamp(2.5rem,7vw,5rem)] font-extrabold leading-none">
-                  $1,200+
+                  Save 70%
                 </p>
                 <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] opacity-80 md:text-xs">
-                  Avg gear spend per kid, per year
+                  Avg savings on used gear
                 </p>
               </div>
               <div className="text-right">
@@ -284,13 +284,13 @@ export default function LandingPage() {
           </div>
         </FlowSection>
 
-        {/* How It Works — youth soccer player + navy tint */}
+        {/* How It Works — golf clubs / youth gear + navy tint */}
         <FlowSection
           aria-label="How it works"
           style={{
             backgroundColor: NAVY,
             backgroundImage:
-              'url(https://images.unsplash.com/photo-1599050751795-6cdaafbc2319?w=2400&q=85&auto=format&fit=crop)',
+              'url(https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
@@ -359,13 +359,13 @@ export default function LandingPage() {
           </p>
         </FlowSection>
 
-        {/* Why NearGear — sporting goods storefront + deep navy tint */}
+        {/* Why NearGear — sporting goods storefront/interior + deep navy tint */}
         <FlowSection
           aria-label="Why NearGear"
           style={{
             backgroundColor: NAVY_DEEP,
             backgroundImage:
-              'url(https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=2400&q=85&auto=format&fit=crop)',
+              'url(https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
@@ -464,20 +464,20 @@ export default function LandingPage() {
           </div>
         </FlowSection>
 
-        {/* Ready to Start — youth athlete photo + orange tint, primary signup CTA */}
+        {/* Ready to Start — team celebrating + softer orange tint, primary signup CTA */}
         <FlowSection
           aria-label="Ready to start"
           style={{
             backgroundColor: ORANGE,
             backgroundImage:
-              'url(https://images.unsplash.com/photo-1526676037777-05a232554f77?w=2400&q=85&auto=format&fit=crop)',
+              'url(https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
             position: 'relative',
           }}
         >
-          {/* Orange tint */}
+          {/* Orange tint — toned down so the photo reads through */}
           <div
             aria-hidden
             style={{
@@ -485,7 +485,7 @@ export default function LandingPage() {
               inset: 0,
               backgroundColor: ORANGE,
               mixBlendMode: 'multiply',
-              opacity: 0.78,
+              opacity: 0.65,
               pointerEvents: 'none',
               zIndex: 1,
             }}
