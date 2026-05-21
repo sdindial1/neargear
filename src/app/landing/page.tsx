@@ -220,8 +220,7 @@ export default function LandingPage() {
           aria-label="The reality"
           style={{
             backgroundColor: NAVY,
-            backgroundImage:
-              'url(https://images.unsplash.com/photo-1517466787929-bc90951d0974?w=2400&q=85&auto=format&fit=crop)',
+            backgroundImage: 'url(/images/IMG_8045.jpeg)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
@@ -467,7 +466,8 @@ export default function LandingPage() {
           aria-label="Ready to start"
           style={{
             backgroundColor: ORANGE,
-            backgroundImage: 'url(/images/IMG_8045.jpeg)',
+            backgroundImage:
+              'url(https://images.unsplash.com/photo-1517466787929-bc90951d0974?w=2400&q=85&auto=format&fit=crop)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
