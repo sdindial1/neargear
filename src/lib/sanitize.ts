@@ -1,5 +1,3 @@
-import DOMPurify from "isomorphic-dompurify";
-
 export const LIMITS = {
   NAME: 60,
   LISTING_TITLE: 100,
@@ -10,12 +8,18 @@ export const LIMITS = {
   CUSTOM_LOCATION: 200,
 } as const;
 
-/**
- * Strip HTML, trim whitespace, cap length. Safe for any user-supplied text
- * that we round-trip back to the UI.
- */
+// All callers ultimately render the result as React text or send it to
+// Anthropic as plain text, so a tag-strip is enough — no HTML parser needed.
+// Removing the jsdom dependency chain (the cause of an ERR_REQUIRE_ESM crash
+// on Vercel: @exodus/bytes shipped as pure ESM while html-encoding-sniffer
+// still require()'d it) makes this work in serverless.
+function stripHtml(input: string): string {
+  return input
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<[^>]*>/g, "");
+}
+
 export function sanitizeText(input: string, maxLength = 500): string {
   if (!input) return "";
-  const stripped = DOMPurify.sanitize(input, { ALLOWED_TAGS: [] });
-  return stripped.trim().slice(0, maxLength);
+  return stripHtml(input).trim().slice(0, maxLength);
 }
