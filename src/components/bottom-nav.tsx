@@ -27,7 +27,7 @@ export function BottomNav() {
 
   const items = [
     { href: "/marketplace", icon: Home, label: "Home" },
-    { href: "/marketplace", icon: Search, label: "Browse" },
+    { href: "/browse", icon: Search, label: "Browse" },
     { href: "/sell", icon: Plus, label: "Sell", isSell: true },
     { href: "/messages", icon: MessageCircle, label: "Messages", badge: unreadCount },
     { href: "/profile", icon: UserCircle, label: "Profile" },

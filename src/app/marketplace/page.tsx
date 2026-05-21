@@ -88,7 +88,7 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 py-3">
             <div className="sports-scroll">
               {SPORTS.map((sport) => (
-                <Link key={sport} href={`/marketplace?sport=${encodeURIComponent(sport)}`}>
+                <Link key={sport} href={`/browse?sport=${encodeURIComponent(sport)}`}>
                   <div className="sport-pill">{sport}</div>
                 </Link>
               ))}

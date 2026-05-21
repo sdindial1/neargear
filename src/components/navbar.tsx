@@ -121,7 +121,7 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-14">
           <Link
-            href="/"
+            href={user ? "/marketplace" : "/"}
             className="flex items-center gap-1 text-xl font-bold font-heading"
           >
             <span className="text-white">Near</span>
