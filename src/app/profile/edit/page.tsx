@@ -70,6 +70,11 @@ function ProfileEditInner() {
     }
   }, [zipcode]);
 
+  const lastName = fullName.trim().split(/\s+/).filter(Boolean).pop() ?? "";
+  const familyPlaceholder = lastName
+    ? `The ${lastName} Family`
+    : "Your Family Name";
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -246,7 +251,7 @@ function ProfileEditInner() {
                   value={familyName}
                   onChange={(e) => setFamilyName(e.target.value)}
                   maxLength={LIMITS.NAME}
-                  placeholder="The Dindial Family"
+                  placeholder={familyPlaceholder}
                 />
                 <p className="text-xs text-muted-foreground">
                   Shows on your profile instead of your full name.
