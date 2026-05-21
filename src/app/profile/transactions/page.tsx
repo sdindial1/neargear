@@ -107,7 +107,7 @@ function ProfileTransactionsInner() {
               When you buy or sell gear, your receipts and earnings show up
               here.
             </p>
-            <Link href="/browse">
+            <Link href="/marketplace">
               <Button className="bg-orange hover:bg-orange-light text-white min-h-[44px]">
                 Browse Gear
               </Button>

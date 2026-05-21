@@ -223,7 +223,7 @@ function MessagesInner() {
               When you schedule a meetup you can message the other party
               here.
             </p>
-            <Link href="/browse">
+            <Link href="/marketplace">
               <Button className="bg-orange hover:bg-orange-light text-white min-h-[44px]">
                 Browse Gear
               </Button>

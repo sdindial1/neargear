@@ -332,7 +332,7 @@ function RequestToBuyPageInner() {
           </p>
           <Button
             className="btn-large btn-primary max-w-xs mt-6"
-            onClick={() => router.push("/browse")}
+            onClick={() => router.push("/marketplace")}
           >
             Browse other listings
           </Button>

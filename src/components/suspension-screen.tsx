@@ -51,7 +51,7 @@ export function SuspensionScreen({ suspensionEndsAt, permanent }: Props) {
             )}
           </p>
 
-          <Link href="/browse" className="inline-block w-full">
+          <Link href="/marketplace" className="inline-block w-full">
             <Button className="btn-large btn-primary w-full">
               <ShoppingBag className="w-5 h-5" /> Browse Gear
             </Button>

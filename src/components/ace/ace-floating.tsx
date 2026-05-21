@@ -10,7 +10,11 @@ import { AceChat } from "./ace-chat";
 // half of the screen.
 const STORAGE_KEY = "neargear:ace:position:v2";
 const TAP_THRESHOLD_PX = 6;
-const HIDE_PATHS = ["/auth", "/admin"];
+// Marketing surfaces (landing, founding, auth, admin). `/` is the landing
+// page now, so it's an exact-match hide — startsWith("/") would hide Ace
+// everywhere.
+const HIDE_EXACT = new Set(["/"]);
+const HIDE_PREFIXES = ["/founding", "/auth", "/admin"];
 const SIZE = 48;
 const DEFAULT_RIGHT = 16;
 const DEFAULT_BOTTOM = 120;
@@ -162,7 +166,11 @@ export function AceFloating() {
   };
 
   if (signedIn === null || !signedIn) return null;
-  if (HIDE_PATHS.some((p) => pathname?.startsWith(p))) return null;
+  const path = pathname ?? "/";
+  if (HIDE_EXACT.has(path)) return null;
+  if (HIDE_PREFIXES.some((p) => path === p || path.startsWith(p + "/"))) {
+    return null;
+  }
   if (!pos) return null;
 
   return (

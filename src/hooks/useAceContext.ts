@@ -41,7 +41,7 @@ export interface AceContext {
 function detectPage(path: string): AcePage {
   if (path === "/" || path === "") return "home";
   if (path.startsWith("/sell")) return "sell";
-  if (path.startsWith("/browse")) return "browse";
+  if (path.startsWith("/marketplace") || path.startsWith("/browse")) return "browse";
   if (path.startsWith("/listings/")) return "listing";
   if (path.startsWith("/meetups/")) return "meetup";
   if (path.startsWith("/profile")) return "profile";
