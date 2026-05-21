@@ -595,3 +595,172 @@
   );
   animation: shimmer-slide 1.8s linear infinite;
 }
+
+/* ─── Founding page celebration ──────────────────────────────── */
+
+@keyframes sparkle-fall {
+  0% {
+    transform: translateY(0) translateX(0) rotate(0deg) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(10vh) translateX(calc(var(--drift) * 0.1))
+      rotate(36deg) scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(50vh) translateX(calc(var(--drift) * 0.5))
+      rotate(180deg) scale(0.8);
+  }
+  85% {
+    opacity: 0.4;
+    transform: translateY(85vh) translateX(calc(var(--drift) * 0.85))
+      rotate(306deg) scale(0.4);
+  }
+  100% {
+    transform: translateY(105vh) translateX(var(--drift)) rotate(360deg)
+      scale(0.1);
+    opacity: 0;
+  }
+}
+
+@keyframes founding-gradient-shift {
+  0%,
+  100% {
+    background-position: 50% 0%;
+  }
+  50% {
+    background-position: 50% 30%;
+  }
+}
+
+.founding-gradient {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 120% 90% at 50% 0%,
+    #1a3a52 0%,
+    #0d2438 35%,
+    #071520 100%
+  );
+  background-size: 100% 200%;
+  background-position: 50% 0%;
+  animation: founding-gradient-shift 20s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes founding-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.15);
+  }
+}
+.founding-glow {
+  position: absolute;
+  inset: -40px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 107, 53, 0.3) 0%,
+    transparent 70%
+  );
+  animation: founding-glow-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes shimmer-sweep {
+  0% {
+    left: -100%;
+  }
+  50%,
+  100% {
+    left: 100%;
+  }
+}
+.founding-shimmer-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: linear-gradient(
+    135deg,
+    #ff6b35 0%,
+    #ff8c5a 50%,
+    #ff6b35 100%
+  );
+  border-radius: 100px;
+  color: #fff;
+  font-family: "Barlow Condensed", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  overflow: hidden;
+}
+.founding-shimmer-badge::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    transparent 100%
+  );
+  animation: shimmer-sweep 3s ease-in-out infinite;
+}
+
+@keyframes founding-counter-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+.founding-counter-pulse-slow {
+  animation: founding-counter-pulse 1.5s ease-in-out infinite;
+  transform-origin: center;
+  display: inline-block;
+}
+.founding-counter-pulse-fast {
+  animation: founding-counter-pulse 1s ease-in-out infinite;
+  transform-origin: center;
+  display: inline-block;
+}
+
+@keyframes burst-particle {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--end-x), var(--end-y)) rotate(var(--rotation));
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .founding-gradient,
+  .founding-glow,
+  .founding-shimmer-badge::before,
+  .founding-counter-pulse-slow,
+  .founding-counter-pulse-fast {
+    animation: none !important;
+  }
+  /* SparkleRain and ConfettiBurst components check this via their own gates */
+}

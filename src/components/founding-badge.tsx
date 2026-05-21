@@ -2,10 +2,26 @@ import { Star } from "lucide-react";
 
 interface Props {
   size?: "sm" | "md";
+  shimmer?: boolean;
   className?: string;
 }
 
-export function FoundingBadge({ size = "sm", className = "" }: Props) {
+export function FoundingBadge({
+  size = "sm",
+  shimmer = false,
+  className = "",
+}: Props) {
+  if (shimmer) {
+    return (
+      <span
+        className={`founding-shimmer-badge ${className}`}
+        title="NearGear Founding Family"
+      >
+        <Star className="w-3.5 h-3.5 fill-white" />
+        Founding Family
+      </span>
+    );
+  }
   if (size === "md") {
     return (
       <span
