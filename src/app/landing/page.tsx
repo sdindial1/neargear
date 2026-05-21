@@ -220,13 +220,23 @@ export default function LandingPage() {
           aria-label="The reality"
           style={{
             backgroundColor: NAVY,
-            backgroundImage: 'url(/images/IMG_8045.jpeg)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
             color: '#fff',
             position: 'relative',
           }}
         >
+          {/* Horizontally flipped so the subject faces the text on the left */}
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: 'url(/images/IMG_8045.jpeg)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              transform: 'scaleX(-1)',
+              zIndex: 0,
+            }}
+          />
           <SectionBackdrop tint={NAVY} opacity={0.85} />
 
           <p className={`relative z-[3] ${LABEL}`} style={SHADOW_LABEL}>
@@ -362,13 +372,23 @@ export default function LandingPage() {
           aria-label="Why NearGear"
           style={{
             backgroundColor: NAVY_DEEP,
-            backgroundImage: 'url(/images/IMG_1569.jpeg)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
             color: '#fff',
             position: 'relative',
           }}
         >
+          {/* Horizontally flipped so the subject faces the text on the left */}
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: 'url(/images/IMG_1569.jpeg)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              transform: 'scaleX(-1)',
+              zIndex: 0,
+            }}
+          />
           <SectionBackdrop tint={NAVY_DEEP} opacity={0.85} />
 
           <p
