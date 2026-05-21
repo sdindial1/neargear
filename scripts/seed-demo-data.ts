@@ -1,8 +1,14 @@
 /**
- * Seed the marketplace with 5 demo sellers and 18 listings.
+ * Seed the marketplace with 5 demo sellers and 25 listings across
+ * baseball, softball, soccer, football, basketball, volleyball, lacrosse,
+ * hockey, and golf.
  *
  * Idempotent: skips sellers whose email already exists and listings whose
  * (seller_id, title) pair already exists. Safe to re-run.
+ *
+ * Photos are real product photos sourced from SidelineSwap (sourced as
+ * accurate stand-ins so the marketplace looks credible while we wait for
+ * real listings).
  *
  * Auth passwords are generated at runtime — never committed or printed.
  * If a demo account is ever needed interactively, reset via Supabase Console.
@@ -79,52 +85,6 @@ const sellers: Seller[] = [
   },
 ];
 
-// ─── Photo pool ─────────────────────────────────────────────────────────
-// Unsplash URLs verified working on the landing page, plus a few sport-
-// themed adds. Photos are picked per-listing from the sport-keyed lists
-// below; some repetition is acceptable for a demo seed.
-
-const u = (id: string) =>
-  `https://images.unsplash.com/${id}?w=1200&q=80&auto=format&fit=crop`;
-
-const PHOTOS = {
-  baseball: [
-    u("photo-1531415074968-036ba1b575da"), // kids baseball game
-    u("photo-1508344928928-7165b67de128"), // glove on grass
-    u("photo-1626224583764-f87db24ac4ea"), // baseball bat
-  ],
-  softball: [
-    u("photo-1531415074968-036ba1b575da"),
-    u("photo-1517466787929-bc90951d0974"), // gear pile
-  ],
-  soccer: [
-    u("photo-1574629810360-7efbbe195018"), // soccer ball
-    u("photo-1606925797300-0b35e9d1794e"), // soccer cleats
-    u("photo-1571019613454-1cb2f99b2d8b"), // team
-  ],
-  football: [
-    u("photo-1577471488278-16eec37ffcc2"), // football helmet
-    u("photo-1542291026-7eec264c27ff"), // sports storefront
-    u("photo-1607734834519-d8576ae60ea7"), // football
-  ],
-  basketball: [
-    u("photo-1486286701208-1d58e9338013"), // basketball
-    u("photo-1551958219-acbc608c6377"), // basketball shoe
-  ],
-  volleyball: [
-    u("photo-1610465299996-30f240ac2b1c"), // volleyball
-    u("photo-1517466787929-bc90951d0974"),
-  ],
-  lacrosse: [
-    u("photo-1547347298-4074fc3086f0"), // lacrosse
-    u("photo-1535131749006-b7f58c99034b"), // sports field
-  ],
-  hockey: [
-    u("photo-1515703407324-5f51c2c79bb1"), // hockey skates
-    u("photo-1517466787929-bc90951d0974"),
-  ],
-} satisfies Record<string, string[]>;
-
 // ─── Listings ───────────────────────────────────────────────────────────
 
 type ConditionEnum = "like_new" | "good" | "fair" | "poor";
@@ -132,7 +92,7 @@ type ConditionEnum = "like_new" | "good" | "fair" | "poor";
 interface ListingSpec {
   seller: string;
   title: string;
-  sport: keyof typeof PHOTOS;
+  sport: string;
   category: string;
   ageMin: number | null;
   ageMax: number | null;
@@ -140,11 +100,17 @@ interface ListingSpec {
   priceCents: number;
   retailCents: number;
   description: string;
+  photo: string;
 }
+
+const SS = (path: string) =>
+  `https://edge.images.sidelineswap.com/production/${path}_original.jpeg`;
+const SSP = (path: string) =>
+  `https://edge.images.sidelineswap.com/production/${path}_original.png`;
 
 // excellent → good per schema (only like_new|good|fair|poor allowed).
 const listings: ListingSpec[] = [
-  // ─── Baseball / Softball (6) ───
+  // ─── Baseball / Softball (8) ───
   {
     seller: "demo.chen@neargear.com",
     title: "Rawlings Heart of the Hide 11.75\" Baseball Glove",
@@ -152,11 +118,12 @@ const listings: ListingSpec[] = [
     category: "glove",
     ageMin: 11,
     ageMax: 14,
-    condition: "good", // spec: excellent → good
+    condition: "good",
     priceCents: 6500,
     retailCents: 24000,
     description:
       "Beautiful leather Rawlings glove, 11.75\". Broken in perfectly. My son outgrew it after one season. Excellent shape, no tears.",
+    photo: SS("092/764/273/d0056db69c3f72d4"),
   },
   {
     seller: "demo.morrison@neargear.com",
@@ -170,6 +137,7 @@ const listings: ListingSpec[] = [
     retailCents: 29999,
     description:
       "Like new Easton Ghost, 30in/20oz. Only used one season. Sweet spot is incredible. USSSA approved.",
+    photo: SS("089/825/103/78c17e4bc4d3615f"),
   },
   {
     seller: "demo.thompson@neargear.com",
@@ -183,6 +151,7 @@ const listings: ListingSpec[] = [
     retailCents: 25000,
     description:
       "Complete youth large catcher's set: helmet, chest protector, shin guards. Some wear from one season but plenty of life left.",
+    photo: SS("092/383/829/61fa8b4e6c47dd51"),
   },
   {
     seller: "demo.patel@neargear.com",
@@ -196,6 +165,7 @@ const listings: ListingSpec[] = [
     retailCents: 28000,
     description:
       "Wilson A2000 first base mitt, 12.25\". Broken in, great pocket. Selling because my daughter switched to pitcher.",
+    photo: SS("088/387/161/3839a4c99ec89357"),
   },
   {
     seller: "demo.chen@neargear.com",
@@ -209,6 +179,7 @@ const listings: ListingSpec[] = [
     retailCents: 25000,
     description:
       "Marucci Cat 9, 29in/21oz, USSSA approved. Used for one travel season. Solid bat at a fraction of retail.",
+    photo: SS("083/537/976/8c968c769738447c"),
   },
   {
     seller: "demo.thompson@neargear.com",
@@ -222,6 +193,50 @@ const listings: ListingSpec[] = [
     retailCents: 6500,
     description:
       "Mizuno Franchise metal cleats, size 5Y. Worn one season. Excellent shape, no major scuffs.",
+    photo: SS("068/329/595/ae3fed23ac3334d0"),
+  },
+  // ─── New baseball (3) ───
+  {
+    seller: "demo.thompson@neargear.com",
+    title: "Easton Z5 Youth Batting Helmet",
+    sport: "baseball",
+    category: "helmet",
+    ageMin: 8,
+    ageMax: 12,
+    condition: "like_new",
+    priceCents: 2200,
+    retailCents: 5500,
+    description:
+      "Easton Z5 youth batting helmet. Worn maybe 6 games. No cracks or major scuffs.",
+    photo: SS("066/034/784/44ad6e38d80709d1"),
+  },
+  {
+    seller: "demo.chen@neargear.com",
+    title: "Louisville Slugger Youth Wood Baseball Bat",
+    sport: "baseball",
+    category: "bat",
+    ageMin: 8,
+    ageMax: 11,
+    condition: "good",
+    priceCents: 3500,
+    retailCents: 8000,
+    description:
+      "Louisville Slugger wood bat, youth size. Couple of small dings but swings true. Great for backyard practice.",
+    photo: SS("088/274/467/d963e0cad9bcfb99"),
+  },
+  {
+    seller: "demo.patel@neargear.com",
+    title: "Franklin Youth Batting Gloves (Pair)",
+    sport: "baseball",
+    category: "batting gloves",
+    ageMin: 8,
+    ageMax: 12,
+    condition: "good",
+    priceCents: 1200,
+    retailCents: 2800,
+    description:
+      "Franklin youth batting gloves. Both gloves intact, palms still grippy. Just outgrew them.",
+    photo: SS("082/341/770/4bce183b053b64fe"),
   },
 
   // ─── Soccer (4) ───
@@ -237,6 +252,7 @@ const listings: ListingSpec[] = [
     retailCents: 8500,
     description:
       "Adidas Predator cleats, youth size 3. Worn 4 times. Outgrew them too fast.",
+    photo: SS("065/566/035/d82c9f5a590a7888"),
   },
   {
     seller: "demo.garcia@neargear.com",
@@ -250,6 +266,7 @@ const listings: ListingSpec[] = [
     retailCents: 7000,
     description:
       "Nike Mercurial Vapor, size 4Y. One full season of practice and games. Lots of life left.",
+    photo: SS("060/711/856/3118d65fa1aa2f0b"),
   },
   {
     seller: "demo.morrison@neargear.com",
@@ -263,6 +280,7 @@ const listings: ListingSpec[] = [
     retailCents: 3500,
     description:
       "Adidas Tiro goalkeeper gloves, youth M. Daughter switched positions. Like-new condition.",
+    photo: SS("083/312/837/903392e53aedbd9b"),
   },
   {
     seller: "demo.patel@neargear.com",
@@ -276,6 +294,7 @@ const listings: ListingSpec[] = [
     retailCents: 3000,
     description:
       "Adidas shin guards with ankle protection, youth M. Good condition, no cracks.",
+    photo: SS("087/280/627/b62eb1fb8fcc7f13"),
   },
 
   // ─── Football (3) ───
@@ -291,6 +310,7 @@ const listings: ListingSpec[] = [
     retailCents: 28000,
     description:
       "Riddell Speed Icon, youth large. Worn one season. NOCSAE certified, never in a major collision.",
+    photo: SSP("089/676/712/500837396bff5c9c"),
   },
   {
     seller: "demo.thompson@neargear.com",
@@ -304,6 +324,7 @@ const listings: ListingSpec[] = [
     retailCents: 12000,
     description:
       "Schutt shoulder pads, youth L. One season of use. Fit my son for two years.",
+    photo: SS("077/180/862/26efac0a8992ebaa"),
   },
   {
     seller: "demo.garcia@neargear.com",
@@ -317,9 +338,10 @@ const listings: ListingSpec[] = [
     retailCents: 8500,
     description:
       "Nike Vapor Edge, size 6Y. Bought for a tournament that got rained out. Tried on twice.",
+    photo: SS("089/392/542/58a5942bb3982092"),
   },
 
-  // ─── Basketball (2) ───
+  // ─── Basketball (1, was 2 — spalding dropped) ───
   {
     seller: "demo.thompson@neargear.com",
     title: "Nike Air Jordan Basketball Shoes Size 6Y",
@@ -332,19 +354,7 @@ const listings: ListingSpec[] = [
     retailCents: 13000,
     description:
       "Nike Air Jordans, size 6Y. Worn for full season. Good tread, no major scuffs.",
-  },
-  {
-    seller: "demo.chen@neargear.com",
-    title: "Spalding NBA Youth Basketball — Size 5",
-    sport: "basketball",
-    category: "ball",
-    ageMin: 9,
-    ageMax: 11,
-    condition: "good",
-    priceCents: 1500,
-    retailCents: 3500,
-    description:
-      "Official Spalding youth basketball, size 5. Like new, just rotated stock.",
+    photo: SS("011/187/243/c7d9c2c803816aa1"),
   },
 
   // ─── Volleyball (1) ───
@@ -360,6 +370,7 @@ const listings: ListingSpec[] = [
     retailCents: 9500,
     description:
       "Mizuno Wave Lightning, size 6.5Y. One club season. Excellent grip still.",
+    photo: SS("033/635/033/c697bf14930080b1"),
   },
 
   // ─── Lacrosse (1) ───
@@ -375,6 +386,7 @@ const listings: ListingSpec[] = [
     retailCents: 7500,
     description:
       "STX Stallion lacrosse stick, youth 37\". Some wear and a small scuff on the shaft. Plays great still.",
+    photo: SS("062/272/017/31a09db4e90c0c06"),
   },
 
   // ─── Hockey (1) ───
@@ -390,15 +402,81 @@ const listings: ListingSpec[] = [
     retailCents: 20000,
     description:
       "Bauer Vapor X3.7, youth 4. Sharpened recently. Worn one season.",
+    photo: SS("081/890/159/e0a68a9adf32c363"),
+  },
+
+  // ─── Golf (5, new sport) ───
+  {
+    seller: "demo.morrison@neargear.com",
+    title: "Callaway XJ Junior Golf Set (Right-Hand)",
+    sport: "golf",
+    category: "club set",
+    ageMin: 8,
+    ageMax: 11,
+    condition: "good",
+    priceCents: 9500,
+    retailCents: 22000,
+    description:
+      "Callaway XJ junior set: driver, fairway, irons, putter and stand bag. Right-hand. Two seasons of use, all clubs intact.",
+    photo: SS("091/375/847/2579d4486597b4de"),
+  },
+  {
+    seller: "demo.thompson@neargear.com",
+    title: "TaylorMade Phenom Junior Golf Set",
+    sport: "golf",
+    category: "club set",
+    ageMin: 10,
+    ageMax: 13,
+    condition: "like_new",
+    priceCents: 12000,
+    retailCents: 28000,
+    description:
+      "TaylorMade Phenom junior set. My son grew out of it after a year. Clubs look almost new.",
+    photo: SS("089/006/290/31d4fdd3508f968a"),
+  },
+  {
+    seller: "demo.patel@neargear.com",
+    title: "PING G430 Driver",
+    sport: "golf",
+    category: "driver",
+    ageMin: 14,
+    ageMax: 18,
+    condition: "good",
+    priceCents: 22000,
+    retailCents: 55000,
+    description:
+      "PING G430 driver, 10.5° loft, stiff flex. Some light scuffs on the sole but face is clean.",
+    photo: SS("070/139/395/4389244509588173"),
+  },
+  {
+    seller: "demo.chen@neargear.com",
+    title: "Titleist Pro V1 Golf Balls — Dozen",
+    sport: "golf",
+    category: "balls",
+    ageMin: 14,
+    ageMax: 18,
+    condition: "like_new",
+    priceCents: 3500,
+    retailCents: 5500,
+    description:
+      "Dozen Titleist Pro V1 balls. Found a sleeve unopened in my bag — just selling what I won't use.",
+    photo: SS("007/070/751/4e432da32d62b107"),
+  },
+  {
+    seller: "demo.garcia@neargear.com",
+    title: "Junior Golf Stand Bag",
+    sport: "golf",
+    category: "bag",
+    ageMin: 8,
+    ageMax: 13,
+    condition: "good",
+    priceCents: 3500,
+    retailCents: 9500,
+    description:
+      "Junior golf stand bag with rain cover. Has a small mark on the side panel but all zippers and straps work.",
+    photo: SS("091/932/304/7dd47418e02a435d"),
   },
 ];
-
-function pickPhotos(sport: keyof typeof PHOTOS, index: number): string[] {
-  const pool = PHOTOS[sport];
-  // Rotate through the pool by listing index so consecutive listings of the
-  // same sport don't all show the same primary photo on the marketplace grid.
-  return [pool[index % pool.length]!, pool[(index + 1) % pool.length]!];
-}
 
 // ─── Auth + profile helpers ─────────────────────────────────────────────
 
@@ -406,13 +484,14 @@ async function findUserByEmail(
   client: SupabaseClient,
   email: string,
 ): Promise<{ id: string } | null> {
-  // listUsers paginates; we only have a handful, so first page is fine.
   const { data, error } = await client.auth.admin.listUsers({
     page: 1,
     perPage: 200,
   });
   if (error) throw error;
-  const match = data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+  const match = data.users.find(
+    (u) => u.email?.toLowerCase() === email.toLowerCase(),
+  );
   return match ? { id: match.id } : null;
 }
 
@@ -423,7 +502,6 @@ async function ensureSeller(seller: Seller): Promise<string> {
     return existing.id;
   }
 
-  // Random 32-byte password — never logged, never persisted.
   const password = randomBytes(32).toString("base64url");
   const { data: created, error: createErr } = await supabase.auth.admin.createUser({
     email: seller.email,
@@ -458,7 +536,6 @@ async function ensureListing(
   spec: ListingSpec,
   sellerId: string,
   city: string,
-  photoIndex: number,
 ): Promise<boolean> {
   const { data: existing, error: lookupErr } = await supabase
     .from("listings")
@@ -481,7 +558,7 @@ async function ensureListing(
     price: spec.priceCents,
     retail_price: spec.retailCents,
     description: spec.description,
-    photo_urls: pickPhotos(spec.sport, photoIndex),
+    photo_urls: [spec.photo],
     status: "active",
     city,
     age_min: spec.ageMin,
@@ -510,14 +587,10 @@ async function main() {
 
   console.log("\nListings:");
   let listingsCreated = 0;
-  // photoIndex counts per-sport so rotation stays stable across reruns.
-  const photoIndexBySport = new Map<string, number>();
   for (const spec of listings) {
     const seller = sellerIdByEmail.get(spec.seller);
     if (!seller) throw new Error(`unknown seller email: ${spec.seller}`);
-    const idx = photoIndexBySport.get(spec.sport) ?? 0;
-    photoIndexBySport.set(spec.sport, idx + 1);
-    const wasCreated = await ensureListing(spec, seller.id, seller.city, idx);
+    const wasCreated = await ensureListing(spec, seller.id, seller.city);
     if (wasCreated) listingsCreated++;
   }
 
