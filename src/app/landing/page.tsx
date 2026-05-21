@@ -120,8 +120,7 @@ export default function LandingPage() {
           aria-label="What NearGear is"
           style={{
             backgroundColor: ORANGE,
-            backgroundImage:
-              'url(https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=2400&q=85&auto=format&fit=crop)',
+            backgroundImage: 'url(/images/IMG_7166.jpeg)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
@@ -364,8 +363,7 @@ export default function LandingPage() {
           aria-label="Why NearGear"
           style={{
             backgroundColor: NAVY_DEEP,
-            backgroundImage:
-              'url(https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=2400&q=85&auto=format&fit=crop)',
+            backgroundImage: 'url(/images/IMG_1569.jpeg)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
@@ -469,8 +467,7 @@ export default function LandingPage() {
           aria-label="Ready to start"
           style={{
             backgroundColor: ORANGE,
-            backgroundImage:
-              'url(https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=2400&q=85&auto=format&fit=crop)',
+            backgroundImage: 'url(/images/IMG_8045.jpeg)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             color: '#fff',
