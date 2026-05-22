@@ -27,6 +27,10 @@ export function Navbar() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [user, setUser] = useState<SignedInUser | null>(null);
+  // Track whether we've finished checking auth so the logo doesn't
+  // briefly default to "/" during the async load window — fast taps
+  // would otherwise send a signed-in user to the marketing landing.
+  const [authLoaded, setAuthLoaded] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -52,6 +56,7 @@ export function Navbar() {
     };
 
     const applySession = (session: Session | null) => {
+      setAuthLoaded(true);
       if (!session?.user) {
         setUser(null);
         return;
@@ -121,7 +126,7 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-14">
           <Link
-            href={user ? "/marketplace" : "/"}
+            href={!authLoaded || user ? "/marketplace" : "/"}
             className="flex items-center gap-1 text-xl font-bold font-heading"
           >
             <span className="text-white">Near</span>

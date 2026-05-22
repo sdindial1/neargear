@@ -73,7 +73,7 @@ export function AuthGate({ reason, children }: Props) {
               </Button>
             </Link>
             <Link
-              href="/"
+              href="/marketplace"
               className="block text-center text-sm text-muted-foreground py-2"
             >
               Keep browsing

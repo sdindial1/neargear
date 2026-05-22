@@ -17,7 +17,11 @@ function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
-  const redirectTo = searchParams.get("redirect") || "/";
+  // Default to /marketplace — / is the marketing landing where signed-in
+  // users can't tell they're signed in (no bottom nav, no avatar visible
+  // above the fold). Sending them straight to the app avoids the perceived
+  // "kicked back to landing" bug.
+  const redirectTo = searchParams.get("redirect") || "/marketplace";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -45,7 +45,8 @@ function SignupInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
-  const redirectTo = searchParams.get("redirect") || "/";
+  // Default to /marketplace (see login/page.tsx for the same reasoning).
+  const redirectTo = searchParams.get("redirect") || "/marketplace";
   const isFoundingFlow = searchParams.get("founding") === "true";
   const passwordsMatch = password === confirmPassword;
 
