@@ -38,7 +38,18 @@ import {
   ShieldCheck,
   Sparkles,
   Upload,
+  X,
 } from "lucide-react";
+
+interface ProcessedPhoto {
+  // Always a fully-formed data URL (`data:image/<mime>;base64,...`) so it can
+  // be dropped straight into an <img src>.
+  dataUrl: string;
+  mimeType: string;
+  // True when the bg-removal API returned a transparent PNG; false when we
+  // fell back to the original JPEG (API down, rate-limited, etc.).
+  bgRemoved: boolean;
+}
 
 type Step = "photos" | "processing" | "review";
 
@@ -104,6 +115,9 @@ function SellPageInner() {
 
   const [step, setStep] = useState<Step>("photos");
   const [photos, setPhotos] = useState<File[]>([]);
+  // Mirrors `photos` 1:1 — populated during the "processing" step so the
+  // review page can show what's actually going to be uploaded.
+  const [processedPhotos, setProcessedPhotos] = useState<ProcessedPhoto[]>([]);
   const [analysis, setAnalysis] = useState<AIListingAnalysis | null>(null);
   const [processingIdx, setProcessingIdx] = useState(0);
   const [error, setError] = useState("");
@@ -151,11 +165,46 @@ function SellPageInner() {
         ),
       );
 
-      const res = await fetch("/api/analyze-listing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ images: base64Images }),
-      });
+      // Run analyze + bg-removal in parallel so the review screen has
+      // bg-removed previews ready by the time we transition to it.
+      const [res, processed] = await Promise.all([
+        fetch("/api/analyze-listing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ images: base64Images }),
+        }),
+        Promise.all(
+          base64Images.map(async (originalDataUrl): Promise<ProcessedPhoto> => {
+            try {
+              const bgRes = await fetch("/api/remove-background", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  imageBase64: originalDataUrl,
+                  mimeType: "image/jpeg",
+                }),
+              });
+              if (bgRes.ok) {
+                const bg = await bgRes.json();
+                if (bg.bgRemoved && bg.imageBase64) {
+                  return {
+                    dataUrl: `data:${bg.mimeType};base64,${bg.imageBase64}`,
+                    mimeType: bg.mimeType,
+                    bgRemoved: true,
+                  };
+                }
+              }
+            } catch {
+              // fall through to original
+            }
+            return {
+              dataUrl: originalDataUrl,
+              mimeType: "image/jpeg",
+              bgRemoved: false,
+            };
+          }),
+        ),
+      ]);
 
       const data = await res.json();
 
@@ -166,6 +215,7 @@ function SellPageInner() {
       }
 
       setAnalysis(data as AIListingAnalysis);
+      setProcessedPhotos(processed);
       setTitle(data.item || "");
       setSport(data.sport || "");
       setCategory(data.category || "");
@@ -186,6 +236,11 @@ function SellPageInner() {
   };
 
   const handleAnalyze = () => analyzePhotos(photos);
+
+  const removeProcessedPhoto = (idx: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== idx));
+    setProcessedPhotos((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   const handleReanalyzePhotos = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -216,23 +271,24 @@ function SellPageInner() {
     const folder = user?.id ?? "anonymous";
     const photoUrls: string[] = [];
 
-    for (const photo of photos) {
+    for (let i = 0; i < photos.length; i++) {
       try {
-        const dataUrl = await resizeImage(photo, 1024, 0.85);
-        let uploadBlob: Blob = await dataUrlToBlob(dataUrl);
-        let ext = "jpg";
-
-        const bgRes = await fetch("/api/remove-background", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageBase64: dataUrl, mimeType: "image/jpeg" }),
-        });
-        if (bgRes.ok) {
-          const bg = await bgRes.json();
-          if (bg.bgRemoved && bg.imageBase64) {
-            uploadBlob = await base64ToBlob(bg.imageBase64, bg.mimeType);
-            ext = "png";
-          }
+        // Prefer the already-bg-removed copy we built during analyze. If for
+        // any reason that's missing (older code path, race), fall back to
+        // resizing the original on the fly.
+        const processed = processedPhotos[i];
+        let uploadBlob: Blob;
+        let ext: "png" | "jpg";
+        if (processed) {
+          uploadBlob = await base64ToBlob(
+            processed.dataUrl.replace(/^data:[^;]+;base64,/, ""),
+            processed.mimeType,
+          );
+          ext = processed.bgRemoved ? "png" : "jpg";
+        } else {
+          const dataUrl = await resizeImage(photos[i], 1024, 0.85);
+          uploadBlob = await dataUrlToBlob(dataUrl);
+          ext = "jpg";
         }
 
         const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -422,6 +478,46 @@ function SellPageInner() {
             )}
 
             <div className="space-y-4">
+              {processedPhotos.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label>Your Photos</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Photos show with backgrounds removed. If anything looks
+                    cut off, tap ✕ and the &ldquo;Retake photos&rdquo; button
+                    at the bottom to swap in a new shot.
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {processedPhotos.map((p, i) => (
+                      <div
+                        key={i}
+                        className="relative aspect-square rounded-lg overflow-hidden border"
+                        style={{ backgroundColor: "#f5f4f0" }}
+                      >
+                        <img
+                          src={p.dataUrl}
+                          alt={`Photo ${i + 1}`}
+                          className="w-full h-full"
+                          style={{ objectFit: "contain" }}
+                        />
+                        {i === 0 && (
+                          <span className="absolute top-1 left-1 bg-orange text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
+                            Cover
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeProcessedPhoto(i)}
+                          aria-label={`Remove photo ${i + 1}`}
+                          className="absolute top-1 right-1 bg-black/65 text-white rounded-full p-1 hover:bg-black/85"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <Label>Title</Label>
                 <Input
@@ -521,7 +617,7 @@ function SellPageInner() {
               </div>
 
               {analysis?.suggestedPrice != null && (
-                <div className="bg-orange/5 border border-orange/20 rounded-xl p-4 space-y-1">
+                <div className="bg-orange/5 border border-orange/20 rounded-xl p-4 space-y-1 mb-2">
                   <p className="font-heading text-2xl font-bold text-orange">
                     AI Suggests ${analysis.suggestedPrice}
                   </p>
@@ -544,10 +640,13 @@ function SellPageInner() {
                 </div>
               )}
 
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 mt-2">
                 <Label>Your Price</Label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-3xl font-semibold text-navy pointer-events-none leading-none">
+                  <span
+                    className="absolute left-4 top-1/2 text-3xl font-semibold text-navy pointer-events-none leading-none"
+                    style={{ transform: "translateY(-50%)" }}
+                  >
                     $
                   </span>
                   <Input
@@ -556,7 +655,11 @@ function SellPageInner() {
                     step="0.01"
                     inputMode="decimal"
                     placeholder="0"
-                    className="input-large pl-12 pr-4 text-3xl font-semibold tabular-nums text-left"
+                    className="input-large text-3xl font-semibold tabular-nums text-left"
+                    // input-large sets `padding: 0 16px` via globals.css —
+                    // beats Tailwind's pl-12 due to source order. Force the
+                    // padding inline so the typed value clears the $ glyph.
+                    style={{ paddingLeft: "44px", paddingRight: "16px" }}
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                   />
@@ -635,6 +738,7 @@ function SellPageInner() {
                 onClick={() => {
                   setStep("photos");
                   setAnalysis(null);
+                  setProcessedPhotos([]);
                 }}
                 className="w-full text-center text-sm text-muted-foreground hover:text-navy py-2 flex items-center justify-center gap-1"
               >
