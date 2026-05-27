@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import FlowArt, { FlowSection } from '@/components/ui/story-scroll';
+import { Footer } from '@/components/footer';
 
 const HEADLINE =
   'text-[clamp(2.5rem,10vw,14rem)] font-heading font-bold leading-[0.85] uppercase tracking-tight';
@@ -561,6 +562,7 @@ export default function LandingPage() {
           </div>
         </FlowSection>
       </FlowArt>
+      <Footer />
     </>
   );
 }

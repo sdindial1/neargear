@@ -28,6 +28,10 @@ type FoundingPhase =
   | "spots_full"
   | "waitlist_joined";
 
+// Effective date of the current Terms / Privacy Policy. Bumping this
+// invalidates older acceptances if we ever add a re-acceptance flow.
+const TERMS_VERSION = "2026-05-27";
+
 function SignupInner() {
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
@@ -42,6 +46,7 @@ function SignupInner() {
   const [loading, setLoading] = useState(false);
   const [foundingPhase, setFoundingPhase] = useState<FoundingPhase>("off");
   const [waitlistJoining, setWaitlistJoining] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -87,6 +92,25 @@ function SignupInner() {
         zipcode,
         phone: phoneE164,
       });
+
+      // Record terms acceptance as an audit trail. Separate update so an
+      // older schema without the new columns still lets signup succeed —
+      // the migration in supabase/migrations/011_terms_acceptance.sql adds
+      // them. Errors here are logged but don't block account creation.
+      try {
+        const { error: termsErr } = await supabase
+          .from("users")
+          .update({
+            terms_accepted_at: new Date().toISOString(),
+            terms_version: TERMS_VERSION,
+          })
+          .eq("id", signUpData.user.id);
+        if (termsErr) {
+          console.warn("[signup] terms acceptance not recorded:", termsErr.message);
+        }
+      } catch (err) {
+        console.warn("[signup] terms acceptance write threw:", err);
+      }
     }
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -437,6 +461,41 @@ function SignupInner() {
                   />
                 </div>
 
+                <div className="flex items-start gap-3 pt-2">
+                  <input
+                    type="checkbox"
+                    id="terms-agreement"
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className="mt-1 w-5 h-5 rounded border-gray-400 text-orange focus:ring-orange focus:ring-2 cursor-pointer"
+                    required
+                  />
+                  <label
+                    htmlFor="terms-agreement"
+                    className="text-sm text-muted-foreground leading-relaxed cursor-pointer"
+                  >
+                    I am at least 18 years old and I agree to NearGear&apos;s{" "}
+                    <Link
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-orange hover:text-orange-light font-semibold underline underline-offset-2"
+                    >
+                      Terms of Service
+                    </Link>{" "}
+                    and{" "}
+                    <Link
+                      href="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-orange hover:text-orange-light font-semibold underline underline-offset-2"
+                    >
+                      Privacy Policy
+                    </Link>
+                    .
+                  </label>
+                </div>
+
                 {error && (
                   <p className="text-sm text-red-600 bg-red-50 rounded-xl p-3">
                     {error}
@@ -459,7 +518,8 @@ function SignupInner() {
                       !firstName ||
                       !lastName ||
                       !city ||
-                      !isValidZipcodeFormat(zipcode)
+                      !isValidZipcodeFormat(zipcode) ||
+                      !agreedToTerms
                     }
                     className="btn-large btn-primary flex-1"
                   >
