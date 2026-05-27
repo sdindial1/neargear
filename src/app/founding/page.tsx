@@ -6,9 +6,19 @@ import { FoundingClient } from "./founding-client";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Founding Family · NearGear",
+  title: "Founding Family — Zero Fees Forever",
   description:
-    "You've been invited to join NearGear as one of our first 15 DFW families. Zero platform fees. Forever.",
+    "Join the first 15 DFW families on NearGear. Zero platform fees on every sale, forever. Limited founding membership for early supporters across Dallas, Fort Worth, Plano, Frisco, McKinney and the DFW metroplex.",
+  alternates: {
+    canonical: "https://near-gear.com/founding",
+  },
+  openGraph: {
+    title: "Founding Family — Zero Fees Forever",
+    description:
+      "First 15 DFW families. Zero platform fees on every sale, forever.",
+    url: "https://near-gear.com/founding",
+    type: "website",
+  },
 };
 
 export default async function FoundingPage() {
