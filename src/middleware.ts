@@ -2,7 +2,18 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { type NextRequest } from "next/server";
 
 // AUTH PROTECTION TEMPORARILY DISABLED — all routes are public while we
-// build out core features. Re-enable the gating logic below before launch.
+// build out core features. RLS (migration 004) is the actual security
+// boundary and is active, so this gate is a UX/ban-wall nicety, not the
+// thing keeping data safe.
+//
+// TODO post-launch: Re-enable auth + ban-wall middleware. The commented
+// code below is STALE — do not just uncomment it. Requires:
+// 1. Update strike column names (strike_count, suspension_ends_at,
+//    suspended_permanently) — strike_status/blackout_until no longer exist.
+// 2. Rebuild PUBLIC_ROUTES for current route map (/, /marketplace, /privacy,
+//    /terms, /founding, /listings, etc.).
+// 3. Skip /api routes (return JSON 401, not HTML redirect).
+// 4. Test all auth flows + redirects before re-enabling.
 //
 // const PUBLIC_ROUTES = ["/", "/auth", "/browse", "/listings"];
 //
