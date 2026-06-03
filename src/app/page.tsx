@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import FlowArt, { FlowSection } from '@/components/ui/story-scroll';
 import { Footer } from '@/components/footer';
+import { LandingNavAuth } from '@/components/landing-nav-auth';
 
 const HEADLINE =
   'text-[clamp(2.5rem,10vw,14rem)] font-heading font-bold leading-[0.85] uppercase tracking-tight';
@@ -107,12 +108,7 @@ export default function LandingPage() {
           <span>Near</span>
           <span style={{ color: ORANGE }}>Gear</span>
         </Link>
-        <Link
-          href="/auth/login"
-          className="text-xs font-bold uppercase tracking-widest text-white/90 transition hover:text-white md:text-sm"
-        >
-          Sign In
-        </Link>
+        <LandingNavAuth />
       </nav>
 
       <FlowArt aria-label="NearGear story scroll">

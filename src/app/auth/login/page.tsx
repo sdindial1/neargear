@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -23,6 +23,29 @@ function LoginInner() {
   // "kicked back to landing" bug.
   const redirectTo = searchParams.get("redirect") || "/marketplace";
 
+  // If the visitor is already signed in, don't make them log in again —
+  // recognize the live session and send them straight into the app. Also
+  // pre-fill the last-used email so returning users aren't typing it again.
+  useEffect(() => {
+    let alive = true;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!alive) return;
+      if (session?.user) {
+        router.replace(redirectTo);
+        return;
+      }
+      if (typeof window !== "undefined") {
+        const lastEmail = window.localStorage.getItem("neargear:last-email");
+        if (lastEmail) setEmail(lastEmail);
+      }
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [supabase, router, redirectTo]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -37,6 +60,10 @@ function LoginInner() {
       setError(authError.message);
       setLoading(false);
       return;
+    }
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("neargear:last-email", email);
     }
 
     router.push(redirectTo);
