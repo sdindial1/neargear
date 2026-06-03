@@ -38,6 +38,81 @@ export interface User {
   spouse_phone: string | null;
   spouse_email: string | null;
   active_profile: "primary" | "spouse" | null;
+  partner_program_id: string | null;
+  partner_verified: boolean | null;
+  partner_verified_at: string | null;
+  referral_source: string | null;
+  created_at: string;
+}
+
+export type PartnerStatus = "active" | "paused" | "ended";
+export type PartnerPayoutStatus = "pending" | "paid" | "reversed";
+export type PartnerPayoutMethod = "check" | "ach" | "wire" | "other";
+
+export interface PartnerProgram {
+  id: string;
+  slug: string;
+  name: string;
+  legal_name: string | null;
+  is_nonprofit: boolean | null;
+  ein: string | null;
+  rev_share_percent: number;
+  badge_text: string | null;
+  badge_color: string | null;
+  landing_page_url: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  status: PartnerStatus;
+  start_date: string | null;
+  end_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+// One row per program from the partner_program_stats view. Money fields are cents.
+export interface PartnerProgramStats {
+  id: string;
+  slug: string;
+  name: string;
+  rev_share_percent: number;
+  status: PartnerStatus;
+  verified_members: number;
+  total_transactions: number;
+  lifetime_gross_sales: number;
+  lifetime_attributed: number;
+  pending_payout: number;
+  total_paid_out: number;
+}
+
+export interface PartnerTransaction {
+  id: string;
+  transaction_id: string;
+  partner_program_id: string;
+  seller_id: string;
+  gross_sale_amount: number;   // cents
+  platform_fee_amount: number; // cents
+  attributed_amount: number;   // cents
+  payout_status: PartnerPayoutStatus;
+  partner_payout_id: string | null;
+  created_at: string;
+}
+
+export interface PartnerPayout {
+  id: string;
+  partner_program_id: string;
+  period_start: string;
+  period_end: string;
+  total_gross_sales: number;
+  total_platform_fees: number;
+  total_attributed: number;
+  payout_amount: number;
+  payout_method: PartnerPayoutMethod | null;
+  payout_reference: string | null;
+  paid_at: string | null;
+  paid_by_admin_id: string | null;
+  notes: string | null;
   created_at: string;
 }
 

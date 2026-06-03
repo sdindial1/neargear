@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import {
   Download,
+  Handshake,
   ImageIcon,
   Loader2,
   Mail,
@@ -388,19 +389,27 @@ export function AdminDashboard({ payload }: { payload: AdminPayload }) {
               Last updated {new Date(payload.fetchedAt).toLocaleTimeString()}
             </p>
           </div>
-          <Button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            variant="outline"
-            className="border-white/20 text-white hover:bg-white/10 h-10"
-          >
-            {refreshing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/admin/partners"
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-white/20 px-4 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              <Handshake className="w-4 h-4" /> Partners
+            </Link>
+            <Button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              variant="outline"
+              className="border-white/20 text-white hover:bg-white/10 h-10"
+            >
+              {refreshing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              Refresh
+            </Button>
+          </div>
         </header>
 
         {/* Top metrics */}
