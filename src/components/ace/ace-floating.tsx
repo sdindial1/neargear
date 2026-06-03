@@ -14,7 +14,7 @@ const TAP_THRESHOLD_PX = 6;
 // page now, so it's an exact-match hide — startsWith("/") would hide Ace
 // everywhere.
 const HIDE_EXACT = new Set(["/"]);
-const HIDE_PREFIXES = ["/founding", "/auth", "/admin"];
+const HIDE_PREFIXES = ["/founding", "/auth", "/admin", "/dyb"];
 const SIZE = 48;
 const DEFAULT_RIGHT = 16;
 const DEFAULT_BOTTOM = 120;
