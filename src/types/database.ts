@@ -42,6 +42,9 @@ export interface User {
   partner_verified: boolean | null;
   partner_verified_at: string | null;
   referral_source: string | null;
+  stripe_account_id: string | null;
+  stripe_onboarding_complete: boolean | null;
+  stripe_payouts_enabled: boolean | null;
   created_at: string;
 }
 
