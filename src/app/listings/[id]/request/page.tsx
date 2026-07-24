@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { calculateDeposit } from "@/lib/fees";
+import { calculateBuyerFee } from "@/lib/fees";
 import { ensurePublicUserRow } from "@/lib/ensure-profile";
 import { fireNotification } from "@/lib/notifications/trigger";
 import {
@@ -168,10 +168,13 @@ function RequestToBuyPageInner() {
   }, [offerType, customOffer, listingPriceDollars]);
 
   const offeredPriceCents = Math.round(offeredPriceDollars * 100);
-  const depositCents = listing ? calculateDeposit(offeredPriceCents) : 0;
-  const depositDollars = depositCents / 100;
-  const remainingDollars =
-    Math.round((offeredPriceDollars - depositDollars) * 100) / 100;
+  // Full-payment model: buyer pays item + 10% Buyer Protection fee IF the seller
+  // accepts. Nothing is charged at request time (payment moves to the accepted
+  // meetup). Shown here for transparency only.
+  const buyerFeeCents = calculateBuyerFee(offeredPriceCents);
+  const buyerFeeDollars = buyerFeeCents / 100;
+  const buyerTotalDollars =
+    Math.round((offeredPriceCents + buyerFeeCents)) / 100;
 
   const customOfferValid =
     offerType !== "custom" ||
@@ -285,7 +288,7 @@ function RequestToBuyPageInner() {
         meetup_window_start: start.toISOString(),
         meetup_window_end: end.toISOString(),
         meetup_location: JSON.stringify(payload),
-        deposit_amount: depositCents,
+        deposit_amount: 0, // deposit model retired — full payment on accept (Phase 2)
         status: "requested",
       })
       .select("id")
@@ -410,8 +413,8 @@ function RequestToBuyPageInner() {
               listing={listing}
               offeredPriceDollars={offeredPriceDollars}
               listingPriceDollars={listingPriceDollars}
-              depositDollars={depositDollars}
-              remainingDollars={remainingDollars}
+              buyerFeeDollars={buyerFeeDollars}
+              totalDollars={buyerTotalDollars}
               selectedDate={selectedDate!}
               selectedWindow={selectedWindow!}
               selectedLocation={selectedLocation!}
@@ -1101,8 +1104,8 @@ function StepReview({
   listing,
   offeredPriceDollars,
   listingPriceDollars,
-  depositDollars,
-  remainingDollars,
+  buyerFeeDollars,
+  totalDollars,
   selectedDate,
   selectedWindow,
   selectedLocation,
@@ -1113,8 +1116,8 @@ function StepReview({
   listing: ListingWithSeller;
   offeredPriceDollars: number;
   listingPriceDollars: number;
-  depositDollars: number;
-  remainingDollars: number;
+  buyerFeeDollars: number;
+  totalDollars: number;
   selectedDate: Date;
   selectedWindow: TimeWindow;
   selectedLocation: SelectedLocation;
@@ -1231,7 +1234,7 @@ function StepReview({
 
       <div className="bg-white rounded-2xl border p-4 mb-4">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-          Payment
+          If your offer is accepted
         </p>
         <dl className="space-y-1 text-sm">
           <div className="flex justify-between">
@@ -1241,26 +1244,26 @@ function StepReview({
             </dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-muted-foreground">Deposit today</dt>
+            <dt className="text-muted-foreground">Buyer Protection fee</dt>
             <dd className="font-semibold text-navy tabular-nums">
-              {formatMoney(depositDollars)}
+              {formatMoney(buyerFeeDollars)}
             </dd>
           </div>
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Remaining at meetup</dt>
-            <dd className="font-semibold text-navy tabular-nums">
-              {formatMoney(remainingDollars)}
+          <div className="flex justify-between border-t pt-1 mt-1">
+            <dt className="font-semibold text-navy">You&apos;ll pay</dt>
+            <dd className="font-bold text-orange tabular-nums">
+              {formatMoney(totalDollars)}
             </dd>
           </div>
         </dl>
       </div>
 
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4 text-sm text-yellow-900">
-        <p className="font-semibold">💳 Payments coming in next update</p>
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 text-sm text-blue-900">
+        <p className="font-semibold">You won&apos;t be charged now</p>
         <p className="mt-1 leading-relaxed">
-          Your request will still be sent to the seller. When Stripe integration
-          is complete in Session 6, the deposit will be charged to secure your
-          meetup.
+          We&apos;ll send your request to the seller. If they accept, you&apos;ll
+          pay the total securely online — held by NearGear until you confirm the
+          handoff at your meetup.
         </p>
       </div>
 
@@ -1269,9 +1272,9 @@ function StepReview({
         <ul className="space-y-1 text-muted-foreground leading-relaxed list-disc pl-5">
           <li>Show up within your 2-hour window</li>
           <li>
-            If you cancel less than 2 hours before, seller keeps the deposit
+            If the seller accepts, pay the total securely online to lock in the
+            meetup (held by NearGear until handoff)
           </li>
-          <li>If you don&apos;t show up, seller keeps the full deposit</li>
           <li>You can message the seller to firm up the exact time</li>
         </ul>
       </div>

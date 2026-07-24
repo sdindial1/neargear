@@ -11,9 +11,11 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/webhooks/stripe
- * Stripe webhook receiver. Phase 1 handles only `account.updated` — flipping
- * stripe_onboarding_complete / stripe_payouts_enabled as Connect accounts move
- * through onboarding. Other event types are acknowledged and ignored for now.
+ * Stripe webhook receiver.
+ *   - account.updated (Phase 1) → flip Connect onboarding/payouts flags.
+ *   - checkout.session.completed (Phase 2) → mark the order 'paid_held' and
+ *     record the captured PaymentIntent.
+ * Other event types are acknowledged and ignored for now.
  *
  * Signature verification uses the RAW request body (req.text()) — do not parse
  * or re-serialize the body first, or the signature check will fail.
@@ -60,6 +62,48 @@ export async function POST(req: Request) {
           return Response.json({ error: "Service role" }, { status: 500 });
         }
         await syncAccountStatus(admin, account);
+        break;
+      }
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        // Only act once the payment actually cleared.
+        if (session.payment_status !== "paid") break;
+
+        const admin = createAdminSupabaseClient();
+        if (!admin) {
+          console.error("[webhooks/stripe] service role not configured");
+          return Response.json({ error: "Service role" }, { status: 500 });
+        }
+
+        const orderId =
+          session.metadata?.order_id || session.client_reference_id || null;
+        const paymentIntentId =
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : (session.payment_intent?.id ?? null);
+        const grossCaptured = session.amount_total ?? 0;
+
+        // Idempotent: match the pending order by id (fallback: session id) and
+        // only advance it from 'pending'. A duplicate delivery is a no-op.
+        const query = admin
+          .from("orders")
+          .update({
+            status: "paid_held",
+            gross_captured_cents: grossCaptured,
+            stripe_payment_intent_id: paymentIntentId,
+            stripe_checkout_session_id: session.id,
+            paid_at: new Date(event.created * 1000).toISOString(),
+          })
+          .eq("status", "pending");
+
+        const { error: updErr } = orderId
+          ? await query.eq("id", orderId)
+          : await query.eq("stripe_checkout_session_id", session.id);
+
+        if (updErr) {
+          console.error("[webhooks/stripe] order update failed", updErr);
+          return Response.json({ error: "order_update_failed" }, { status: 500 });
+        }
         break;
       }
       default:

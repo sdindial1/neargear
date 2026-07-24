@@ -168,6 +168,32 @@ export interface Transaction {
   created_at: string;
 }
 
+export type OrderStatus =
+  | "pending"
+  | "paid_held"
+  | "released"
+  | "refunded"
+  | "cancelled"
+  | "failed";
+
+export interface Order {
+  id: string;
+  meetup_id: string | null;
+  listing_id: string | null;
+  buyer_id: string | null;
+  seller_id: string | null;
+  item_price_cents: number;
+  buyer_fee_cents: number;
+  seller_fee_cents: number;
+  gross_captured_cents: number;
+  currency: string;
+  status: OrderStatus;
+  stripe_checkout_session_id: string | null;
+  stripe_payment_intent_id: string | null;
+  created_at: string;
+  paid_at: string | null;
+}
+
 export interface Message {
   id: string;
   listing_id: string;

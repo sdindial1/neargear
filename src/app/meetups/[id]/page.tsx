@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { getDirectionsUrl } from "@/lib/safezones";
 import { MeetupCountdown } from "@/components/meetup-countdown";
 import { CompleteTransactionSection } from "@/components/complete-transaction-section";
+import { MeetupPaySection } from "@/components/meetup-pay-section";
 import { ItemDisputeButton } from "@/components/item-dispute-modal";
 import {
   AlertTriangle,
@@ -82,7 +83,7 @@ export default async function MeetupDetailPage({
       `*,
        listing:listings!listing_id(id, title, photo_urls, price, retail_price),
        buyer:users!buyer_id(id, full_name, avg_rating, city),
-       seller:users!seller_id(id, full_name, avg_rating, city, is_founding_member)`,
+       seller:users!seller_id(id, full_name, avg_rating, city, is_founding_member, stripe_payouts_enabled)`,
     )
     .eq("id", id)
     .single();
@@ -94,6 +95,18 @@ export default async function MeetupDetailPage({
   } = await supabase.auth.getUser();
 
   const isBuyer = user?.id === meetup.buyer_id;
+
+  // Payments Phase 2: has the buyer already paid (order held) for this meetup?
+  let orderPaid = false;
+  if (isBuyer && meetup.status === "scheduled") {
+    const { data: paidOrder } = await supabase
+      .from("orders")
+      .select("id")
+      .eq("meetup_id", id)
+      .eq("status", "paid_held")
+      .maybeSingle();
+    orderPaid = Boolean(paidOrder);
+  }
   const otherParty = isBuyer ? meetup.seller : meetup.buyer;
 
   let location: {
@@ -158,6 +171,20 @@ export default async function MeetupDetailPage({
             windowEnd={meetup.meetup_window_end}
             className="mb-4"
           />
+        )}
+
+        {isBuyer && meetup.status === "scheduled" && (
+          <div className="mb-4">
+            <MeetupPaySection
+              meetupId={meetup.id}
+              offeredPriceCents={meetup.offered_price ?? 0}
+              sellerIsFoundingMember={Boolean(meetup.seller?.is_founding_member)}
+              sellerPayoutsEnabled={Boolean(
+                meetup.seller?.stripe_payouts_enabled,
+              )}
+              initialPaid={orderPaid}
+            />
+          </div>
         )}
 
         {user &&

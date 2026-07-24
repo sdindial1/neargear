@@ -44,3 +44,7 @@ next-env.d.ts
 supabase/.temp/
 
 .vercel
+
+# Stripe CLI binary (do not commit the ~34MB executable)
+stripe.exe
+*.exe
