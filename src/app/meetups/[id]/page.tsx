@@ -7,6 +7,7 @@ import { getDirectionsUrl } from "@/lib/safezones";
 import { MeetupCountdown } from "@/components/meetup-countdown";
 import { CompleteTransactionSection } from "@/components/complete-transaction-section";
 import { MeetupPaySection } from "@/components/meetup-pay-section";
+import { MeetupSellerActions } from "@/components/meetup-seller-actions";
 import { ItemDisputeButton } from "@/components/item-dispute-modal";
 import {
   AlertTriangle,
@@ -95,6 +96,7 @@ export default async function MeetupDetailPage({
   } = await supabase.auth.getUser();
 
   const isBuyer = user?.id === meetup.buyer_id;
+  const isSeller = user?.id === meetup.seller_id;
 
   // Payments Phase 2: has the buyer already paid (order held) for this meetup?
   let orderPaid = false;
@@ -136,7 +138,6 @@ export default async function MeetupDetailPage({
   };
 
   const offered = (meetup.offered_price / 100).toFixed(2);
-  const depositDollars = ((meetup.deposit_amount || 0) / 100).toFixed(2);
   const start = new Date(meetup.meetup_window_start);
   const end = new Date(meetup.meetup_window_end);
 
@@ -172,6 +173,14 @@ export default async function MeetupDetailPage({
             className="mb-4"
           />
         )}
+
+        {isSeller &&
+          ["requested", "countered"].includes(meetup.status) && (
+            <MeetupSellerActions
+              meetupId={meetup.id}
+              listingId={meetup.listing_id ?? null}
+            />
+          )}
 
         {isBuyer && meetup.status === "scheduled" && (
           <div className="mb-4">
@@ -349,12 +358,6 @@ export default async function MeetupDetailPage({
               <dt className="text-muted-foreground">Offered price</dt>
               <dd className="font-semibold text-navy tabular-nums">
                 ${offered}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Deposit</dt>
-              <dd className="font-semibold text-navy tabular-nums">
-                ${depositDollars}
               </dd>
             </div>
             {meetup.seller?.is_founding_member && (

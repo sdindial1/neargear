@@ -126,9 +126,6 @@ function CancelMeetupPageInner() {
   const hoursUntil = (start.getTime() - Date.now()) / 3600000;
   const isLate = hoursUntil < 2;
 
-  const depositDollars = (meetup.deposit_amount || 0) / 100;
-  const lateBuyerFee = depositDollars * 0.5;
-
   const alreadyCancelled = meetup.status.startsWith("cancelled");
   const reasonValid =
     reason && (reason !== "Other" || otherText.trim().length > 0);
@@ -226,8 +223,8 @@ function CancelMeetupPageInner() {
               Cancel this meetup?
             </h1>
             <p className="text-sm text-muted-foreground">
-              Your deposit (${depositDollars.toFixed(2)}) will be returned in
-              full.
+              You won&apos;t be charged for cancelling. Any payment you&apos;ve
+              already made is refunded in full.
             </p>
           </>
         ) : role === "buyer" ? (
@@ -239,8 +236,9 @@ function CancelMeetupPageInner() {
                   Late cancellation
                 </p>
                 <p className="text-sm text-amber-900 mt-1 leading-relaxed">
-                  Cancelling this close to the meetup means seller keeps 50% of
-                  your deposit (${lateBuyerFee.toFixed(2)}).
+                  Cancelling this close to the meetup counts as a late
+                  cancellation and may put a strike on your account. Any
+                  payment you&apos;ve made is refunded in full.
                 </p>
               </div>
             </div>

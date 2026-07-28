@@ -52,7 +52,7 @@ export function ItemDisputeButton({ meetupId, trigger }: Props) {
       return;
     }
     toast.success(
-      "Item issue reported. Your deposit will be refunded.",
+      "Item issue reported. Your payment will be refunded.",
     );
     setOpen(false);
     router.push("/profile/meetups");

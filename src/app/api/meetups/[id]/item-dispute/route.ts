@@ -108,7 +108,7 @@ export async function POST(
       userId: m.buyer_id,
       type: "item_dispute_filed",
       title: "Item issue reported",
-      body: `Your dispute for ${title} has been filed. Your deposit will be refunded.`,
+      body: `Your dispute for ${title} has been filed. Your payment will be refunded.`,
       link: "/profile/meetups",
     });
 

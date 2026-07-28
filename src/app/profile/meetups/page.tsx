@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { createClient } from "@/lib/supabase/client";
+import { acceptMeetup, declineMeetup } from "@/lib/meetups/actions";
 import { fireNotification } from "@/lib/notifications/trigger";
 import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
@@ -194,10 +195,7 @@ function ProfileMeetupsPageInner() {
 
   const handleAccept = async (m: MeetupRow) => {
     setBusyId(m.id);
-    const { error } = await supabase
-      .from("meetups")
-      .update({ status: "scheduled" })
-      .eq("id", m.id);
+    const { error } = await acceptMeetup(supabase, m.id);
     setBusyId(null);
     if (error) return;
     setRows((prev) =>
@@ -209,16 +207,7 @@ function ProfileMeetupsPageInner() {
 
   const handleDecline = async (m: MeetupRow) => {
     setBusyId(m.id);
-    await supabase
-      .from("meetups")
-      .update({ status: "cancelled_seller" })
-      .eq("id", m.id);
-    if (m.listing?.id) {
-      await supabase
-        .from("listings")
-        .update({ status: "active" })
-        .eq("id", m.listing.id);
-    }
+    await declineMeetup(supabase, m.id, m.listing?.id);
     setBusyId(null);
     setRows((prev) =>
       prev.map((r) =>
