@@ -154,6 +154,17 @@ export interface Listing {
   created_at: string;
 }
 
+/**
+ * User-facing ledger row (wallet, receipts, admin, partner export).
+ *
+ * From payments Phase 3 this is a PROJECTION of the order, written only by
+ * releaseOrder() server-side. Under the flat fee model:
+ *   gross_amount = orders.item_price_cents
+ *   platform_fee = orders.seller_fee_cents  (0 for founding sellers)
+ *   net_amount   = the seller's payout
+ * The buyer fee is platform revenue and lives only on the order — join via
+ * order_id for the full breakdown.
+ */
 export interface Transaction {
   id: string;
   meetup_id: string;
@@ -166,15 +177,22 @@ export interface Transaction {
   retail_price: number | null;
   auto_completed: boolean;
   created_at: string;
+  /** Links the ledger row to the money record it was projected from (mig 015). */
+  order_id: string | null;
 }
 
 export type OrderStatus =
   | "pending"
   | "paid_held"
+  | "releasing"
   | "released"
+  | "release_failed"
   | "refunded"
   | "cancelled"
   | "failed";
+
+/** Why an order was released — the rung of the release ladder that fired. */
+export type ReleaseReason = "buyer_confirmed" | "seller_24h" | "backstop_7d";
 
 export interface Order {
   id: string;
@@ -192,6 +210,19 @@ export interface Order {
   stripe_payment_intent_id: string | null;
   created_at: string;
   paid_at: string | null;
+
+  // Payments Phase 3 — confirmation, release, dispute freeze (mig 015).
+  buyer_confirmed_at: string | null;
+  seller_confirmed_at: string | null;
+  /** Stamped when the buyer is told the seller confirmed — starts rung 2's 24h clock. */
+  buyer_notified_at: string | null;
+  released_at: string | null;
+  release_reason: ReleaseReason | null;
+  stripe_transfer_id: string | null;
+  /** Non-null freezes all auto-release until Phase 4 resolves it. */
+  disputed_at: string | null;
+  transfer_error: string | null;
+  transfer_attempts: number;
 }
 
 export interface Message {
