@@ -98,17 +98,46 @@ export default async function MeetupDetailPage({
   const isBuyer = user?.id === meetup.buyer_id;
   const isSeller = user?.id === meetup.seller_id;
 
-  // Payments Phase 2: has the buyer already paid (order held) for this meetup?
-  let orderPaid = false;
-  if (isBuyer && meetup.status === "scheduled") {
-    const { data: paidOrder } = await supabase
+  // Payments Phase 3: the order is the source of truth for payment AND release
+  // state, so both participants load it. RLS (mig 014) limits this to them.
+  //
+  // A meetup can accumulate more than one order row (an abandoned 'pending'
+  // checkout alongside the real one), so pick the most advanced rather than
+  // assuming a single match.
+  const ORDER_PRIORITY = [
+    "released",
+    "releasing",
+    "release_failed",
+    "paid_held",
+    "refunded",
+    "pending",
+  ];
+  let order: {
+    id: string;
+    status: string;
+    buyer_confirmed_at: string | null;
+    seller_confirmed_at: string | null;
+    disputed_at: string | null;
+    item_price_cents: number;
+  } | null = null;
+
+  if (isBuyer || isSeller) {
+    const { data: orderRows } = await supabase
       .from("orders")
-      .select("id")
-      .eq("meetup_id", id)
-      .eq("status", "paid_held")
-      .maybeSingle();
-    orderPaid = Boolean(paidOrder);
+      .select(
+        "id, status, buyer_confirmed_at, seller_confirmed_at, disputed_at, item_price_cents",
+      )
+      .eq("meetup_id", id);
+
+    order =
+      (orderRows ?? [])
+        .slice()
+        .sort(
+          (a, b) =>
+            ORDER_PRIORITY.indexOf(a.status) - ORDER_PRIORITY.indexOf(b.status),
+        )[0] ?? null;
   }
+  const orderPaid = order?.status === "paid_held";
   const otherParty = isBuyer ? meetup.seller : meetup.buyer;
 
   let location: {
@@ -208,18 +237,18 @@ export default async function MeetupDetailPage({
             <div className="mb-4">
               <CompleteTransactionSection
                 meetupId={meetup.id}
+                currentUserId={user.id}
                 buyerId={meetup.buyer_id}
                 sellerId={meetup.seller_id}
-                listingId={meetup.listing_id}
-                currentUserId={user.id}
-                initialStatus={meetup.status}
-                buyerCompletedAt={meetup.buyer_completed_at ?? null}
-                sellerCompletedAt={meetup.seller_completed_at ?? null}
-                offeredPriceCents={meetup.offered_price ?? 0}
-                retailPriceCents={meetup.listing?.retail_price ?? null}
-                sellerIsFoundingMember={
-                  Boolean(meetup.seller?.is_founding_member)
+                orderId={order?.id ?? null}
+                orderStatus={order?.status ?? null}
+                buyerConfirmedAt={order?.buyer_confirmed_at ?? null}
+                sellerConfirmedAt={order?.seller_confirmed_at ?? null}
+                disputedAt={order?.disputed_at ?? null}
+                itemPriceCents={
+                  order?.item_price_cents ?? meetup.offered_price ?? 0
                 }
+                retailPriceCents={meetup.listing?.retail_price ?? null}
               />
             </div>
           )}
