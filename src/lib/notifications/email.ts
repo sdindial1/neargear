@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import {
   ctaButton,
   emailShell,
+  escapeAttr,
   escapeHtml,
   firstName,
   formatMoney,
@@ -186,6 +187,65 @@ export async function sendTransactionCompleteEmails(opts: {
     sendOrLog(seller.email, "Payment incoming 💰", sellerHtml),
     sendOrLog(buyer.email, "Enjoy your new gear! 🏅", buyerHtml),
   ]);
+}
+
+// ----- Handoff confirmed — buyer's 24h window (payments Phase 3, rung 2) -----
+
+/**
+ * The one notification in the system with money auto-releasing on a timer tied
+ * to the recipient's inaction, which is why it gets an email and not just an
+ * in-app notice: the notification bell does not alert in real time (see
+ * POST-LAUNCH.md item 7), so an in-app-only notice could elapse unseen and
+ * auto-release the buyer's payment without them ever being offered the "report
+ * a problem" path. That produces chargebacks instead of disputes.
+ *
+ * Deliberately narrow — a targeted backstop for THIS notice, not the general
+ * real-time notifications overhaul, which stays deferred.
+ *
+ * Must state plainly: the seller marked it handed off, the buyer can confirm
+ * OR report a problem, the deadline, and what happens if they do nothing.
+ */
+export async function sendHandoffConfirmedEmail(opts: {
+  buyer: EmailParty;
+  seller: EmailParty;
+  meetupId: string;
+  listingTitle: string;
+  itemPriceCents: number;
+}): Promise<void> {
+  const { buyer, seller, meetupId, listingTitle, itemPriceCents } = opts;
+
+  // Both actions live on the meetup page: confirm receipt, or report a problem.
+  const meetupHref = `${appUrl()}/meetups/${meetupId}`;
+
+  const html = emailShell({
+    preheader: `${firstName(seller.fullName)} marked ${listingTitle} as handed off — confirm or report a problem within 24 hours.`,
+    bodyHtml: `
+      <p>Hi ${escapeHtml(firstName(buyer.fullName))},</p>
+      <p><strong>${escapeHtml(firstName(seller.fullName))}</strong> marked
+        <strong>${escapeHtml(listingTitle)}</strong>
+        (${formatMoney(itemPriceCents)}) as handed off.</p>
+      <p style="margin:16px 0;padding:12px 14px;background:#fff6f2;border-left:3px solid #ff6b35;border-radius:6px;">
+        <strong>You have 24 hours to respond.</strong><br/>
+        If we don't hear from you, your payment is automatically released to the
+        seller and the sale is final.
+      </p>
+      <p>Two things you can do:</p>
+      <ul style="padding-left:18px;margin:8px 0 0;">
+        <li style="margin-bottom:6px;"><strong>Got the item?</strong> Confirm receipt — that releases payment right away and closes the sale.</li>
+        <li><strong>Something wrong?</strong> Report a problem instead. Your payment stays held while we look into it.</li>
+      </ul>
+      ${ctaButton(meetupHref, "Confirm or Report a Problem")}
+      <p style="color:#7a8896;font-size:13px;">If the button doesn't work, open
+        <a href="${escapeAttr(meetupHref)}">${escapeHtml(meetupHref)}</a>.</p>
+      <p>The NearGear Team</p>
+    `,
+  });
+
+  await sendOrLog(
+    buyer.email,
+    `Confirm you received ${listingTitle} — 24 hours`,
+    html,
+  );
 }
 
 // ----- Founding Family welcome -----

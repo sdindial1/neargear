@@ -11,7 +11,9 @@ export type NotificationType =
   | "strike_issued"
   | "no_show_prompt"
   | "item_dispute_reported"
-  | "item_dispute_filed";
+  | "item_dispute_filed"
+  /** Payments Phase 3 rung 2: seller marked handoff, buyer has 24h to respond. */
+  | "handoff_confirmed";
 
 export interface CreateNotificationInput {
   userId: string | null;
