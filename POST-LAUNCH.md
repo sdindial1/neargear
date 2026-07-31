@@ -131,20 +131,30 @@ the same state machine Phase 3 is going to rewrite anyway.
 
 ---
 
-## 🟡 6. Phase 3 payment-model reconciliation
+## ✅ 6. Phase 3 payment-model reconciliation — DONE
 
-Carried over from the Phase 1/2 build notes. All of this is Phase 3's job:
+Closed out by payments Phase 3 (2026-07-31):
 
-- **`meetups.deposit_amount` is `NOT NULL`.** Phase 2 inserts `0` as a bridge
-  (`src/app/listings/[id]/request/page.tsx:291`). Drop the column or make it
-  nullable in Phase 3.
-- **`src/lib/fees.ts` tiered helpers.** `calculatePlatformFee` /
-  `calculateSellerPayout` / `calculateDisputeReserve` are marked `@deprecated`
-  but still power the meetup-**completion** path
-  (`complete-transaction-section.tsx`, `api/cron/expire-requests`). Phase 3 must
-  migrate completion onto the flat model (`calculateSellerFee` /
-  `computeOrderBreakdown`) and retire the tiered/reserve logic.
-- **`messages.deposit_pending` status** — rename or retire alongside the above.
+- ~~`meetups.deposit_amount` `NOT NULL`~~ → dropped NOT NULL in migration 015.
+  The **column itself** and its dead siblings (`deposit_payment_intent_id`,
+  `final_payment_intent_id`) still exist; `meetups/[id]/cancel/page.tsx` still
+  SELECTs `deposit_amount`. Removing them is leftover cleanup, not blocking.
+- ~~`src/lib/fees.ts` tiered helpers~~ → `calculatePlatformFee`,
+  `calculateSellerPayout` and `calculateDisputeReserve` are deleted. `fees.ts`
+  now holds only the flat model, and `releaseOrder()` derives the payout from
+  cents written at checkout, so there is nothing left to drift against.
+- **`messages.deposit_pending` status** — still there. Rename or retire with
+  the column cleanup above. Not urgent; nothing reads it for money.
+
+Still open from the same area:
+
+- **Partner attribution is unwired.** `src/lib/partner-attribution.ts` was
+  written expecting Phase 3 to call it from the completion flow; attribution
+  was explicitly out of Phase 3 scope, so nothing calls `computeAttribution`
+  and no `partner_transactions` rows are ever created. Hooking it into
+  `releaseOrder`'s projection is open work. Open product question noted in that
+  file: whether partner rev share applies to the buyer fee as well as the
+  seller fee.
 
 ---
 
@@ -196,3 +206,78 @@ action but take different paths.
 **How to apply:** Hide Cancel for the seller while `MeetupSellerActions` is
 rendered (status `requested`/`countered`), so Decline is the only pre-acceptance
 exit and Cancel only appears once the meetup is `scheduled`.
+
+---
+
+## 🟢 10. Late-seller-cancel carries no consequence
+
+A seller can cancel a meetup two hours before it starts with **no strike, no
+reputation impact, and no record beyond the status change**. The old
+client-side cancel path had a placeholder for this:
+
+```ts
+if (isLate && role === "seller") {
+  console.log(`[strike] Late cancellation by seller … — would record strike`);
+}
+```
+
+That stub was deleted when cancel moved server-side in Phase 3 Step 6 (it never
+did anything), so the gap is now honest rather than hidden behind a log line.
+The `isLate` calculation (`< 2h` before the window) still exists in
+`src/app/meetups/[id]/cancel/page.tsx` and drives a UI warning — it just has no
+consequence attached.
+
+**Why it matters:** the product promise is "no ghosting." A buyer cancelled on
+the morning of a meetup has no recourse, and the seller has no incentive not to
+do it again. The strike machinery already exists (`src/lib/strikes.ts`,
+migration 008), and now that cancellation is server-side, issuing a strike from
+`POST /api/meetups/[id]/cancel` is a small change.
+
+**How to apply:** decide threshold and severity (a late cancel is not as bad as
+a no-show), add the strike type, call `issueStrike` in the cancel route.
+Consider whether a late cancel on a **paid** meetup deserves worse — that one
+also strands the buyer's money until Phase 4 resolves it.
+
+---
+
+# Phase 4 (refunds & dispute resolution) — scope inputs
+
+Not deferrals; these are things Phase 3 deliberately left for Phase 4 and
+discovered while building it. Read before scoping Phase 4.
+
+**1. Post-release reversal — the already-released case.** Phase 3 freezes
+auto-release on dispute, no-show and cancel, but a report can land *after* the
+transfer already went out (rung 1 releases within seconds of the buyer
+confirming). `freezeOrdersForMeetup()` detects this and returns
+`alreadyReleased: true`, logging:
+
+```
+[freeze] meetup … reported as no_show but order … was ALREADY RELEASED
+(transfer tr_…). Funds are with the seller; reversal is a Phase 4 concern.
+```
+
+Nothing acts on it today. Phase 4 needs a real answer: reverse the transfer
+(`stripe.transfers.createReversal`) if the connected account still holds the
+funds, and decide what happens when it doesn't — negative balance on the
+seller, platform absorbs it, or collections. This is the single most
+consequential unhandled money path left.
+
+**2. Refund paths with no implementation.** Copy already promises refunds that
+nothing performs: the cancel flow, the buyer-no-show path (buyer strike + full
+refund per `8e0ce3f`), and the item-dispute notification that literally tells
+the buyer *"Your payment will be refunded."* Today those orders sit frozen at
+`paid_held` indefinitely. Phase 4 must either honour the copy or change it.
+
+**3. Orders parked in `release_failed`.** After 5 failed transfer attempts an
+order stops retrying and `alertCritical` fires. There is no admin surface to
+inspect or requeue them — recovery is manual SQL (`status='paid_held'`,
+`transfer_attempts=0`). An admin view belongs with Phase 4's money tooling.
+
+**4. `orders.disputed_at` is a boolean-ish flag, not a case.** It carries no
+reason, no reporter, no resolution state, and no audit trail — the reason lives
+on the meetup (`item_dispute_reason`) or nowhere at all (cancel). Phase 4 will
+likely need a real dispute record to resolve against.
+
+**5. The charge id is not persisted.** `releaseOrder` resolves it at runtime
+from the PaymentIntent for `source_transaction`. Refunds need it too; consider
+storing `stripe_charge_id` on the order rather than re-deriving it.

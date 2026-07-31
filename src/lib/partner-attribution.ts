@@ -1,17 +1,19 @@
 /**
  * Partner attribution — calculation rules.
  *
- * NOTE: This is forward-looking. Phase 1 ships the data model only; nothing
- * calls computeAttribution yet. It lives here so the rule is captured and
- * unit-testable before Phase 3 wires it into the transaction-completion flow.
+ * NOTE: This is forward-looking and still UNWIRED. The partner data model
+ * shipped in migration 012; nothing calls computeAttribution yet. Payments
+ * Phase 3 deliberately did not wire it into the release flow (attribution was
+ * explicitly out of scope), so hooking it into releaseOrder's projection
+ * remains open work.
  *
  * THE FOUNDING-FAMILY RULE
  * ------------------------
- * Founding Family members pay a 0% platform fee (see src/lib/fees.ts —
- * calculatePlatformFee returns 0 when isFoundingMember). A partner program
- * earns rev_share_percent OF THE PLATFORM FEE. If a founding-family seller is
- * also tagged to a partner program (e.g. Jeff, a DYB founding family), their
- * sale generates $0 platform fee, so there is nothing to share:
+ * Founding Family members pay a 0% seller fee (see src/lib/fees.ts —
+ * calculateSellerFee returns 0 when isFoundingMember). A partner program earns
+ * rev_share_percent OF THE PLATFORM FEE. If a founding-family seller is also
+ * tagged to a partner program (e.g. Jeff, a DYB founding family), their sale
+ * generates no seller fee, so there is nothing to share:
  *
  *   - attributed_amount is 0
  *   - NO partner_transactions row should be created for them
@@ -19,9 +21,13 @@
  * The user-facing story stays clean: founding families pay 0% fees; partner
  * leagues get rev_share_percent of platform fees from NON-founding members.
  *
- * Example (DYB, 30% rev share, non-founding seller, $100 sale at 8% fee):
- *   platform fee = $8.00  ->  attributed = 30% of $8.00 = $2.40
- *   (i.e. 2.4% of the gross sale)
+ * Example (DYB, 30% rev share, non-founding seller, $100 sale under the flat
+ * 10% seller fee):
+ *   seller fee = $10.00  ->  attributed = 30% of $10.00 = $3.00
+ *   (i.e. 3% of the gross sale)
+ *
+ * Note the platform also collects a 10% buyer fee on top; whether partner rev
+ * share applies to that as well is an open product question, not settled here.
  */
 
 export interface AttributionInput {

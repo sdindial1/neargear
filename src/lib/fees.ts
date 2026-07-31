@@ -7,10 +7,10 @@
 // Use calculateBuyerFee / calculateSellerFee / computeOrderBreakdown for all
 // new payment code. All amounts are integer cents — never floats.
 //
-// LEGACY MODEL (tiered platform fee + $-deposit + 1% dispute reserve) still
-// powers the OLD meetup-completion transaction path. Left intact so completion
-// keeps working; payments Phase 3 reconciles completion onto the flat model and
-// removes the @deprecated helpers below.
+// The legacy model (tiered platform fee + $-deposit + 1% dispute reserve) was
+// removed in payments Phase 3. Completion is now a projection of a released
+// order, and releaseOrder() derives the payout from cents this module wrote at
+// checkout — so there is exactly one fee model and nothing to drift against.
 
 const BUYER_FEE_RATE = 0.1; // 10% added on top of the item price
 const SELLER_FEE_RATE = 0.1; // 10% deducted from the seller payout
@@ -64,46 +64,6 @@ export function computeOrderBreakdown(
     sellerPayoutCents: itemPriceCents - sellerFeeCents,
     platformRevenueCents: buyerFeeCents + sellerFeeCents,
   };
-}
-
-/**
- * @deprecated Legacy tiered platform fee — used only by the old meetup-completion
- * transaction path. New payment code uses calculateSellerFee (flat 10%). Payments
- * Phase 3 reconciles completion onto the flat model and removes this.
- */
-export function calculatePlatformFee(
-  priceInCents: number,
-  isFoundingMember: boolean = false,
-): number {
-  if (isFoundingMember) return 0;
-  if (priceInCents < 3000) return Math.round(priceInCents * 0.10);
-  if (priceInCents < 10000) return Math.round(priceInCents * 0.08);
-  if (priceInCents < 30000) return Math.round(priceInCents * 0.07);
-  return Math.round(priceInCents * 0.06);
-}
-
-/**
- * @deprecated Legacy 1% dispute reserve — old completion path only. Removed in
- * payments Phase 3.
- */
-export function calculateDisputeReserve(priceInCents: number): number {
-  return Math.round(priceInCents * 0.01);
-}
-
-/**
- * @deprecated Legacy payout math (price − tiered fee − dispute reserve). Old
- * completion path only. New code uses computeOrderBreakdown().sellerPayoutCents.
- * Reconciled in payments Phase 3.
- */
-export function calculateSellerPayout(
-  priceInCents: number,
-  isFoundingMember: boolean = false,
-): number {
-  return (
-    priceInCents -
-    calculatePlatformFee(priceInCents, isFoundingMember) -
-    calculateDisputeReserve(priceInCents)
-  );
 }
 
 export const FEE_DISPLAY = {
