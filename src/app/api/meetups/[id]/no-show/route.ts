@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createAdminSupabaseClient } from "@/lib/supabase-admin";
 import { issueStrike } from "@/lib/strikes";
 import { createNotification } from "@/lib/notifications/inapp";
+import { freezeOrdersForMeetup } from "@/lib/orders/freeze";
 
 interface Body {
   role: "buyer" | "seller";
@@ -95,6 +96,10 @@ export async function POST(
         no_show_reported_at: nowIso,
       })
       .eq("id", meetupId);
+
+    // Rung 4: freeze auto-release. Without this the 7d backstop would pay the
+    // seller a week after the buyer reported them as a no-show.
+    await freezeOrdersForMeetup(admin, meetupId, "no_show");
 
     // Free up the listing again
     if (m.listing_id) {

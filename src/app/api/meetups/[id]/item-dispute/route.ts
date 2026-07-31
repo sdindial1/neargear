@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createAdminSupabaseClient } from "@/lib/supabase-admin";
 import { createNotification } from "@/lib/notifications/inapp";
+import { freezeOrdersForMeetup } from "@/lib/orders/freeze";
 import { sanitizeText } from "@/lib/sanitize";
 
 const VALID_REASONS = new Set([
@@ -87,6 +88,11 @@ export async function POST(
         item_dispute_reported_at: nowIso,
       })
       .eq("id", meetupId);
+
+    // Rung 4: freeze auto-release. Must happen on the order, not just the
+    // meetup — the release ladder reads the order, and the buyer's 24h window
+    // may already be counting down toward an automatic payout.
+    await freezeOrdersForMeetup(admin, meetupId, "item_dispute");
 
     if (m.listing_id) {
       await admin

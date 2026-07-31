@@ -16,10 +16,6 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import {
-  notifyWishlistReactivation,
-  logCounterPartyNotification,
-} from "@/lib/notifications";
-import {
   AlertCircle,
   AlertTriangle,
   ArrowLeft,
@@ -117,7 +113,6 @@ function CancelMeetupPageInner() {
     );
   }
 
-  const isBuyer = userId === meetup.buyer_id;
   const isSeller = userId === meetup.seller_id;
   const role: "buyer" | "seller" = isSeller ? "seller" : "buyer";
   const reasons = role === "seller" ? SELLER_REASONS : BUYER_REASONS;
@@ -135,48 +130,36 @@ function CancelMeetupPageInner() {
     setSubmitting(true);
     setSubmitError("");
 
-    const newStatus =
-      role === "seller" ? "cancelled_seller" : "cancelled_buyer";
+    // Server-side since Phase 3 Step 6: cancelling has to freeze the order's
+    // auto-release, and the browser can't write `orders` (no RLS UPDATE policy,
+    // by design). The route owns the status change, the listing, the freeze and
+    // the counterparty notification.
+    try {
+      const res = await fetch(`/api/meetups/${meetup.id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: reason === "Other" ? otherText : reason,
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        error?: string;
+      };
 
-    const { error: updErr } = await supabase
-      .from("meetups")
-      .update({ status: newStatus })
-      .eq("id", meetup.id);
+      if (!res.ok) {
+        setSubmitError(
+          body.message || "Could not cancel this meetup. Please try again.",
+        );
+        setSubmitting(false);
+        return;
+      }
 
-    if (updErr) {
-      setSubmitError(updErr.message);
+      router.push("/profile/meetups");
+    } catch {
+      setSubmitError("Network error. Please try again.");
       setSubmitting(false);
-      return;
     }
-
-    await supabase
-      .from("listings")
-      .update({ status: "active" })
-      .eq("id", meetup.listing_id);
-
-    if (meetup.listing?.title) {
-      await notifyWishlistReactivation(
-        supabase,
-        meetup.listing_id,
-        meetup.listing.title,
-      );
-    }
-
-    const otherUserId = isBuyer ? meetup.seller_id : meetup.buyer_id;
-    logCounterPartyNotification(
-      otherUserId,
-      `Meetup ${meetup.id} was cancelled by ${role}: ${
-        reason === "Other" ? otherText : reason
-      }`,
-    );
-
-    if (isLate && role === "seller") {
-      console.log(
-        `[strike] Late cancellation by seller ${userId} on meetup ${meetup.id} — would record strike`,
-      );
-    }
-
-    router.push("/profile/meetups");
   };
 
   if (alreadyCancelled) {
