@@ -1,14 +1,163 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/nextjs";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createAdminSupabaseClient } from "@/lib/supabase-admin";
 import { notifyWishlistReactivation } from "@/lib/notifications";
 import { sendMeetupReminderSMS } from "@/lib/notifications/sms";
 import { createNotification } from "@/lib/notifications/inapp";
-import { calculatePlatformFee } from "@/lib/fees";
+import { releaseOrder, MAX_TRANSFER_ATTEMPTS } from "@/lib/orders/release";
+import type { ReleaseReason } from "@/types/database";
 
 const STALE_HOURS = 48;
-const COMPLETION_STALE_HOURS = 24;
 const REMINDER_LEAD_MINUTES = 150; // ~2.5h
 const REMINDER_LOWER_MINUTES = 90; // ~1.5h floor so jobs running every 30m are covered
+
+// Release ladder timings (payments Phase 3).
+const BUYER_CONFIRM_WINDOW_MS = 24 * 60 * 60 * 1000; // rung 2
+const BACKSTOP_MS = 7 * 24 * 60 * 60 * 1000; // rung 3
+/** Cap per run so a backlog can't turn one invocation into an unbounded job. */
+const RELEASE_BATCH_LIMIT = 200;
+
+interface SweepCandidate {
+  id: string;
+  meetup_id: string | null;
+  buyer_confirmed_at: string | null;
+  seller_confirmed_at: string | null;
+  buyer_notified_at: string | null;
+  transfer_attempts: number;
+  meetup: { status: string; meetup_window_start: string | null } | null;
+}
+
+/**
+ * Meetup states in which an unattended release is legitimate.
+ *
+ * 'scheduled' is the live handoff; 'completed' covers a retry after the ledger
+ * projection already ran. Everything else — cancelled_*, no_show_*,
+ * item_dispute, disputed — means the handoff did NOT happen cleanly, and the
+ * timer must not hand the money to the seller.
+ *
+ * Without this, rung 3 would pay out 7 days after a meetup the buyer had
+ * already reported as a seller no-show, because a no-show sets the meetup
+ * status but leaves the order untouched. Step 6 wires those events to stamp
+ * orders.disputed_at so they freeze explicitly; this is the backstop that
+ * makes the sweep safe regardless.
+ */
+const RELEASABLE_MEETUP_STATUSES = new Set(["scheduled", "completed"]);
+
+/**
+ * Which rung of the ladder makes this order releasable right now, if any?
+ *
+ * Checked in ladder order, and every comparison is ">= elapsed", never "==".
+ * That is what makes a DAILY cron safe: an order that becomes eligible one
+ * minute after a sweep simply waits for the next one. Rung 2 lands in 24-48h
+ * and rung 3 in 7-8 days, always erring toward the seller waiting slightly
+ * longer, never toward paying early.
+ *
+ * Retries need no special case. A failed release returns the order to
+ * 'paid_held' with its confirmation stamps intact, so the same predicate that
+ * first qualified it still qualifies it on the next run.
+ */
+function classifyRung(o: SweepCandidate, nowMs: number): ReleaseReason | null {
+  // The handoff must not have gone sideways. Cancelled, no-showed and disputed
+  // meetups are never released by a timer.
+  if (!o.meetup || !RELEASABLE_MEETUP_STATUSES.has(o.meetup.status)) return null;
+
+  // Rung 1 — the buyer confirmed. Reaching the sweep means the inline release
+  // in confirm-receipt failed (or never ran), so this is the retry path.
+  if (o.buyer_confirmed_at) return "buyer_confirmed";
+
+  // Rung 2 — seller confirmed and the buyer's 24h window has elapsed. Keyed on
+  // buyer_notified_at, not seller_confirmed_at: the clock starts when we told
+  // the buyer, so a notification we never sent can't start it.
+  if (o.seller_confirmed_at && o.buyer_notified_at) {
+    if (nowMs - Date.parse(o.buyer_notified_at) >= BUYER_CONFIRM_WINDOW_MS) {
+      return "seller_24h";
+    }
+  }
+
+  // Rung 3 — nobody confirmed; 7d from the scheduled meetup window.
+  const windowStart = o.meetup?.meetup_window_start;
+  if (windowStart && nowMs - Date.parse(windowStart) >= BACKSTOP_MS) {
+    return "backstop_7d";
+  }
+
+  return null;
+}
+
+/**
+ * Release every order that has reached a rung of the ladder.
+ *
+ * Disputed orders and orders past the retry cap are excluded in the query, so
+ * a frozen order is never even considered. Everything else defers to
+ * releaseOrder(), which owns the CAS claim, the Stripe call and the ledger
+ * projection — this function only decides WHO is eligible, never how much.
+ */
+async function runReleaseSweep(admin: SupabaseClient) {
+  const nowMs = Date.now();
+
+  const { data, error } = await admin
+    .from("orders")
+    .select(
+      "id, meetup_id, buyer_confirmed_at, seller_confirmed_at, buyer_notified_at, " +
+        "transfer_attempts, meetup:meetups!meetup_id(status, meetup_window_start)",
+    )
+    .eq("status", "paid_held")
+    .is("disputed_at", null)
+    .lt("transfer_attempts", MAX_TRANSFER_ATTEMPTS)
+    .limit(RELEASE_BATCH_LIMIT + 1);
+
+  if (error) {
+    console.error("[release-sweep] candidate fetch failed:", error);
+    Sentry.captureException(error);
+    return { released: 0, failed: 0, skipped: 0, eligible: 0, truncated: false };
+  }
+
+  type JoinedMeetup = { status: string; meetup_window_start: string | null };
+  const rows = (data ?? []) as unknown as Array<
+    Omit<SweepCandidate, "meetup"> & {
+      meetup: JoinedMeetup[] | JoinedMeetup | null;
+    }
+  >;
+
+  // Never silently truncate: say so if a backlog spills to the next run.
+  const truncated = rows.length > RELEASE_BATCH_LIMIT;
+  if (truncated) {
+    console.warn(
+      `[release-sweep] more than ${RELEASE_BATCH_LIMIT} candidates; processing ${RELEASE_BATCH_LIMIT}, remainder next run`,
+    );
+  }
+
+  let released = 0;
+  let failed = 0;
+  let skipped = 0;
+  let eligible = 0;
+  const byReason: Record<string, number> = {};
+
+  for (const row of rows.slice(0, RELEASE_BATCH_LIMIT)) {
+    const candidate: SweepCandidate = {
+      ...row,
+      meetup: Array.isArray(row.meetup) ? (row.meetup[0] ?? null) : row.meetup,
+    };
+
+    const reason = classifyRung(candidate, nowMs);
+    if (!reason) continue; // not yet at a rung — leave it alone
+    eligible++;
+
+    const result = await releaseOrder(admin, candidate.id, reason);
+    if (result.outcome === "released") {
+      released++;
+      byReason[reason] = (byReason[reason] ?? 0) + 1;
+    } else if (result.outcome === "failed") {
+      failed++;
+    } else {
+      skipped++;
+    }
+  }
+
+  console.log(
+    `[release-sweep] eligible=${eligible} released=${released} failed=${failed} skipped=${skipped}`,
+  );
+  return { released, failed, skipped, eligible, truncated, byReason };
+}
 
 function checkCronAuth(request: Request): Response | null {
   if (process.env.NODE_ENV !== "production") return null;
@@ -26,7 +175,15 @@ function checkCronAuth(request: Request): Response | null {
 
 async function runExpiry() {
   try {
-  const supabase = await createServerSupabaseClient();
+  // Service-role: this job runs with no user session, and since Phase 3 it
+  // writes orders. Previously it used the session client, which under RLS as an
+  // anonymous caller could silently no-op some of its writes.
+  const supabase = createAdminSupabaseClient();
+  if (!supabase) {
+    console.error("[cron] service role not configured");
+    return Response.json({ error: "Service role not configured" }, { status: 500 });
+  }
+
   const cutoffIso = new Date(
     Date.now() - STALE_HOURS * 60 * 60 * 1000,
   ).toISOString();
@@ -78,76 +235,14 @@ async function runExpiry() {
     );
   }
 
-  // ---- 24hr auto-complete pass --------------------------------------------
-  const completionCutoffIso = new Date(
-    Date.now() - COMPLETION_STALE_HOURS * 60 * 60 * 1000,
-  ).toISOString();
-
-  const { data: stuck, error: stuckErr } = await supabase
-    .from("meetups")
-    .select(
-      "id, listing_id, buyer_id, seller_id, offered_price, status, buyer_completed_at, seller_completed_at, listing:listings!listing_id(retail_price), seller:users!seller_id(is_founding_member)",
-    )
-    .in("status", ["buyer_confirmed", "seller_confirmed"]);
-
-  let autoCompleted = 0;
-  if (!stuckErr && stuck) {
-    for (const m of stuck) {
-      const ts =
-        m.status === "buyer_confirmed"
-          ? m.buyer_completed_at
-          : m.seller_completed_at;
-      if (!ts) continue;
-      if (new Date(ts).toISOString() > completionCutoffIso) continue;
-
-      const sellerFounding = Boolean(
-        (m as unknown as { seller?: { is_founding_member?: boolean } }).seller
-          ?.is_founding_member,
-      );
-      const fee = calculatePlatformFee(
-        m.offered_price ?? 0,
-        sellerFounding,
-      );
-      const nowIso = new Date().toISOString();
-
-      await supabase
-        .from("meetups")
-        .update({
-          status: "completed",
-          completed_at: nowIso,
-          auto_completed: true,
-        })
-        .eq("id", m.id);
-
-      if (m.listing_id) {
-        await supabase
-          .from("listings")
-          .update({ status: "sold" })
-          .eq("id", m.listing_id);
-      }
-
-      const retail = (
-        m as unknown as { listing?: { retail_price: number | null } }
-      ).listing?.retail_price;
-
-      await supabase.from("transactions").insert({
-        meetup_id: m.id,
-        listing_id: m.listing_id,
-        buyer_id: m.buyer_id,
-        seller_id: m.seller_id,
-        gross_amount: m.offered_price ?? 0,
-        platform_fee: fee,
-        net_amount: (m.offered_price ?? 0) - fee,
-        retail_price: retail ?? null,
-        auto_completed: true,
-      });
-
-      console.log(
-        `[auto-complete] meetup ${m.id} auto-completed from ${m.status}`,
-      );
-      autoCompleted++;
-    }
-  }
+  // ---- Release sweep (payments Phase 3, rungs 2 and 3) --------------------
+  //
+  // Replaces the old 24h auto-complete pass, which computed a tiered platform
+  // fee here and inserted the ledger row itself. That made the cron a second,
+  // independent completion writer racing the browser, with its own idea of the
+  // fee. Completion is now a downstream projection of releaseOrder(), and this
+  // pass only decides which orders have reached a rung.
+  const release = await runReleaseSweep(supabase);
 
   // ---- 2-hour SMS reminder pass ------------------------------------------
   const now = Date.now();
@@ -292,11 +387,16 @@ async function runExpiry() {
     ok: true,
     expired: expired.length,
     notified: notifiedTotal,
-    autoCompleted,
     remindersSent,
     noShowPromptsSent,
     cutoff: cutoffIso,
-    completionCutoff: completionCutoffIso,
+    // Payments Phase 3 — money moved on this run.
+    released: release.released,
+    releaseFailed: release.failed,
+    releaseSkipped: release.skipped,
+    releaseEligible: release.eligible,
+    releaseByReason: release.byReason ?? {},
+    releaseTruncated: release.truncated,
   });
   } catch (err) {
     console.error("[cron] expire-requests error", err);
