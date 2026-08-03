@@ -210,8 +210,15 @@ export type FreezeReasonValue =
 /** Admin resolution of a frozen order. Binary by design — no partials. */
 export type DisputeResolution = "refund_buyer" | "release_seller";
 
-/** Why an order was released — the rung of the release ladder that fired. */
-export type ReleaseReason = "buyer_confirmed" | "seller_24h" | "backstop_7d";
+/**
+ * Why an order was released — the rung of the release ladder that fired, or
+ * `admin_release` when a human resolved a frozen order in the seller's favour.
+ */
+export type ReleaseReason =
+  | "buyer_confirmed"
+  | "seller_24h"
+  | "backstop_7d"
+  | "admin_release";
 
 export interface Order {
   id: string;

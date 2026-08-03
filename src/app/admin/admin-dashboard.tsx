@@ -21,6 +21,7 @@ import {
   Loader2,
   Mail,
   RefreshCw,
+  Scale,
   Search,
   ShieldCheck,
   Star,
@@ -390,6 +391,12 @@ export function AdminDashboard({ payload }: { payload: AdminPayload }) {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href="/admin/disputes"
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-white/20 px-4 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              <Scale className="w-4 h-4" /> Disputes
+            </Link>
             <Link
               href="/admin/partners"
               className="inline-flex h-10 items-center gap-2 rounded-md border border-white/20 px-4 text-sm font-medium text-white transition hover:bg-white/10"
