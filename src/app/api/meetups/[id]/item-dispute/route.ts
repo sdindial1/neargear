@@ -79,7 +79,19 @@ export async function POST(
 
     const nowIso = new Date().toISOString();
 
-    await admin
+    // FREEZE FIRST. The buyer's 24h window may already be counting down toward
+    // an automatic payout, so stopping the money is more urgent than recording
+    // why. If the record write below fails, the funds are still safe.
+    await freezeOrdersForMeetup(admin, meetupId, "item_dispute");
+
+    // Then persist the dispute itself. This update was previously unchecked,
+    // and it has been failing silently: it writes columns that migration 008
+    // creates, and 008 was never applied. The result was a dispute that froze
+    // the money correctly but left no record — the meetup stayed 'scheduled',
+    // the reason was lost, and the admin queue never saw it.
+    //
+    // Now it reports. A dispute nobody can review is not a filed dispute.
+    const { error: recordErr } = await admin
       .from("meetups")
       .update({
         status: "item_dispute",
@@ -89,10 +101,21 @@ export async function POST(
       })
       .eq("id", meetupId);
 
-    // Rung 4: freeze auto-release. Must happen on the order, not just the
-    // meetup — the release ladder reads the order, and the buyer's 24h window
-    // may already be counting down toward an automatic payout.
-    await freezeOrdersForMeetup(admin, meetupId, "item_dispute");
+    if (recordErr) {
+      console.error(
+        `[item-dispute] meetup ${meetupId}: funds are frozen but the dispute could NOT be recorded`,
+        recordErr,
+      );
+      Sentry.captureException(recordErr);
+      return Response.json(
+        {
+          error: "dispute_not_recorded",
+          message:
+            "Your payment has been held, but we couldn't file the report. Please contact support so we can review it.",
+        },
+        { status: 500 },
+      );
+    }
 
     if (m.listing_id) {
       await admin

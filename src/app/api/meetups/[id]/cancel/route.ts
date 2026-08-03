@@ -3,11 +3,19 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createAdminSupabaseClient } from "@/lib/supabase-admin";
 import { createNotification } from "@/lib/notifications/inapp";
 import { notifyWishlistReactivation } from "@/lib/notifications";
-import { freezeOrdersForMeetup } from "@/lib/orders/freeze";
+import { freezeOrdersForMeetup, type FreezeReason } from "@/lib/orders/freeze";
 import { sanitizeText } from "@/lib/sanitize";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * Free-cancellation window for BUYERS, in hours before the meetup window
+ * starts. Inside it, a buyer cancel does not auto-refund — it freezes and goes
+ * to admin review. Sellers have no such cutoff: a seller cancelling at any time
+ * refunds the buyer.
+ */
+const LATE_CANCEL_HOURS = 24;
 
 /**
  * POST /api/meetups/[id]/cancel
@@ -55,7 +63,8 @@ export async function POST(
     const { data: meetup, error: loadErr } = await admin
       .from("meetups")
       .select(
-        "id, status, buyer_id, seller_id, listing_id, listing:listings!listing_id(title)",
+        "id, status, buyer_id, seller_id, listing_id, meetup_window_start, " +
+          "listing:listings!listing_id(title)",
       )
       .eq("id", meetupId)
       .single();
@@ -69,6 +78,7 @@ export async function POST(
       buyer_id: string;
       seller_id: string;
       listing_id: string | null;
+      meetup_window_start: string | null;
       listing: { title: string } | null;
     };
 
@@ -109,8 +119,34 @@ export async function POST(
       return Response.json({ error: "update_failed" }, { status: 500 });
     }
 
-    // Rung 4 — stop any auto-release before anything else can run.
-    const freeze = await freezeOrdersForMeetup(admin, meetupId, "cancelled");
+    // ---- Refund eligibility, decided SERVER-SIDE -------------------------
+    // The cancel page computes a lateness warning for the UI, but the money
+    // decision must never come from the client.
+    //
+    //   seller cancels, any time      -> auto-refund (the buyer did nothing wrong)
+    //   buyer cancels  >24h out       -> auto-refund (free cancellation window)
+    //   buyer cancels  <24h out       -> FREEZE + admin review, resolved binary
+    //
+    // A late buyer cancel is mechanically a dispute: same freeze, same queue,
+    // same refund-or-release decision. There is no separate late-cancel path.
+    const windowStartMs = m.meetup_window_start
+      ? Date.parse(m.meetup_window_start)
+      : null;
+    const hoursUntilWindow =
+      windowStartMs === null ? null : (windowStartMs - Date.now()) / 3_600_000;
+
+    // Missing window => treat as late. Fail toward review, never toward
+    // automatically moving money on incomplete data.
+    const isLateBuyerCancel =
+      role === "buyer" && (hoursUntilWindow === null || hoursUntilWindow < LATE_CANCEL_HOURS);
+
+    const freezeReason: FreezeReason = isLateBuyerCancel
+      ? "cancelled_late"
+      : "cancelled";
+
+    // Freeze regardless of which branch: the auto-refund cases are refunded
+    // from this frozen state in Step 3, so nothing can auto-release in between.
+    const freeze = await freezeOrdersForMeetup(admin, meetupId, freezeReason);
 
     if (m.listing_id) {
       await admin
@@ -136,6 +172,11 @@ export async function POST(
       link: "/profile/meetups",
     });
 
+    // Only say "refunded" where a refund will actually happen. Step 3 wires the
+    // auto-refund itself; until then the eligible cases stay frozen rather than
+    // claiming a refund that hasn't been built.
+    const heldFunds = freeze.frozen > 0;
+
     return Response.json({
       ok: true,
       outcome: "cancelled",
@@ -143,6 +184,15 @@ export async function POST(
       ordersFrozen: freeze.frozen,
       // Surfaced so the UI can be honest if money already went out.
       alreadyReleased: freeze.alreadyReleased,
+      freezeReason,
+      requiresReview: isLateBuyerCancel && heldFunds,
+      hoursUntilWindow:
+        hoursUntilWindow === null ? null : Math.round(hoursUntilWindow * 10) / 10,
+      message: !heldFunds
+        ? "Meetup cancelled."
+        : isLateBuyerCancel
+          ? `Meetup cancelled. Because this was within ${LATE_CANCEL_HOURS} hours of the meetup, your payment is held while our team reviews it.`
+          : "Meetup cancelled. Your payment will be refunded in full.",
     });
   } catch (err) {
     console.error("[cancel] error", err);

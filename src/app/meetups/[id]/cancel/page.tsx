@@ -119,7 +119,10 @@ function CancelMeetupPageInner() {
 
   const start = new Date(meetup.meetup_window_start);
   const hoursUntil = (start.getTime() - Date.now()) / 3600000;
-  const isLate = hoursUntil < 2;
+  // Mirrors LATE_CANCEL_HOURS in /api/meetups/[id]/cancel. This copy drives the
+  // warning only — the route decides the money outcome server-side, and the two
+  // must agree or a buyer is told one thing and charged another.
+  const isLate = hoursUntil < 24;
 
   const alreadyCancelled = meetup.status.startsWith("cancelled");
   const reasonValid =
@@ -200,17 +203,28 @@ function CancelMeetupPageInner() {
       </header>
 
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-5 pb-28">
-        {!isLate ? (
+        {/*
+          Four distinct outcomes — role x lateness. The 24h boundary only
+          applies to BUYERS: a seller cancelling at any time refunds the buyer
+          in full, because the buyer did nothing wrong.
+
+          Only the buyer-inside-24h case is reviewed. Never tell someone their
+          money is coming back instantly when it is going to a review queue.
+        */}
+        {role === "buyer" && !isLate && (
           <>
             <h1 className="font-heading text-2xl font-bold text-navy mb-2">
               Cancel this meetup?
             </h1>
             <p className="text-sm text-muted-foreground">
-              You won&apos;t be charged for cancelling. Any payment you&apos;ve
-              already made is refunded in full.
+              You&apos;re outside the 24-hour window, so you&apos;ll be{" "}
+              <strong>refunded in full</strong> — the item price and the Buyer
+              Protection fee.
             </p>
           </>
-        ) : role === "buyer" ? (
+        )}
+
+        {role === "buyer" && isLate && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-2">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
@@ -219,14 +233,30 @@ function CancelMeetupPageInner() {
                   Late cancellation
                 </p>
                 <p className="text-sm text-amber-900 mt-1 leading-relaxed">
-                  Cancelling this close to the meetup counts as a late
-                  cancellation and may put a strike on your account. Any
-                  payment you&apos;ve made is refunded in full.
+                  Because your meetup is within 24 hours, your cancellation
+                  will be <strong>reviewed before a refund is issued</strong>.
+                  Your payment stays held until our team decides. A late
+                  cancellation may also count against your account.
                 </p>
               </div>
             </div>
           </div>
-        ) : (
+        )}
+
+        {role === "seller" && !isLate && (
+          <>
+            <h1 className="font-heading text-2xl font-bold text-navy mb-2">
+              Cancel this meetup?
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              The buyer will be <strong>refunded in full</strong>. Cancelling
+              doesn&apos;t cost you anything, but repeated cancellations affect
+              your standing.
+            </p>
+          </>
+        )}
+
+        {role === "seller" && isLate && (
           <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-2">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-5 h-5 text-red-700 flex-shrink-0 mt-0.5" />
@@ -235,8 +265,9 @@ function CancelMeetupPageInner() {
                   Late seller cancellation
                 </p>
                 <p className="text-sm text-red-900 mt-1 leading-relaxed">
-                  Cancelling within 2 hours of the meetup may result in a
-                  strike. See community guidelines.
+                  The buyer will be <strong>refunded in full</strong>.
+                  Cancelling this close to the meetup may count against your
+                  account — see community guidelines.
                 </p>
               </div>
             </div>

@@ -187,9 +187,28 @@ export type OrderStatus =
   | "releasing"
   | "released"
   | "release_failed"
+  | "refunding"
   | "refunded"
+  | "refund_failed"
   | "cancelled"
   | "failed";
+
+/** Why a refund was issued (payments Phase 4). */
+export type RefundReason =
+  | "cancelled"
+  | "seller_no_show"
+  | "buyer_no_show"
+  | "dispute_upheld";
+
+/** Why an order is frozen. `cancelled_late` routes to admin review. */
+export type FreezeReasonValue =
+  | "item_dispute"
+  | "no_show"
+  | "cancelled"
+  | "cancelled_late";
+
+/** Admin resolution of a frozen order. Binary by design — no partials. */
+export type DisputeResolution = "refund_buyer" | "release_seller";
 
 /** Why an order was released — the rung of the release ladder that fired. */
 export type ReleaseReason = "buyer_confirmed" | "seller_24h" | "backstop_7d";
@@ -223,6 +242,20 @@ export interface Order {
   disputed_at: string | null;
   transfer_error: string | null;
   transfer_attempts: number;
+
+  // Payments Phase 4 — refunds and admin resolution (mig 016).
+  stripe_refund_id: string | null;
+  refunded_at: string | null;
+  refund_reason: RefundReason | null;
+  refund_error: string | null;
+  refund_attempts: number;
+  /** Persisted rather than re-derived from the PaymentIntent each time. */
+  stripe_charge_id: string | null;
+  /** Why this order is frozen — drives the admin review queue. */
+  freeze_reason: FreezeReasonValue | null;
+  dispute_resolution: DisputeResolution | null;
+  dispute_resolved_at: string | null;
+  dispute_resolved_by: string | null;
 }
 
 export interface Message {

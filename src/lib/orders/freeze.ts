@@ -25,7 +25,19 @@ const FREEZABLE_STATUSES = [
   "release_failed", // parked after exhausting retries
 ];
 
-export type FreezeReason = "item_dispute" | "no_show" | "cancelled";
+/**
+ * Why an order is frozen.
+ *
+ * `cancelled_late` is mechanically a dispute: a buyer cancelling inside 24h of
+ * the meetup window freezes and goes to the same admin queue for the same
+ * binary decision. It is a distinct reason only so the queue can explain
+ * itself — there is no separate late-cancel machinery.
+ */
+export type FreezeReason =
+  | "item_dispute"
+  | "no_show"
+  | "cancelled"
+  | "cancelled_late";
 
 export interface FreezeResult {
   /** How many orders were newly frozen by this call. */
@@ -50,7 +62,12 @@ export async function freezeOrdersForMeetup(
   try {
     const { data, error } = await admin
       .from("orders")
-      .update({ disputed_at: new Date().toISOString() })
+      .update({
+        disputed_at: new Date().toISOString(),
+        // Recorded on the ORDER so the admin review queue is order-driven and
+        // needs no join to explain why something is held.
+        freeze_reason: reason,
+      })
       .eq("meetup_id", meetupId)
       .in("status", FREEZABLE_STATUSES)
       .is("disputed_at", null)
