@@ -145,6 +145,16 @@ async function mint(request: Request): Promise<Response> {
     );
   }
 
+  // QoL: previous tests leave the listing 'sold', which would make every mint
+  // after the first fail. Reactivate any of the seller's listings that a test
+  // left behind, then pick one. Never touches 'removed' — that is a moderation
+  // decision, not test residue.
+  await admin
+    .from("listings")
+    .update({ status: "active" })
+    .eq("seller_id", seller.id)
+    .in("status", ["sold", "pending"]);
+
   const { data: listingRow } = await admin
     .from("listings")
     .select("id, title")
@@ -155,7 +165,7 @@ async function mint(request: Request): Promise<Response> {
   const listing = listingRow as { id: string; title: string } | null;
   if (!listing) {
     return Response.json(
-      { error: `no active listing owned by ${seller.email}` },
+      { error: `no active listing owned by ${seller.email} (none active, sold or pending)` },
       { status: 400 },
     );
   }
