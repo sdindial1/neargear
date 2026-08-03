@@ -136,7 +136,7 @@ function NoShowInner({ id }: { id: string }) {
   const otherParty = isBuyer ? "Seller" : "Buyer";
   const consequence = isBuyer
     ? "The seller will receive a strike and your payment will be refunded in full."
-    : "The buyer will receive a strike.";
+    : "The buyer will receive a strike. Their payment stays held while our team reviews who it belongs to.";
   const listingTitle = meetup.listing?.title ?? "your item";
 
   const reportNoShow = async () => {

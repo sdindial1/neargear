@@ -389,6 +389,48 @@ export async function refundOrder(
 }
 
 /**
+ * Refund every still-holding order attached to a meetup.
+ *
+ * Mirrors freezeOrdersForMeetup so the trigger routes stay thin: they decide
+ * WHETHER a refund is warranted, this decides which orders that means.
+ *
+ * `released` orders are deliberately included in the query rather than filtered
+ * out — refundOrder's hard guard turns them into an explicit
+ * manual_reversal_required result, so a post-release case surfaces to the
+ * caller instead of silently matching nothing.
+ *
+ * Never throws. Returns one result per order; an empty array means the meetup
+ * had no order holding funds, which is normal for unpaid meetups.
+ */
+export async function refundOrdersForMeetup(
+  admin: SupabaseClient,
+  meetupId: string,
+  reason: RefundReason,
+): Promise<RefundResult[]> {
+  const { data, error } = await admin
+    .from("orders")
+    .select("id")
+    .eq("meetup_id", meetupId)
+    .in("status", [...REFUNDABLE_STATUSES, "released"]);
+
+  if (error) {
+    console.error(
+      `[refund] could not list orders for meetup ${meetupId} — no refund attempted:`,
+      error,
+    );
+    Sentry.captureException(error);
+    return [];
+  }
+
+  const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
+  const results: RefundResult[] = [];
+  for (const id of ids) {
+    results.push(await refundOrder(admin, id, reason));
+  }
+  return results;
+}
+
+/**
  * Put the item back on the market, and tell both parties.
  *
  * There is no ledger row to unwind: a pre-release refund never had one
