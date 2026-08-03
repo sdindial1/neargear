@@ -24,7 +24,18 @@ interface SweepCandidate {
   seller_confirmed_at: string | null;
   buyer_notified_at: string | null;
   transfer_attempts: number;
+  item_price_cents: number;
+  seller_fee_cents: number;
   meetup: { status: string; meetup_window_start: string | null } | null;
+}
+
+/** One line of a dry-run preview: what a real run would have done. */
+interface ReleasePreviewRow {
+  orderId: string;
+  meetupId: string | null;
+  reason: ReleaseReason;
+  payoutCents: number;
+  transferAttempts: number;
 }
 
 /**
@@ -91,14 +102,15 @@ function classifyRung(o: SweepCandidate, nowMs: number): ReleaseReason | null {
  * releaseOrder(), which owns the CAS claim, the Stripe call and the ledger
  * projection — this function only decides WHO is eligible, never how much.
  */
-async function runReleaseSweep(admin: SupabaseClient) {
+async function runReleaseSweep(admin: SupabaseClient, dry: boolean) {
   const nowMs = Date.now();
 
   const { data, error } = await admin
     .from("orders")
     .select(
       "id, meetup_id, buyer_confirmed_at, seller_confirmed_at, buyer_notified_at, " +
-        "transfer_attempts, meetup:meetups!meetup_id(status, meetup_window_start)",
+        "transfer_attempts, item_price_cents, seller_fee_cents, " +
+        "meetup:meetups!meetup_id(status, meetup_window_start)",
     )
     .eq("status", "paid_held")
     .is("disputed_at", null)
@@ -108,7 +120,14 @@ async function runReleaseSweep(admin: SupabaseClient) {
   if (error) {
     console.error("[release-sweep] candidate fetch failed:", error);
     Sentry.captureException(error);
-    return { released: 0, failed: 0, skipped: 0, eligible: 0, truncated: false };
+    return {
+      released: 0,
+      failed: 0,
+      skipped: 0,
+      eligible: 0,
+      truncated: false,
+      preview: [] as ReleasePreviewRow[],
+    };
   }
 
   type JoinedMeetup = { status: string; meetup_window_start: string | null };
@@ -131,6 +150,7 @@ async function runReleaseSweep(admin: SupabaseClient) {
   let skipped = 0;
   let eligible = 0;
   const byReason: Record<string, number> = {};
+  const preview: ReleasePreviewRow[] = [];
 
   for (const row of rows.slice(0, RELEASE_BATCH_LIMIT)) {
     const candidate: SweepCandidate = {
@@ -141,6 +161,21 @@ async function runReleaseSweep(admin: SupabaseClient) {
     const reason = classifyRung(candidate, nowMs);
     if (!reason) continue; // not yet at a rung — leave it alone
     eligible++;
+
+    if (dry) {
+      // PREVIEW ONLY. Nothing below this line runs: no CAS claim, no Stripe
+      // call, no row written. The candidate query above is a plain SELECT, so a
+      // dry run is read-only end to end and safe against production.
+      byReason[reason] = (byReason[reason] ?? 0) + 1;
+      preview.push({
+        orderId: candidate.id,
+        meetupId: candidate.meetup_id,
+        reason,
+        payoutCents: candidate.item_price_cents - candidate.seller_fee_cents,
+        transferAttempts: candidate.transfer_attempts,
+      });
+      continue;
+    }
 
     const result = await releaseOrder(admin, candidate.id, reason);
     if (result.outcome === "released") {
@@ -154,9 +189,11 @@ async function runReleaseSweep(admin: SupabaseClient) {
   }
 
   console.log(
-    `[release-sweep] eligible=${eligible} released=${released} failed=${failed} skipped=${skipped}`,
+    dry
+      ? `[release-sweep:DRY] eligible=${eligible} (no writes, no transfers)`
+      : `[release-sweep] eligible=${eligible} released=${released} failed=${failed} skipped=${skipped}`,
   );
-  return { released, failed, skipped, eligible, truncated, byReason };
+  return { released, failed, skipped, eligible, truncated, byReason, preview };
 }
 
 function checkCronAuth(request: Request): Response | null {
@@ -173,7 +210,12 @@ function checkCronAuth(request: Request): Response | null {
   return null;
 }
 
-async function runExpiry() {
+/**
+ * @param dry Preview mode. Every pass still runs its SELECTs so it can report
+ *   what WOULD happen, but no write, notification, SMS or Stripe call is made.
+ *   This is what makes it safe to dry-run the live cron in production.
+ */
+async function runExpiry(dry: boolean) {
   try {
   // Service-role: this job runs with no user session, and since Phase 3 it
   // writes orders. Previously it used the session client, which under RLS as an
@@ -210,7 +252,7 @@ async function runExpiry() {
   );
 
   let notifiedTotal = 0;
-  for (const m of expired) {
+  for (const m of dry ? [] : expired) {
     const { error: mErr } = await supabase
       .from("meetups")
       .update({ status: "cancelled_auto" })
@@ -242,7 +284,7 @@ async function runExpiry() {
   // independent completion writer racing the browser, with its own idea of the
   // fee. Completion is now a downstream projection of releaseOrder(), and this
   // pass only decides which orders have reached a rung.
-  const release = await runReleaseSweep(supabase);
+  const release = await runReleaseSweep(supabase, dry);
 
   // ---- 2-hour SMS reminder pass ------------------------------------------
   const now = Date.now();
@@ -267,7 +309,7 @@ async function runExpiry() {
     .gte("meetup_window_start", reminderLowerIso)
     .lte("meetup_window_start", reminderUpperIso);
 
-  if (!upcomingErr && upcoming) {
+  if (!upcomingErr && upcoming && !dry) {
     for (const m of upcoming) {
       const row = m as unknown as {
         id: string;
@@ -348,7 +390,7 @@ async function runExpiry() {
     .is("no_show_prompt_sent_at", null)
     .lte("meetup_window_end", noShowCutoffIso);
 
-  for (const row of pendingNoShows ?? []) {
+  for (const row of dry ? [] : (pendingNoShows ?? [])) {
     const r = row as unknown as {
       id: string;
       buyer_id: string | null;
@@ -383,8 +425,26 @@ async function runExpiry() {
     }
   }
 
+  // Dry runs report in "would" language and use distinct field names, so no
+  // field ever means two different things depending on mode.
+  if (dry) {
+    return Response.json({
+      ok: true,
+      dry: true,
+      cutoff: cutoffIso,
+      wouldExpire: expired.length,
+      wouldRemind: upcoming?.length ?? 0,
+      wouldPromptNoShow: pendingNoShows?.length ?? 0,
+      releaseEligible: release.eligible,
+      releaseByReason: release.byReason ?? {},
+      releasePreview: release.preview,
+      releaseTruncated: release.truncated,
+    });
+  }
+
   return Response.json({
     ok: true,
+    dry: false,
     expired: expired.length,
     notified: notifiedTotal,
     remindersSent,
@@ -408,14 +468,24 @@ async function runExpiry() {
   }
 }
 
+/**
+ * ?dry=1 (or ?dry=true) previews without touching anything. Unknown values are
+ * treated as NOT dry — an unrecognised flag must never silently disable a real
+ * scheduled run.
+ */
+function isDryRun(request: Request): boolean {
+  const v = new URL(request.url).searchParams.get("dry");
+  return v === "1" || v === "true";
+}
+
 export async function POST(request: Request) {
   const unauthorized = checkCronAuth(request);
   if (unauthorized) return unauthorized;
-  return runExpiry();
+  return runExpiry(isDryRun(request));
 }
 
 export async function GET(request: Request) {
   const unauthorized = checkCronAuth(request);
   if (unauthorized) return unauthorized;
-  return runExpiry();
+  return runExpiry(isDryRun(request));
 }
