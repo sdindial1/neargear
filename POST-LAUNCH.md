@@ -116,6 +116,58 @@ see item 6.
 
 ---
 
+## 🔴 11. Migration files have drifted from the live schema — LAUNCH BLOCKER
+
+**This is not optional and not a cleanup task.** Deploying runs the migration
+files against a database. If the files don't reproduce the schema the code was
+developed against, production breaks on first request — and the failure mode is
+a 500 on a payment route, not a build error.
+
+Drift is confirmed in **both directions**, which is what makes it dangerous:
+
+**Files ahead of the DB.** `008_strikes.sql` declares 9 columns and has never
+been applied. Dev is missing `meetups.no_show_reported_by/_at`,
+`no_show_prompt_sent_at`, `item_dispute_reported_at/_reason/_notes`,
+`users.strike_count`, `suspension_ends_at`, `suspended_permanently`, and
+`strikes.type/issued_by/notes` — so the no-show route, the item-dispute route
+and `issueStrike` have **never once run successfully**. On deploy the file
+*would* run, meaning production gets a schema dev never tested against.
+
+**DB ahead of the files.** During Phase 4, columns were hand-added to `orders`
+one at a time in response to errors, producing a scattered subset
+(`refunded_at`, `refund_reason`, `freeze_reason` present; seven others absent)
+that matches no migration file's state. Any column added by hand that is in no
+file simply won't exist in production.
+
+**The unknown is the real risk.** Nobody has audited which live columns are
+backed by a migration file. Every unbacked column is a silent landmine that
+only fires on deploy.
+
+**How to apply — reconciliation method:**
+
+1. Capture the truth: dump the live dev schema (`pg_dump --schema-only`, or
+   Supabase → Database → Schema).
+2. Build a control: run `001` → `016` in order against a scratch database.
+3. Diff the two. Every difference is either a missing migration or an
+   unapplied one.
+4. Resolve each: apply what's missing to dev (e.g. `008`), and write a
+   reconciliation migration for anything live that no file creates.
+5. Prove it: a fresh database plus the ordered file set must equal the dev
+   schema exactly. That is the acceptance test — not "it looks right".
+6. Prevent recurrence: adopt tracked migrations (a `schema_migrations` table,
+   or the Supabase CLI with `supabase db push`) so an unapplied file can't sit
+   unnoticed for four phases again.
+
+**Why it went unnoticed:** migrations are applied by hand-pasting into the SQL
+Editor, with nothing recording which have run. `008` was skipped silently in
+roughly April and only surfaced in August, during Phase 4, because the release
+sweep needed a column it declared.
+
+Do this **after Phase 4 code is complete and before any production deploy.**
+Running it earlier means redoing it — Phase 4 is still adding schema.
+
+---
+
 ## 🟡 5. Enforce mutual location agreement before `scheduled`
 
 A meetup can currently reach `scheduled` (which unlocks the buyer's pay button)
