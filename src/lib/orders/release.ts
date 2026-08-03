@@ -48,6 +48,8 @@ import type { ReleaseReason } from "@/types/database";
 export const MAX_TRANSFER_ATTEMPTS = 5;
 
 export type ReleaseSkipReason =
+  /** The lookup itself failed — schema mismatch, connectivity, RLS. NOT "no such row". */
+  | "lookup_failed"
   | "order_not_found"
   | "not_claimable" // wrong status, already released, or claimed by someone else
   | "disputed"
@@ -187,8 +189,16 @@ export async function releaseOrder(
     .eq("id", orderId)
     .maybeSingle();
 
-  if (loadErr || !data) {
-    console.error(`[release] order ${orderId} not found`, loadErr);
+  // Same distinction as refundOrder: a broken query is not a missing order.
+  if (loadErr) {
+    console.error(
+      `[release] order ${orderId}: LOOKUP FAILED (not a missing order) — ${loadErr.message}`,
+    );
+    Sentry.captureException(loadErr);
+    return skip("lookup_failed");
+  }
+  if (!data) {
+    console.error(`[release] order ${orderId} does not exist`);
     return skip("order_not_found");
   }
   const order = data as unknown as OrderRow;

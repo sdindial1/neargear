@@ -42,6 +42,8 @@ export const MAX_REFUND_ATTEMPTS = 5;
 const REFUNDABLE_STATUSES = ["paid_held", "release_failed"];
 
 export type RefundSkipReason =
+  /** The lookup itself failed — schema mismatch, connectivity, RLS. NOT "no such row". */
+  | "lookup_failed"
   | "order_not_found"
   | "already_refunded"
   | "release_in_flight" // transfer mid-flight; retry once it settles
@@ -160,8 +162,18 @@ export async function refundOrder(
     .eq("id", orderId)
     .maybeSingle();
 
-  if (loadErr || !data) {
-    console.error(`[refund] order ${orderId} not found`, loadErr);
+  // Distinguish "the query broke" from "no such row". Conflating them reports a
+  // missing migration as a missing order, which is a genuinely misleading thing
+  // for a money mover to say.
+  if (loadErr) {
+    console.error(
+      `[refund] order ${orderId}: LOOKUP FAILED (not a missing order) — ${loadErr.message}`,
+    );
+    Sentry.captureException(loadErr);
+    return skip("lookup_failed");
+  }
+  if (!data) {
+    console.error(`[refund] order ${orderId} does not exist`);
     return skip("order_not_found");
   }
   const order = data as unknown as OrderRow;
