@@ -85,14 +85,19 @@ export async function POST(request: Request) {
   const blocked = blockedInProduction();
   if (blocked) return blocked;
 
-  const body = (await request.json().catch(() => ({}))) as {
-    orderId?: string;
-    reason?: string;
-    action?: string;
-  };
+  // Params from EITHER the query string or a JSON body — same contract as
+  // /api/dev/mint-order, so the two harnesses behave identically.
+  const url = new URL(request.url);
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  const pick = (key: string): string | null =>
+    url.searchParams.get(key) ?? (body[key] == null ? null : String(body[key]));
 
-  if (!body.orderId) {
-    return Response.json({ error: "orderId required" }, { status: 400 });
+  const orderId = pick("orderId");
+  if (!orderId) {
+    return Response.json(
+      { error: "orderId required (query string or JSON body)" },
+      { status: 400 },
+    );
   }
 
   const admin = createAdminSupabaseClient();
@@ -102,20 +107,25 @@ export async function POST(request: Request) {
 
   // Setup path for the hard-guard test: genuinely release the order so the
   // refund attempt afterwards is against real transferred funds.
-  if (body.action === "release") {
-    const result = await releaseOrder(admin, body.orderId, "buyer_confirmed");
+  if (pick("action") === "release") {
+    const result = await releaseOrder(admin, orderId, "buyer_confirmed");
     return Response.json({ setup: "release", result });
   }
 
-  const reason = (body.reason ?? "cancelled") as RefundReason;
+  const reason = (pick("reason") ?? "cancelled") as RefundReason;
   if (!VALID_REASONS.includes(reason)) {
     return Response.json(
-      { error: `reason must be one of ${VALID_REASONS.join(", ")}` },
+      {
+        error: "invalid reason",
+        got: reason,
+        valid: VALID_REASONS,
+        hint: "a buyer or seller cancellation is 'cancelled' — there is no 'buyer_cancel'",
+      },
       { status: 400 },
     );
   }
 
-  const result = await refundOrder(admin, body.orderId, reason);
+  const result = await refundOrder(admin, orderId, reason);
   // Always 200 — the RefundResult carries the outcome, and we want to read
   // `skipped` / `manual_reversal_required` bodies as easily as `refunded`.
   return Response.json(result);
