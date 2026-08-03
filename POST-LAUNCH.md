@@ -15,6 +15,10 @@ Last updated: 2026-07-29, after payments Phase 2 merged to `main` (`8e0ce3f`).
 
 ## 🔴 1. SCHEMA DRIFT — audit every migration against the code. TOP BLOCKER.
 
+> **See [RECONCILIATION.md](RECONCILIATION.md)** for the full drift map, the
+> fix plan, and the acceptance test. That document is the working artefact;
+> this entry is the summary.
+
 **Nothing deploys until this is done.** The migration files, the live dev
 database, and the code have diverged in *three independent directions*. A fresh
 production database built from the files would be missing columns the code
@@ -44,8 +48,28 @@ a schema diff — the column exists and matches the file — and only surfaced w
 
 **Cost so far:** four separate rounds of "add one more missing column", a refund
 that reported `order_not_found` when the real cause was a PostgREST 400 from a
-missing column, and a dispute-record write that failed silently for an entire
-phase.
+missing column, a dispute-record write that failed silently for an entire phase,
+and `/admin/disputes` 500ing on its first load.
+
+**Every table the payment and dispute flows touch needs this audit, not just
+`orders`.** As of 2026-08-03 the state was:
+
+| Table | Status |
+|---|---|
+| `orders` | ✅ reconciled by migration 017 |
+| `listings` | ✅ complete |
+| `meetups` | ❌ 6 columns missing (008) — no-show and item-dispute fields |
+| `users` | ❌ 3 columns missing (008) — strike/suspension state |
+| `strikes` | ❌ 3 columns missing (008) — `type`, `issued_by`, `notes` |
+
+All 12 belong to `008_strikes.sql`. **Note that 008 as written contains
+`DROP TABLE IF EXISTS strikes CASCADE`** — a destructive statement in the middle
+of a migration that is otherwise additive. That is almost certainly why it kept
+being skipped, and it is exactly the kind of thing the reconciliation pass must
+find: a migration nobody wants to run is a migration that silently does not run.
+The reconciliation should rewrite it as an additive migration (add the three
+columns, drop `NOT NULL` from the legacy `reason`) so the file set can be
+applied to a fresh database end to end without a human deciding to skip a step.
 
 **How to apply:**
 
