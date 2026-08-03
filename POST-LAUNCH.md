@@ -13,7 +13,65 @@ Last updated: 2026-07-29, after payments Phase 2 merged to `main` (`8e0ce3f`).
 
 ---
 
-## 🔴 1. Rotate the Stripe test keys
+## 🔴 1. SCHEMA DRIFT — audit every migration against the code. TOP BLOCKER.
+
+**Nothing deploys until this is done.** The migration files, the live dev
+database, and the code have diverged in *three independent directions*. A fresh
+production database built from the files would be missing columns the code
+references, and the failure mode is a 500 on a payment route — money paths
+failing at runtime, not a build error that stops the deploy.
+
+This is a systemic problem, not a one-off. Three distinct classes, all found the
+hard way during Phase 4:
+
+**(a) Files ahead of the DB — declared, never applied.** `008_strikes.sql`
+declares 9 columns and has never been run. The no-show route, the item-dispute
+route and `issueStrike` have therefore **never once executed successfully**. On
+deploy the file *would* run, so production gets a schema dev never tested
+against.
+
+**(b) DB ahead of the files — columns backed by no migration at all.** The live
+`orders` table carried `refund_id`, `refund_amount_cents` and
+`refund_initiated_by`, none of which appear in any migration file. `refund_id`
+also collided with the code's `stripe_refund_id`, so the same concept existed
+under two names in two places. Reconciled in `017`, but only because a refund
+failed and we went looking.
+
+**(c) Declared but never populated.** `016` added `orders.stripe_charge_id` and
+nothing wrote it, so every real order had the column sitting null. Invisible to
+a schema diff — the column exists and matches the file — and only surfaced when
+`releaseOrder` needed the value.
+
+**Cost so far:** four separate rounds of "add one more missing column", a refund
+that reported `order_not_found` when the real cause was a PostgREST 400 from a
+missing column, and a dispute-record write that failed silently for an entire
+phase.
+
+**How to apply:**
+
+1. Dump the live dev schema (`pg_dump --schema-only`, or Supabase → Database →
+   Schema).
+2. Run `001` → `017` in order against a scratch database.
+3. Diff. Every difference is a missing migration, an unapplied one, or an
+   orphan column.
+4. Separately, grep the code for every column it reads or writes per table, and
+   confirm each is (i) declared in a file **and** (ii) actually populated by the
+   code that owns it. Class (c) is invisible to a schema diff and needs this
+   pass.
+5. Resolve orphans explicitly: `refund_initiated_by` is currently unused —
+   either wire it up or drop it. Don't leave it undecided.
+6. **Acceptance test:** a fresh database plus the ordered file set must equal
+   the dev schema exactly. Not "looks right" — diff it.
+7. Prevent recurrence: adopt tracked migrations (a `schema_migrations` table or
+   the Supabase CLI with `supabase db push`) so an unapplied file cannot sit
+   unnoticed for four phases. The root cause is that hand-pasting into the SQL
+   Editor records nothing about what has run.
+
+Do this **after Phase 4 code is complete and before any production deploy.**
+
+---
+
+## 🔴 2. Rotate the Stripe test keys
 
 `STRIPE_SECRET_KEY` (`sk_test_…`) and `STRIPE_WEBHOOK_SECRET` (`whsec_…`) were
 both pasted through a chat session. They are test-mode keys, so exposure is
@@ -116,7 +174,15 @@ see item 6.
 
 ---
 
-## 🔴 11. Migration files have drifted from the live schema — LAUNCH BLOCKER
+## ✅ 11. Migration drift — MERGED INTO ITEM 1
+
+Promoted to the top of this document as the number-one pre-deploy blocker. See
+item 1 for the full three-class breakdown and the reconciliation method.
+
+<details>
+<summary>Original notes (superseded)</summary>
+
+### Migration files have drifted from the live schema
 
 **This is not optional and not a cleanup task.** Deploying runs the migration
 files against a database. If the files don't reproduce the schema the code was
@@ -182,6 +248,8 @@ something downstream needs the value.
 
 Do this **after Phase 4 code is complete and before any production deploy.**
 Running it earlier means redoing it — Phase 4 is still adding schema.
+
+</details>
 
 ---
 

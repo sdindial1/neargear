@@ -331,6 +331,9 @@ export async function refundOrder(
     const update: Record<string, unknown> = {
       status: "refunded",
       stripe_refund_id: refund.id,
+      // Stripe is authoritative, but storing it makes reporting and support
+      // queries possible without an API call.
+      refund_amount_cents: refund.amount,
       refunded_at: refundedAt,
       refund_reason: reason,
       refund_error: null,
