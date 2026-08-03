@@ -83,6 +83,28 @@ export async function POST(req: Request) {
             : (session.payment_intent?.id ?? null);
         const grossCaptured = session.amount_total ?? 0;
 
+        // Resolve and persist the charge now, while we're already handling this
+        // payment. releaseOrder needs it for `source_transaction` and otherwise
+        // re-derives it from the PaymentIntent on EVERY release — an avoidable
+        // Stripe round-trip on the money path. Best-effort: a failure here must
+        // not stop the order reaching paid_held, and releaseOrder still falls
+        // back to deriving it.
+        let chargeId: string | null = null;
+        if (paymentIntentId) {
+          try {
+            const pi = await getStripe().paymentIntents.retrieve(paymentIntentId);
+            chargeId =
+              typeof pi.latest_charge === "string"
+                ? pi.latest_charge
+                : (pi.latest_charge?.id ?? null);
+          } catch (err) {
+            console.warn(
+              `[webhooks/stripe] could not resolve charge for ${paymentIntentId}`,
+              err,
+            );
+          }
+        }
+
         // Idempotent: match the pending order by id (fallback: session id) and
         // only advance it from 'pending'. A duplicate delivery is a no-op.
         const query = admin
@@ -91,6 +113,7 @@ export async function POST(req: Request) {
             status: "paid_held",
             gross_captured_cents: grossCaptured,
             stripe_payment_intent_id: paymentIntentId,
+            stripe_charge_id: chargeId,
             stripe_checkout_session_id: session.id,
             paid_at: new Date(event.created * 1000).toISOString(),
           })

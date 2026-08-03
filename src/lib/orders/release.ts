@@ -88,6 +88,8 @@ interface OrderRow {
   currency: string;
   status: string;
   stripe_payment_intent_id: string | null;
+  /** Persisted by the checkout webhook; null on orders predating that. */
+  stripe_charge_id: string | null;
   stripe_transfer_id: string | null;
   disputed_at: string | null;
   transfer_attempts: number;
@@ -96,7 +98,8 @@ interface OrderRow {
 const ORDER_SELECT =
   "id, meetup_id, listing_id, buyer_id, seller_id, item_price_cents, " +
   "seller_fee_cents, gross_captured_cents, currency, status, " +
-  "stripe_payment_intent_id, stripe_transfer_id, disputed_at, transfer_attempts";
+  "stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, " +
+  "disputed_at, transfer_attempts";
 
 function transferGroup(orderId: string): string {
   return `order_${orderId}`;
@@ -318,10 +321,11 @@ export async function releaseOrder(
 
     // ---- Create the transfer ----------------------------------------------
     if (!transfer) {
-      const sourceCharge = await resolveSourceCharge(
-        stripe,
-        order.stripe_payment_intent_id,
-      );
+      // Prefer the charge persisted at checkout; only call Stripe if this order
+      // predates that (or the webhook couldn't resolve it).
+      const sourceCharge =
+        order.stripe_charge_id ??
+        (await resolveSourceCharge(stripe, order.stripe_payment_intent_id));
       transfer = await stripe.transfers.create(
         {
           amount: payoutCents,

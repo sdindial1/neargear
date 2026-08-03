@@ -163,6 +163,23 @@ Editor, with nothing recording which have run. `008` was skipped silently in
 roughly April and only surfaced in August, during Phase 4, because the release
 sweep needed a column it declared.
 
+**A second class of drift, found the same way — code not populating a column
+it declares.** Migration 016 added `orders.stripe_charge_id`, but the Phase 2
+checkout webhook never wrote it, so every real order had the column and left
+it null. This was NOT a refund blocker — `refundOrder` keys off the
+PaymentIntent, and `stripe.refunds.create({ payment_intent })` is complete on
+its own — but `releaseOrder` was re-deriving the charge from Stripe on every
+single release to pass `source_transaction`, an avoidable round-trip on the
+money path. Fixed at source: the webhook now resolves and stores the charge,
+`releaseOrder` prefers the stored value and only falls back to deriving it,
+and existing orders were backfilled.
+
+The lesson for the reconciliation pass: a schema audit must check **both** that
+every live column is backed by a migration file **and** that every column a
+migration declares is actually written by the code that owns it. A declared-
+but-never-populated column looks fine in a schema diff and is only found when
+something downstream needs the value.
+
 Do this **after Phase 4 code is complete and before any production deploy.**
 Running it earlier means redoing it — Phase 4 is still adding schema.
 
