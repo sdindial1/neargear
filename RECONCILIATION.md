@@ -158,6 +158,33 @@ Applied by hand and therefore **not yet reflected in any file's applied state**:
 | Date | What | Note |
 |---|---|---|
 | 2026-08-03 | `orders`: 6 columns applied ad hoc before `017` existed | now declared in `017` |
-| 2026-08-03 | `meetups.item_dispute_reason`, `item_dispute_notes` | minimal unblock for `/admin/disputes`; **declared in `008`, which remains otherwise unapplied** — this deepens the partial-application of `008` and the reconciliation must not assume `008` is all-or-nothing |
+| 2026-08-03 | `meetups.item_dispute_reason`, `item_dispute_notes` | minimal unblock for `/admin/disputes` |
+| 2026-08-04 | `meetups.no_show_reported_by`, `no_show_reported_at`, `no_show_prompt_sent_at`, `item_dispute_reported_at` | applied to unblock the no-show route for Phase 4 Step 3 testing |
+| 2026-08-04 | `018_admin_release.sql` applied in full | a real migration file — does not add drift |
+
+### ⚠️ `008` is now partially applied, and the split is not obvious
+
+Verified 2026-08-04:
+
+| `008` component | State |
+|---|---|
+| `meetups` — all 6 columns | ✅ **applied** (piecemeal, across two sessions) |
+| `users.strike_count`, `suspension_ends_at`, `suspended_permanently` | ❌ **still missing** |
+| `strikes.type`, `issued_by`, `notes` | ❌ **still missing** |
+| `strikes` legacy `reason NOT NULL` | ❌ still NOT NULL |
+| `meetups.status` CHECK gaining `item_dispute` | ⚠️ unverified |
+
+**"Is 008 applied?" has no yes/no answer.** The reconciliation must check it
+column by column and must not treat any migration as atomic.
+
+**Live consequence:** `issueStrike()` writes `strikes.type/issued_by/notes` and
+`users.strike_count`, none of which exist — so **no strike has ever actually
+been issued**, and it fails silently because the insert's error is unchecked.
+Phase 4's money paths were verified with strikes silently no-opping alongside
+them. The no-show and dispute flows move money correctly; their *reputation*
+side effect does nothing.
+
+`011_terms_acceptance` also remains unapplied — signup still records no
+evidence of terms acceptance.
 
 Every hand-applied change from here must be added to this table.
