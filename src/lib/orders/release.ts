@@ -50,6 +50,8 @@ export const MAX_TRANSFER_ATTEMPTS = 5;
 export type ReleaseSkipReason =
   /** The lookup itself failed — schema mismatch, connectivity, RLS. NOT "no such row". */
   | "lookup_failed"
+  /** The CAS UPDATE errored — constraint violation, schema drift. NOT a lost race. */
+  | "claim_failed"
   | "order_not_found"
   | "not_claimable" // wrong status, already released, or claimed by someone else
   | "disputed"
@@ -263,8 +265,19 @@ export async function releaseOrder(
     .select("id, transfer_attempts")
     .maybeSingle();
 
-  if (claimErr || !claimed) {
-    // Lost the race, or a dispute landed first. Not an error.
+  // A failed UPDATE is not a lost race. Constraint violations, schema drift and
+  // connectivity failures all surface here, and reporting them as
+  // "not_claimable" makes a broken write look like normal contention — which is
+  // exactly how an unapplied migration hid as a race condition.
+  if (claimErr) {
+    console.error(
+      `[release] order ${orderId}: CLAIM FAILED (not a lost race) — ${claimErr.message}`,
+    );
+    Sentry.captureException(claimErr);
+    return skip("claim_failed");
+  }
+  if (!claimed) {
+    // Genuinely lost the race, or a dispute landed first. Not an error.
     return skip("not_claimable");
   }
   const attempts = (claimed as { transfer_attempts: number }).transfer_attempts;

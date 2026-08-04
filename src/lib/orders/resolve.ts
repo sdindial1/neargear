@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import { refundOrder } from "@/lib/orders/refund";
 import { releaseOrder } from "@/lib/orders/release";
 import { createNotification } from "@/lib/notifications/inapp";
+import { alertCritical } from "@/lib/notifications/alert";
 import type { DisputeResolution } from "@/types/database";
 
 /**
@@ -46,6 +47,7 @@ interface FrozenOrder {
   buyer_id: string | null;
   seller_id: string | null;
   listing_id: string | null;
+  meetup_id: string | null;
   item_price_cents: number;
   seller_fee_cents: number;
   gross_captured_cents: number;
@@ -65,7 +67,7 @@ export async function resolveDispute(
     .from("orders")
     .select(
       "id, status, disputed_at, freeze_reason, buyer_id, seller_id, listing_id, " +
-        "item_price_cents, seller_fee_cents, gross_captured_cents",
+        "meetup_id, item_price_cents, seller_fee_cents, gross_captured_cents",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -164,12 +166,21 @@ export async function resolveDispute(
 
   // ---- Release to the seller ---------------------------------------------
   // releaseOrder's CAS refuses disputed orders by design, so the freeze must be
-  // lifted first. Record the decision in the SAME update, so an order can never
-  // be unfrozen without a recorded reason for it.
+  // lifted first, and the decision is recorded in the SAME update so an order
+  // can never be unfrozen without a recorded reason.
   //
-  // If the transfer then fails, the order returns to paid_held with the freeze
-  // already lifted — which is correct: the admin decided it should go to the
-  // seller, so letting the sweep retry is the intended behaviour, not a leak.
+  // THE ROLLBACK BELOW IS THE POINT. Unfreezing first opens a window where the
+  // release can still refuse — and an unfrozen, undecided, unpaid order drops
+  // out of the admin queue while the money sits held and nobody is paid. A
+  // "resolved" case that silently vanishes is the worst outcome available here.
+  //
+  // So the two failure modes are treated differently:
+  //   skipped -> NOTHING was attempted. Restore the freeze; the case stays in
+  //              the queue for another try.
+  //   failed  -> a transfer WAS attempted and may have succeeded. Do NOT
+  //              re-freeze: that would risk blocking the retry of a payout that
+  //              is already in flight. Leave it unfrozen and say so plainly.
+  const previousDisputedAt = order.disputed_at;
   const nowIso = new Date().toISOString();
   const { data: unfrozen, error: unfreezeErr } = await admin
     .from("orders")
@@ -207,14 +218,58 @@ export async function resolveDispute(
     };
   }
 
+  // A transfer WAS attempted. Leave the order unfrozen so the retry path can
+  // run — re-freezing could strand a payout that is already in flight.
+  if (result.outcome === "failed") {
+    return {
+      ok: false,
+      status: 500,
+      error: "release_failed",
+      message: `Transfer failed: ${result.error}. The hold is lifted and the payout will retry automatically — no further action needed unless it keeps failing.`,
+    };
+  }
+
+  // Nothing was attempted. Put the order back exactly as it was, so the case
+  // stays visible in the queue instead of vanishing with the money still held.
+  const { error: rollbackErr } = await admin
+    .from("orders")
+    .update({
+      disputed_at: previousDisputedAt,
+      dispute_resolution: null,
+      dispute_resolved_at: null,
+      dispute_resolved_by: null,
+    })
+    .eq("id", orderId)
+    // Only roll back if the order is still where we left it. If something else
+    // moved it on (a concurrent refund), leave that alone.
+    .eq("status", "paid_held");
+
+  if (rollbackErr) {
+    // The one genuinely bad outcome: unfrozen, undecided, unpaid, and now
+    // invisible to the queue. Has to be loud.
+    await alertCritical({
+      event: "resolve_rollback_failed",
+      summary: `Order ${orderId} was unfrozen for an admin release that never ran, and the freeze could NOT be restored. It has dropped out of the review queue with funds still held.`,
+      details: {
+        orderId,
+        meetupId: order.meetup_id,
+        heldCents: order.gross_captured_cents,
+        releaseOutcome: result.outcome,
+        skipReason: result.outcome === "skipped" ? result.reason : null,
+        rollbackError: rollbackErr.message,
+        action: `Restore manually: set disputed_at='${previousDisputedAt}', dispute_resolution=NULL, dispute_resolved_at=NULL, dispute_resolved_by=NULL on order ${orderId}.`,
+      },
+    });
+  }
+
+  const reason = result.outcome === "skipped" ? result.reason : "unknown";
   return {
     ok: false,
     status: 500,
-    error: result.outcome === "failed" ? "release_failed" : "release_skipped",
-    message:
-      result.outcome === "failed"
-        ? `Transfer failed: ${result.error}. The hold is lifted and the payout will retry automatically.`
-        : `Release did not run (${result.outcome === "skipped" ? result.reason : "unknown"}).`,
+    error: "release_skipped",
+    message: rollbackErr
+      ? `Release did not run (${reason}), and the hold could not be restored. This case needs manual attention — support has been alerted.`
+      : `Release did not run (${reason}). Nothing was transferred and the hold is still in place, so the case stays in the queue.`,
   };
 }
 

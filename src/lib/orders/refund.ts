@@ -44,6 +44,8 @@ const REFUNDABLE_STATUSES = ["paid_held", "release_failed"];
 export type RefundSkipReason =
   /** The lookup itself failed — schema mismatch, connectivity, RLS. NOT "no such row". */
   | "lookup_failed"
+  /** The CAS UPDATE errored — constraint violation, schema drift. NOT a lost race. */
+  | "claim_failed"
   | "order_not_found"
   | "already_refunded"
   | "release_in_flight" // transfer mid-flight; retry once it settles
@@ -239,8 +241,16 @@ export async function refundOrder(
     .select("id, refund_attempts")
     .maybeSingle();
 
-  if (claimErr || !claimed) {
-    // Lost the race — a release claimed it, or another refund is running.
+  // Same distinction as releaseOrder: a failed UPDATE is not a lost race.
+  if (claimErr) {
+    console.error(
+      `[refund] order ${orderId}: CLAIM FAILED (not a lost race) — ${claimErr.message}`,
+    );
+    Sentry.captureException(claimErr);
+    return skip("claim_failed");
+  }
+  if (!claimed) {
+    // Genuinely lost the race — a release claimed it, or another refund runs.
     return skip("not_refundable");
   }
   const attempts = (claimed as { refund_attempts: number }).refund_attempts;
