@@ -1,13 +1,67 @@
-# Schema Reconciliation — MUST COMPLETE BEFORE PRODUCTION DEPLOY
+# Schema Reconciliation
 
-**Status: not started. This is the #1 pre-deploy blocker (POST-LAUNCH item 1).**
+## ✅ COMPLETE — verified 2026-08-05
 
-A fresh production database built from the current migration files would **not**
-match the dev database the code was developed and tested against. The failure
-mode is a 500 on a payment or dispute route at runtime — not a build error that
-would stop the deploy.
+**A fresh database built from `001` → `019` is now identical to dev.** The
+acceptance test is a diff, and it came back empty:
 
-Last audited: **2026-08-03**, during payments Phase 4.
+| | Result |
+|---|---|
+| Migrations applied to an empty database | **19 / 19 clean** |
+| IN DEV, NOT IN FILES | **0** |
+| IN FILES, NOT IN DEV | **0** |
+| DIFFERENT definitions | **0** |
+| Inventory rows, both sides | **448** (17 tables · 239 columns · 78 constraints · 54 indexes · 39 policies · 17 RLS · 2 triggers · 2 functions) |
+| Postgres version, both sides | **17.6** — so no difference was a version artefact |
+
+The diff compares by object identity, not line text, so every column type,
+nullability, default, constraint definition, index definition, policy
+expression, RLS toggle, trigger and function matched exactly.
+
+### What closed it
+
+- `008_strikes` and `011_terms_acceptance` applied to dev — they had never run.
+- `019_reconciliation` added: drops the four permissive `USING (true)` policies
+  that were silently overriding `004`, removes dead objects (`orders.resolved_by`
+  and its FK, the superseded `idx_orders_active_dispute`), and aligns
+  `refund_initiated_by` to `uuid` with its foreign key.
+- `supabase/schema.sql` renamed to `migrations/001_base_schema.sql`, so the
+  ordered set is self-describing. This paid off immediately: the migration
+  runner had a special case for the old path, and the fix was to delete it.
+
+### Consequences now live on dev
+
+`issueStrike` can finally write. The item-dispute route can set
+`meetups.status = 'item_dispute'`. Signup records terms acceptance. The
+tightened `004` policies are no longer being overridden.
+
+### Still open
+
+- **Prevention** — nothing records which migrations have run. This is the root
+  cause and it is tracked as a follow-up in POST-LAUNCH, not a blocker.
+- **Class-(d) audit** — columns declared but never *populated*. Invisible to a
+  schema diff; needs a code-side pass. `refund_initiated_by` is the known open
+  case: aligned but unused, awaiting a keep-or-drop decision.
+
+### How to re-run this check
+
+Tooling lives in `_recon/` (gitignored). With a scratch Supabase project:
+
+```
+node run-migrations.mjs       # 001 -> 019 against an EMPTY scratch database
+node inventory.mjs            # -> scratch-schema.csv
+node inventory.mjs --dev      # -> dev-schema.csv  (read-only)
+node diff.mjs                 # -> schema-diff.md
+```
+
+`run-migrations.mjs` refuses any connection string containing the dev project
+ref. Applying files to dev is a separate script requiring an explicit flag.
+
+---
+
+## The original analysis (kept for context)
+
+Audited **2026-08-03**, during payments Phase 4.
 
 ---
 

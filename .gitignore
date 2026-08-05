@@ -45,6 +45,9 @@ supabase/.temp/
 
 .vercel
 
+# Schema reconciliation working files (dumps, diffs) — see RECONCILIATION.md
+_recon/
+
 # Stripe CLI binary (do not commit the ~34MB executable)
 stripe.exe
 *.exe

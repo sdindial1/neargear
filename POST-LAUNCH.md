@@ -13,11 +13,23 @@ Last updated: 2026-07-29, after payments Phase 2 merged to `main` (`8e0ce3f`).
 
 ---
 
-## 🔴 1. SCHEMA DRIFT — audit every migration against the code. TOP BLOCKER.
+## ✅ 1. SCHEMA DRIFT — RESOLVED 2026-08-05
 
-> **See [RECONCILIATION.md](RECONCILIATION.md)** for the full drift map, the
-> fix plan, and the acceptance test. That document is the working artefact;
-> this entry is the summary.
+> **See [RECONCILIATION.md](RECONCILIATION.md)** for the full record.
+
+A fresh database built from `001` → `019` is now byte-identical to dev:
+19/19 migrations apply cleanly to an empty database, and the diff returns
+**zero** in all three directions (dev-only, files-only, differing definitions),
+448 inventory rows matching on both sides.
+
+Closed by applying `008` and `011` to dev (never previously run), adding
+`019_reconciliation`, and renaming `schema.sql` to `001_base_schema.sql`.
+
+**The follow-up that prevents a recurrence is item 12 — not a blocker, but the
+root cause.**
+
+<details>
+<summary>Original blocker notes (superseded)</summary>
 
 **Nothing deploys until this is done.** The migration files, the live dev
 database, and the code have diverged in *three independent directions*. A fresh
@@ -92,6 +104,39 @@ applied to a fresh database end to end without a human deciding to skip a step.
    Editor records nothing about what has run.
 
 Do this **after Phase 4 code is complete and before any production deploy.**
+
+</details>
+
+---
+
+## 🟡 12. Adopt tracked migrations — the root cause of item 1
+
+**Not a deploy blocker, but the reason item 1 happened at all.**
+
+Migrations are applied by hand-pasting into the Supabase SQL Editor, and
+**nothing records which have run**. That is how `008_strikes.sql` was skipped
+in roughly April and only surfaced in August, four phases later, when the
+release sweep needed one of its columns — and how `016` ended up applied three
+columns at a time across several sessions, leaving `008` in a state where "is
+it applied?" had no yes/no answer.
+
+The reconciliation fixed the *symptom*. Without this, the same drift accrues
+again from the next migration onward.
+
+**Two options, either is sufficient:**
+
+1. **`schema_migrations` table.** Each file ends with
+   `insert into schema_migrations (version) values ('019') on conflict do nothing;`
+   and every file begins by checking it hasn't already run. Cheap, no tooling,
+   works with the current hand-paste workflow.
+2. **Supabase CLI.** `supabase db push` applies only unapplied migrations and
+   tracks them itself; `supabase migration list` shows local vs remote at a
+   glance. Better long-term, needs Docker for local development.
+
+Either makes an unapplied file visible immediately rather than four phases
+later. The `_recon/` tooling can then be retired — with tracked migrations,
+`run-migrations.mjs` and `diff.mjs` become a periodic sanity check rather than
+an archaeology expedition.
 
 ---
 
