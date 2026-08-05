@@ -18,7 +18,7 @@ const barlowCondensed = Barlow_Condensed({
 
 const SITE_URL = "https://near-gear.com";
 const SITE_DESCRIPTION =
-  "DFW's AI-powered marketplace for youth sports gear. Serving Dallas, Fort Worth, Plano, Frisco, McKinney, Arlington, Irving, Grapevine, Keller and the surrounding DFW metro. Buy and sell with local families. Deposit-backed meetups at verified safe zones. Free to list — only pay when you sell.";
+  "DFW's AI-powered marketplace for youth sports gear. Serving Dallas, Fort Worth, Plano, Frisco, McKinney, Arlington, Irving, Grapevine, Keller and the surrounding DFW metro. Buy and sell with local families. Protected payments held until you confirm the handoff, at verified safe zones. Free to list — only pay when you sell.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -62,7 +62,7 @@ export const metadata: Metadata = {
     siteName: "NearGear",
     title: "NearGear — Buy & Sell Youth Sports Gear in DFW",
     description:
-      "DFW families buy and sell youth sports gear with deposit-backed meetups at verified safe zones. Local. Trusted. AI-powered.",
+      "DFW families buy and sell youth sports gear at verified safe zones, with payment held until the handoff is confirmed. Local. Trusted. AI-powered.",
     // Image is supplied by app/opengraph-image.tsx (Next inlines it
     // automatically — don't list it here or you'll get duplicate tags).
   },
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "NearGear — Buy & Sell Youth Sports Gear in DFW",
     description:
-      "DFW families. Deposit-backed meetups. Verified safe zones. AI-powered marketplace.",
+      "DFW families. Payment held until you confirm. Verified safe zones. AI-powered marketplace.",
   },
   robots: {
     index: true,

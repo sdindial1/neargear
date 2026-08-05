@@ -351,8 +351,8 @@ export default function LandingPage() {
                 03 &mdash; Meet
               </p>
               <p className={CARD_BODY}>
-                Connect at one of 30+ verified Safe Zones across DFW.
-                Deposit-backed. No ghosting.
+                Connect at one of 30+ verified Safe Zones across DFW. Payment
+                held until you confirm. No ghosting.
               </p>
             </div>
           </div>
@@ -448,8 +448,8 @@ export default function LandingPage() {
                 100%
               </p>
               <p className={CARD_BODY}>
-                Deposit-backed meetups. Every buyer puts skin in the game
-                before you drive anywhere. No more ghosting.
+                Buyers pay up front, and we hold it until you hand the item
+                over. Nobody drives anywhere on a maybe.
               </p>
             </div>
           </div>

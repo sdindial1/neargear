@@ -78,7 +78,7 @@ We reserve the right to remove any content that appears to compromise child safe
 **Transaction Information:**
 - Meetup location selections
 - Messages between users
-- Deposit and payment information (processed by Stripe — we do not store full payment card details)
+- Payment and payout information (processed by Stripe — we do not store full payment card details)
 - Transaction history
 
 **Communications:**
@@ -123,7 +123,7 @@ We use your information to:
 - Display your listings to other users
 - Facilitate messaging between buyers and sellers
 - Coordinate meetups at verified safe zones
-- Process deposits and payments (via Stripe)
+- Process payments, held funds, payouts and refunds (via Stripe)
 - Send transactional emails (meetup confirmations, reminders, completion notices)
 - Provide customer support
 

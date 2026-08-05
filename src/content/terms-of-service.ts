@@ -30,7 +30,7 @@ NearGear is an online marketplace platform that allows users ("Users," "you," "B
 - A platform for posting and browsing listings
 - Messaging tools to communicate with other users
 - Verified safe zone recommendations for meetups
-- A deposit system to reduce no-shows
+- Held payments: we take the Buyer's payment up front and release it to the Seller only after the handoff is confirmed
 - AI-powered features (Ace assistant, listing analysis, pricing recommendations)
 - Customer support
 
@@ -123,14 +123,14 @@ When you create a listing, you represent and warrant that:
 - The item is legal to sell
 
 ### 5.2 Sales Process
-Transactions on NearGear typically follow this flow:
-1. Buyer requests to purchase a listed item
-2. Buyer places a refundable deposit via Stripe
-3. Both parties coordinate a meetup at a Verified Safe Zone
-4. Meetup occurs and parties exchange the item
-5. Buyer pays the seller directly (cash, payment app, or Stripe — your choice)
-6. Both parties confirm the transaction in the app
-7. Deposits are released according to our Deposit Policy
+Transactions on NearGear follow this flow:
+1. Buyer requests to purchase a listed item at an agreed price
+2. Seller accepts the request
+3. Buyer pays the **full amount** through Stripe — the item price plus a Buyer Protection fee
+4. NearGear **holds** those funds; the Seller is not paid yet
+5. Both parties meet at a Verified Safe Zone and exchange the item
+6. Buyer confirms receipt in the app
+7. NearGear releases the Seller's payout, less the Seller fee (see Section 6)
 
 ### 5.3 Pricing and Negotiation
 - Sellers set prices but may negotiate with Buyers
@@ -138,43 +138,97 @@ Transactions on NearGear typically follow this flow:
 - All pricing decisions are between Buyer and Seller
 
 ### 5.4 Payments Between Users
-**NearGear is not a payment processor for the actual purchase.** When you meet:
-- The deposit is held by Stripe and applied per our Deposit Policy
-- The remaining purchase amount is paid directly Buyer to Seller using their preferred method (cash, Venmo, Zelle, etc.)
-- NearGear is not responsible for payment disputes between Users
+**All payments go through NearGear.** You should not pay a Seller directly in
+cash or through a payment app — doing so gives up every protection described in
+these Terms.
+- The Buyer pays the full amount up front through Stripe, before the meetup
+- NearGear holds those funds until the handoff is confirmed
+- The Seller is paid after confirmation, less the Seller fee (Section 6)
+- Because the money is held, a Buyer who does not receive the item is not out of
+  pocket while we look into it
 
 ### 5.5 Item Condition and Returns
-- All sales are final between Users
-- Buyer is responsible for inspecting items at meetup before paying
-- NearGear does not facilitate returns or refunds after a completed meetup
-- If an item is materially different from the listing description, file a dispute (Section 7)
+- Buyers should inspect items at the meetup before confirming receipt
+- **Confirming receipt releases payment to the Seller and closes the sale.**
+  Once released, NearGear cannot reverse it automatically
+- If something is wrong, report a problem in the app **instead of** confirming
+  receipt. Reporting holds the payment while we review it (Section 7)
+- NearGear does not facilitate returns after a sale has been confirmed and paid
+  out
 
 ---
 
-## 6. Deposit Policy
+## 6. Payments, Holds and Refunds
 
-### 6.1 Purpose
-Deposits reduce no-shows and ensure both parties are committed to meetups.
+### 6.1 How the money moves
+When a Seller accepts a request, the Buyer pays the full amount through Stripe
+before the meetup. NearGear holds those funds — the Seller is not paid at that
+point. Funds are released to the Seller only after the handoff is confirmed, or
+under the timelines in Section 6.4.
 
-### 6.2 Amount
-Deposit amounts are set by the platform based on listing price (typically 10-25% of the listing price).
+Holding the money is the point: it means a Buyer who never receives an item is
+not chasing anyone for a refund, and a Seller who hands over an item is not
+relying on a promise to pay.
 
-### 6.3 Deposit Outcomes
+### 6.2 Fees
+
+| Fee | Who pays | Amount |
+|-----|----------|--------|
+| Buyer Protection fee | Buyer, added at checkout | 10% of the item price |
+| Seller fee | Seller, deducted from the payout | 10% of the item price |
+
+Founding Family members pay **no Seller fee**. The Buyer Protection fee still
+applies to their Buyers.
+
+Example on a $100 item: the Buyer pays $110. The Seller receives $90. NearGear
+retains $20.
+
+### 6.3 Refunds
+A refund returns the Buyer's **entire payment — the item price and the Buyer
+Protection fee.** NearGear keeps nothing on a refunded order. Refunds go back to
+the original payment method and typically appear within 5–10 business days.
+
+### 6.4 Outcomes
+
+Where the money goes in each situation:
 
 | Scenario | Outcome |
 |----------|---------|
-| Both parties show, transaction completes | Deposit refunded to Buyer |
-| Both parties show, Buyer doesn't buy after inspection | Deposit refunded to Buyer |
-| Buyer no-shows | Seller receives deposit |
-| Seller no-shows | Full refund to Buyer + strike against Seller |
-| Buyer cancels >24 hours before meetup | Full refund |
-| Buyer cancels <24 hours before meetup | Partial refund (subject to platform policy) |
-| Item materially different from listing | Buyer can dispute (Section 7) |
+| Buyer confirms receipt | Payment released to Seller immediately |
+| Seller confirms handoff and Buyer does not respond within 24 hours | Payment released to Seller |
+| Neither party confirms within 7 days of the meetup window | Payment released to Seller |
+| Seller cancels, at any time | Full refund to Buyer |
+| Buyer cancels **more than 24 hours** before the meetup | Full refund to Buyer |
+| Buyer cancels **within 24 hours** of the meetup | Payment held for review (Section 6.5) |
+| Seller does not show up | Full refund to Buyer + strike against Seller |
+| Buyer does not show up | Payment held for review + strike against Buyer |
+| Buyer reports a problem with the item | Payment held for review |
 
-### 6.4 Deposit Processing
-- Deposits are processed and held by Stripe
-- Refunds typically appear within 5-10 business days
-- NearGear does not earn interest on held deposits
+Reporting a problem, a no-show, or a late cancellation **stops any automatic
+release**. Nothing is paid out while a case is open.
+
+### 6.5 Review and resolution
+Where the table above says "held for review", a NearGear team member decides the
+outcome. **The decision is one of two things: the full amount is refunded to the
+Buyer, or the full amount is released to the Seller.** We do not split payments.
+
+We may ask either party for photos, messages or other information. We aim to
+decide within a few business days. Our decision is final as between the parties
+for the purposes of the Service; it does not affect any rights you may have
+outside it.
+
+### 6.6 After a payout
+Once funds have been released to a Seller, NearGear cannot reverse the payment
+automatically. If you believe a payout was made in error, contact
+support@near-gear.com as soon as possible and we will try to recover the funds —
+but we cannot guarantee recovery once money has left the platform. **This is why
+Buyers should report a problem rather than confirm receipt when something is
+wrong.**
+
+### 6.7 Processing
+- Payments and refunds are processed by Stripe. NearGear does not store card details
+- Held funds sit in NearGear's Stripe balance and earn no interest for us
+- Sellers must complete Stripe onboarding before they can be paid
 
 ---
 
@@ -183,9 +237,10 @@ Deposit amounts are set by the platform based on listing price (typically 10-25%
 ### 7.1 Dispute Resolution
 If a transaction goes wrong:
 1. **First, communicate** with the other User to resolve the issue
-2. If unresolved, **file a dispute** through the Service within 7 days
-3. NearGear will review the dispute and may:
-   - Refund deposits
+2. If unresolved, **report a problem** through the Service. Do this instead of
+   confirming receipt — reporting holds the payment, confirming releases it
+3. NearGear will review and may:
+   - Refund the Buyer in full, or release the payment to the Seller (Section 6.5)
    - Issue strikes against responsible parties
    - Suspend or ban accounts
    - Facilitate mediation between Users
