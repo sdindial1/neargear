@@ -47,20 +47,38 @@ code had already been repointed at the view. The whole-file path has now
 succeeded 5/5 where hand-pasting has failed 4 times. That is the argument for
 item 12 in POST-LAUNCH, stated as evidence rather than principle.
 
+### Migrations 020 and 021 — applied 2026-08-05
+
+The invariant now covers `001` → `021`. Both went through
+`apply-to-dev.mjs`, the same whole-file path as `008`/`011`/`019`.
+
+- **`020_users_rls`** — locks `users` to own-row and adds the `public_profiles`
+  view. See POST-LAUNCH item 2b.
+- **`021_drop_refund_initiated_by`** — removes the last orphan column. It
+  arrived in dev with no backing migration, was declared retroactively by `017`
+  so the files would match, and no code ever read or wrote it. The audit trail
+  is covered by `dispute_resolved_by` (who) and `refund_reason` (why); a second
+  "who" column with no writer reads as an audit field while always being null.
+  Dropped in a new migration rather than by editing `017`, because rewriting
+  applied history would invalidate the verification this document records.
+
 ### Still open
 
 - **Prevention** — nothing records which migrations have run. This is the root
-  cause and it is tracked as a follow-up in POST-LAUNCH, not a blocker.
+  cause and it is tracked as a follow-up in POST-LAUNCH item 12, not a blocker.
 - **Class-(d) audit** — columns declared but never *populated*. Invisible to a
-  schema diff; needs a code-side pass. `refund_initiated_by` is the known open
-  case: aligned but unused, awaiting a keep-or-drop decision.
+  schema diff; needs a code-side pass. The one known case
+  (`refund_initiated_by`) is resolved, but no systematic sweep has been done.
+- **Re-run the acceptance test** — `020` and `021` landed after the diff came
+  back empty. Both were applied from the same files that are in the repo, so
+  the invariant should still hold, but it has not been re-proved.
 
 ### How to re-run this check
 
 Tooling lives in `_recon/` (gitignored). With a scratch Supabase project:
 
 ```
-node run-migrations.mjs       # 001 -> 019 against an EMPTY scratch database
+node run-migrations.mjs       # 001 -> 021 against an EMPTY scratch database
 node inventory.mjs            # -> scratch-schema.csv
 node inventory.mjs --dev      # -> dev-schema.csv  (read-only)
 node diff.mjs                 # -> schema-diff.md
@@ -109,7 +127,7 @@ Found on `orders` during Phase 4:
 |---|---|
 | `refund_id` | renamed to `stripe_refund_id` by `017` |
 | `refund_amount_cents` | declared in `017`; now populated by `refundOrder` |
-| `refund_initiated_by` | declared in `017`; **still unused — decide keep or drop** |
+| `refund_initiated_by` | ✅ **dropped in `021`** — never read or written by any code |
 
 ⚠️ **Only `orders` has been audited for orphan columns.** `meetups`, `users`,
 `listings`, `messages`, `notifications`, `reports`, `transactions`, `strikes`,
@@ -162,6 +180,7 @@ Column-existence probes with a service-role key cannot see these:
    - Rewrite `008` as additive (no `DROP TABLE`).
    - Fold orphan columns into a reconciliation migration, or drop them.
    - Decide `refund_initiated_by`: wire it up or remove it. Not "leave it".
+     (Resolved 2026-08-05 — dropped in `021`.)
    - Compare `pg_policies` against `004` and reconcile.
 6. **Renumber or consolidate** the file set if that produces a cleaner history.
    The goal is a set that applies cleanly to an empty database end to end, with
