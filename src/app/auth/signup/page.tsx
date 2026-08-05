@@ -30,7 +30,16 @@ type FoundingPhase =
 
 // Effective date of the current Terms / Privacy Policy. Bumping this
 // invalidates older acceptances if we ever add a re-acceptance flow.
-const TERMS_VERSION = "2026-05-27";
+//
+// 2026-08-05: Terms section 6 was rewritten from the retired deposit model to
+// the full-payment model actually in use — held funds, the 10% buyer and seller
+// fees, binary dispute resolution, and the fact that a released payout cannot
+// be reversed automatically. Signups from here record acceptance of THAT, not
+// the deposit-era text.
+//
+// Note there is still no re-acceptance flow, so users who signed up before this
+// date carry the old version string and have never seen the new terms.
+const TERMS_VERSION = "2026-08-05";
 
 function SignupInner() {
   const [step, setStep] = useState(1);
