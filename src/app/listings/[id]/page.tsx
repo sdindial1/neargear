@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+﻿import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
 import { Badge } from "@/components/ui/badge";
@@ -52,13 +52,13 @@ export async function generateMetadata({
   const { data: listing } = await supabase
     .from("listings")
     .select(
-      "title, sport, condition, price, photo_urls, city, seller:users!seller_id(city)",
+      "title, sport, condition, price, photo_urls, city, seller:public_profiles!seller_id(city)",
     )
     .eq("id", id)
     .single();
 
   if (!listing) {
-    return { title: "Listing — NearGear" };
+    return { title: "Listing â€” NearGear" };
   }
 
   const dollars = listing.price ? `$${(listing.price / 100).toFixed(0)}` : "";
@@ -71,8 +71,8 @@ export async function generateMetadata({
     poor: "Poor",
   };
   const conditionLabel = conditionMap[listing.condition] ?? listing.condition;
-  const description = `${conditionLabel} ${listing.sport} gear · ${dollars} · ${city}. Find youth sports gear near you on NearGear.`;
-  const ogTitle = `${listing.title} — NearGear`;
+  const description = `${conditionLabel} ${listing.sport} gear Â· ${dollars} Â· ${city}. Find youth sports gear near you on NearGear.`;
+  const ogTitle = `${listing.title} â€” NearGear`;
   const photo = (listing.photo_urls as string[] | null)?.[0];
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://near-gear.com";
   const url = `${baseUrl}/listings/${id}`;
@@ -82,7 +82,7 @@ export async function generateMetadata({
     description,
     openGraph: {
       title: ogTitle,
-      description: `${conditionLabel} condition · ${dollars} · ${city}`,
+      description: `${conditionLabel} condition Â· ${dollars} Â· ${city}`,
       images: photo ? [photo] : [],
       url,
       type: "website",
@@ -90,7 +90,7 @@ export async function generateMetadata({
     twitter: {
       card: "summary_large_image",
       title: ogTitle,
-      description: `${conditionLabel} condition · ${dollars} · ${city}`,
+      description: `${conditionLabel} condition Â· ${dollars} Â· ${city}`,
       images: photo ? [photo] : [],
     },
   };
@@ -107,7 +107,7 @@ export default async function ListingPage({
   const { data: listing } = await supabase
     .from("listings")
     .select(
-      "*, seller:users!seller_id(full_name, avg_rating, review_count, city, avatar_url, created_at, is_founding_member)",
+      "*, seller:public_profiles!seller_id(full_name, avg_rating, review_count, city, avatar_url, created_at, is_founding_member)",
     )
     .eq("id", id)
     .single();
@@ -128,7 +128,7 @@ export default async function ListingPage({
 
   const { data: similar } = await supabase
     .from("listings")
-    .select("*, seller:users!seller_id(full_name, avg_rating, city)")
+    .select("*, seller:public_profiles!seller_id(full_name, avg_rating, city)")
     .eq("status", "active")
     .eq("sport", listing.sport)
     .neq("id", listing.id)
@@ -227,8 +227,8 @@ export default async function ListingPage({
               {listing.title}
             </h1>
             <ShareButton
-              title={`${listing.title} — NearGear`}
-              text={`Check out this ${listing.sport} gear on NearGear — ${listing.title} for $${price}${
+              title={`${listing.title} â€” NearGear`}
+              text={`Check out this ${listing.sport} gear on NearGear â€” ${listing.title} for $${price}${
                 listing.city || listing.seller?.city
                   ? ` in ${listing.city || listing.seller?.city}`
                   : ""

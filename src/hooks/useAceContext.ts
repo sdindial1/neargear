@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -54,7 +54,7 @@ export function useAceContext(): AceContext {
   const [ctx, setCtx] = useState<AceContext>({ page: detectPage(pathname) });
   const [authUser, setAuthUser] = useState<User | null>(null);
 
-  // Subscribe once to auth state — avoids competing getUser() calls that
+  // Subscribe once to auth state â€” avoids competing getUser() calls that
   // race with the SDK's internal auth lock and surface as
   // "Lock was released because another request stole it".
   useEffect(() => {
@@ -101,7 +101,7 @@ export function useAceContext(): AceContext {
           const { data } = await supabase
             .from("listings")
             .select(
-              "title, sport, condition, price, retail_price, description, city, seller:users!seller_id(city)",
+              "title, sport, condition, price, retail_price, description, city, seller:public_profiles!seller_id(city)",
             )
             .eq("id", id)
             .maybeSingle();
@@ -158,7 +158,7 @@ export function useAceContext(): AceContext {
                 : null,
               timeWindow:
                 start && end
-                  ? `${start.toLocaleTimeString("en-US", { hour: "numeric", hour12: true })} – ${end.toLocaleTimeString("en-US", { hour: "numeric", hour12: true })}`
+                  ? `${start.toLocaleTimeString("en-US", { hour: "numeric", hour12: true })} â€“ ${end.toLocaleTimeString("en-US", { hour: "numeric", hour12: true })}`
                   : null,
               location: locName,
               offeredPrice: (data.offered_price as number | null) ?? null,

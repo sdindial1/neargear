@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -42,7 +42,7 @@ function SavedInner() {
         .from("saved_listings")
         .select(
           `created_at, listing:listings!listing_id(
-            *, seller:users!seller_id(full_name, avg_rating, city)
+            *, seller:public_profiles!seller_id(full_name, avg_rating, city)
           )`,
         )
         .eq("user_id", user.id)

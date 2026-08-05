@@ -53,7 +53,7 @@ export function SellerReviews({
     supabase
       .from("reviews")
       .select(
-        "id, rating, comment, created_at, reviewer:users!reviewer_id(full_name)",
+        "id, rating, comment, created_at, reviewer:public_profiles!reviewer_id(full_name)",
       )
       .eq("reviewee_id", sellerId)
       .order("created_at", { ascending: false })

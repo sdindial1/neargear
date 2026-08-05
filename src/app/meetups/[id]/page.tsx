@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+﻿import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
 import { Button } from "@/components/ui/button";
@@ -83,8 +83,8 @@ export default async function MeetupDetailPage({
     .select(
       `*,
        listing:listings!listing_id(id, title, photo_urls, price, retail_price),
-       buyer:users!buyer_id(id, full_name, avg_rating, city),
-       seller:users!seller_id(id, full_name, avg_rating, city, is_founding_member, stripe_payouts_enabled)`,
+       buyer:public_profiles!buyer_id(id, full_name, avg_rating, city),
+       seller:public_profiles!seller_id(id, full_name, avg_rating, city, is_founding_member, stripe_payouts_enabled)`,
     )
     .eq("id", id)
     .single();
@@ -317,7 +317,7 @@ export default async function MeetupDetailPage({
               <Clock className="w-3 h-3" /> Window
             </p>
             <p className="font-semibold text-navy mt-1">
-              {formatHour(start)} – {formatHour(end)}
+              {formatHour(start)} â€“ {formatHour(end)}
             </p>
           </div>
           {location && (
@@ -359,7 +359,7 @@ export default async function MeetupDetailPage({
               )}
               {isHomeLoc && (
                 <p className="text-xs text-amber-800 mt-2 leading-relaxed">
-                  ⚠️ Home meetup — make sure you&apos;re comfortable before
+                  âš ï¸ Home meetup â€” make sure you&apos;re comfortable before
                   accepting.
                 </p>
               )}
@@ -395,7 +395,7 @@ export default async function MeetupDetailPage({
                 <dd className="font-semibold text-green-700 tabular-nums">
                   $0.00{" "}
                   <span className="text-[11px] font-normal text-green-700/80">
-                    (Founding Family ⭐)
+                    (Founding Family â­)
                   </span>
                 </dd>
               </div>

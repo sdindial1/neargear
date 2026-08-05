@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState, use } from "react";
 import Link from "next/link";
@@ -77,8 +77,8 @@ function TransactionDetailInner({ id }: { id: string }) {
         .select(
           `*,
            listing:listings!listing_id(id, title, photo_urls, sport, category, condition),
-           buyer:users!buyer_id(id, full_name),
-           seller:users!seller_id(id, full_name),
+           buyer:public_profiles!buyer_id(id, full_name),
+           seller:public_profiles!seller_id(id, full_name),
            meetup:meetups!meetup_id(id, meetup_location, meetup_window_start, meetup_window_end)`,
         )
         .eq("id", id)
@@ -217,7 +217,7 @@ function TransactionDetailInner({ id }: { id: string }) {
                 <p className="text-xs text-muted-foreground capitalize">
                   {[tx.listing?.sport, tx.listing?.category]
                     .filter(Boolean)
-                    .join(" · ")}
+                    .join(" Â· ")}
                 </p>
               </div>
             </div>
@@ -286,7 +286,7 @@ function TransactionDetailInner({ id }: { id: string }) {
               </div>
               {tx.retail_price && (
                 <p className="text-xs text-muted-foreground pt-2">
-                  Retail price was {formatMoney(tx.retail_price)} —
+                  Retail price was {formatMoney(tx.retail_price)} â€”
                   {isSeller
                     ? " thanks for keeping gear in play."
                     : ` you saved ${formatMoney(tx.retail_price - tx.gross_amount)}.`}

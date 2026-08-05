@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -36,8 +36,8 @@ const PRICE_BUCKETS: Array<{
   max: number | null;
 }> = [
   { label: "Under $25", min: null, max: 25 },
-  { label: "$25–$50", min: 25, max: 50 },
-  { label: "$50–$100", min: 50, max: 100 },
+  { label: "$25â€“$50", min: 25, max: 50 },
+  { label: "$50â€“$100", min: 50, max: 100 },
   { label: "$100+", min: 100, max: null },
 ];
 
@@ -96,7 +96,7 @@ function MarketplaceContent() {
   const buildQuery = (from: number, to: number) => {
     let query = supabase
       .from("listings")
-      .select("*, seller:users!seller_id(full_name, avg_rating, city)")
+      .select("*, seller:public_profiles!seller_id(full_name, avg_rating, city)")
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .range(from, to);
@@ -163,7 +163,7 @@ function MarketplaceContent() {
     setLoadingMore(false);
   };
 
-  // Live updates — only prepend rows that match the current filters.
+  // Live updates â€” only prepend rows that match the current filters.
   useEffect(() => {
     const channel = supabase
       .channel("marketplace-live")
@@ -203,7 +203,7 @@ function MarketplaceContent() {
   }
   if (priceMin || priceMax) {
     activeChips.push({
-      label: `$${priceMin || "0"}–$${priceMax || "∞"}`,
+      label: `$${priceMin || "0"}â€“$${priceMax || "âˆž"}`,
       clear: () => {
         setPriceMin("");
         setPriceMax("");
@@ -251,7 +251,7 @@ function MarketplaceContent() {
                 <Input
                   type="search"
                   inputMode="search"
-                  placeholder="Search gear, brands, or sports…"
+                  placeholder="Search gear, brands, or sportsâ€¦"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="bg-white text-navy pl-10 h-12 text-base rounded-xl border-0 shadow-md"
@@ -354,7 +354,7 @@ function MarketplaceContent() {
                 No listings found
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                Try adjusting your filters — or be the first to list!
+                Try adjusting your filters â€” or be the first to list!
               </p>
               <Link href="/sell">
                 <Button className="btn-large btn-primary max-w-xs mx-auto mt-6">
@@ -379,7 +379,7 @@ function MarketplaceContent() {
                   >
                     {loadingMore ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+                        <Loader2 className="w-4 h-4 animate-spin" /> Loadingâ€¦
                       </>
                     ) : (
                       <>

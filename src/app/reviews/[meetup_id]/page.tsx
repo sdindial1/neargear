@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -49,8 +49,8 @@ function ReviewInner() {
         .select(
           `id, buyer_id, seller_id, listing_id,
            listing:listings!listing_id(title),
-           buyer:users!buyer_id(full_name),
-           seller:users!seller_id(full_name)`,
+           buyer:public_profiles!buyer_id(full_name),
+           seller:public_profiles!seller_id(full_name)`,
         )
         .eq("id", params.meetup_id)
         .single();

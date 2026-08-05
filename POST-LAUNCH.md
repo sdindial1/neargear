@@ -158,7 +158,58 @@ only placeholder/doc references, and the built client bundle was verified clean.
 
 ---
 
-## 🔴 2. `users` table RLS is wide open
+## ✅ 2b. `users` table RLS — RESOLVED 2026-08-05
+
+Closed by migration `020_users_rls.sql`.
+
+`users` is now `SELECT USING (auth.uid() = id)` — own row only. Everything the
+UI needs about *other* people comes from a new `public_profiles` view exposing
+exactly nine safe columns: `id`, `full_name`, `avatar_url`, `avg_rating`,
+`review_count`, `city`, `is_founding_member`, `created_at`,
+`stripe_payouts_enabled`.
+
+Neither layer alone was sufficient: RLS cannot restrict columns, and column
+grants cannot vary by row, so "all columns for your own row, safe columns for
+everyone else" needs both. The view is `security_invoker = false` and owned by
+`postgres`, so it reads the base table with definer rights and is unaffected by
+the lockdown.
+
+**Deliberately excluded:** `zipcode`. A postcode is materially more precise
+than the city already shown on listing cards. The one place that needed a
+seller's zip — meetup-location suggestions on the request page — now computes
+server-side via `POST /api/listings/[id]/meetup-suggestions`, which combines
+both zips with the service role and returns **only safe zones**. The seller's
+zip never reaches the browser.
+
+**Deliberately included:** `stripe_payouts_enabled` — functionally "this
+listing is buyable", no personal content, and it gates the buyer's Pay button.
+
+Grants were tightened beyond the migration's first draft: Supabase's default
+`GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated` also applied
+to the new view, leaving `anon` holding INSERT/UPDATE/DELETE/TRUNCATE on it.
+`020` now does `REVOKE ALL` then `GRANT SELECT`.
+
+Verified with the anon key — the same key embedded in the client bundle:
+
+| Check | Before | After |
+|---|---|---|
+| `users?select=id,email,phone` | real addresses returned | **`[]`** |
+| `users?select=stripe_account_id` | readable | **`[]`** |
+| `public_profiles?select=id,full_name,city` | n/a | rows returned |
+| `listings?select=…seller:public_profiles!seller_id(…)` | n/a | rows with seller objects |
+
+22 joins across 13 files were repointed from `users!` to `public_profiles!`.
+Service-role callers (admin pages, API routes, libs, cron) still read `users`
+directly and are unaffected.
+
+`reviews` was considered and deliberately left permissive: a review carries no
+contact information, and hiding reviews would break seller reputation on every
+listing page.
+
+<details>
+<summary>Original notes (superseded)</summary>
+
+### `users` table RLS is wide open
 
 `supabase/schema.sql:131`:
 
@@ -182,6 +233,8 @@ scoped — but it must land before real users.
 
 Related: `reviews` is also `USING (true)` (`schema.sql:180`) — likely fine, but
 audit it in the same pass.
+
+</details>
 
 ---
 

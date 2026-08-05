@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -10,8 +10,9 @@ import { calculateBuyerFee } from "@/lib/fees";
 import { ensurePublicUserRow } from "@/lib/ensure-profile";
 import { fireNotification } from "@/lib/notifications/trigger";
 import {
-  getAllZonesByCombinedDistance,
-  getSuggestedMeetupLocationsByZip,
+  // getSuggestedMeetupLocationsByZip / getAllZonesByCombinedDistance are no
+  // longer called here — they need the seller's zipcode, which migration 020
+  // keeps off the client. See /api/listings/[id]/meetup-suggestions.
   getZoneTypeEmoji,
   getZoneTypeLabel,
   type SafeZone,
@@ -53,16 +54,16 @@ interface TimeWindow {
 }
 
 const TIME_WINDOWS: TimeWindow[] = [
-  { id: "morning", label: "Morning (8am – 10am)", short: "Morning", startHour: 8, endHour: 10 },
-  { id: "late-morning", label: "Late Morning (10am – 12pm)", short: "Late Morning", startHour: 10, endHour: 12 },
-  { id: "early-afternoon", label: "Early Afternoon (12pm – 2pm)", short: "Early Afternoon", startHour: 12, endHour: 14 },
-  { id: "afternoon", label: "Afternoon (2pm – 4pm)", short: "Afternoon", startHour: 14, endHour: 16 },
-  { id: "late-afternoon", label: "Late Afternoon (4pm – 6pm)", short: "Late Afternoon", startHour: 16, endHour: 18 },
-  { id: "evening", label: "Evening (6pm – 8pm)", short: "Evening", startHour: 18, endHour: 20 },
+  { id: "morning", label: "Morning (8am â€“ 10am)", short: "Morning", startHour: 8, endHour: 10 },
+  { id: "late-morning", label: "Late Morning (10am â€“ 12pm)", short: "Late Morning", startHour: 10, endHour: 12 },
+  { id: "early-afternoon", label: "Early Afternoon (12pm â€“ 2pm)", short: "Early Afternoon", startHour: 12, endHour: 14 },
+  { id: "afternoon", label: "Afternoon (2pm â€“ 4pm)", short: "Afternoon", startHour: 14, endHour: 16 },
+  { id: "late-afternoon", label: "Late Afternoon (4pm â€“ 6pm)", short: "Late Afternoon", startHour: 16, endHour: 18 },
+  { id: "evening", label: "Evening (6pm â€“ 8pm)", short: "Evening", startHour: 18, endHour: 20 },
 ];
 
 type ListingWithSeller = Listing & {
-  seller?: Pick<User, "id" | "full_name" | "city"> & { zipcode?: string | null };
+  seller?: Pick<User, "id" | "full_name" | "city">;
 };
 
 function formatMoney(n: number): string {
@@ -119,7 +120,10 @@ function RequestToBuyPageInner() {
     const load = async () => {
       const { data: listingRow, error } = await supabase
         .from("listings")
-        .select("*, seller:users!seller_id(id, full_name, city, zipcode)")
+        // No zipcode: migration 020 keeps it out of public_profiles. Meetup
+        // suggestions come from /api/listings/[id]/meetup-suggestions, which
+        // combines the seller's zip server-side without ever returning it.
+        .select("*, seller:public_profiles!seller_id(id, full_name, city)")
         .eq("id", params.id)
         .single();
 
@@ -182,21 +186,48 @@ function RequestToBuyPageInner() {
       parseFloat(customOffer) >= minOfferDollars &&
       parseFloat(customOffer) <= listingPriceDollars);
 
-  const sellerZipcode = listing?.seller?.zipcode || null;
+  // Suggestions are computed SERVER-SIDE. The seller's zipcode is needed to
+  // find a midpoint, but it is deliberately not exposed to the client (see
+  // migration 020), so the route combines both zips and returns only zones.
+  const [recommendedSuggestions, setRecommendedSuggestions] = useState<
+    SuggestedZone[]
+  >([]);
+  const [allSuggestionsSorted, setAllSuggestionsSorted] = useState<
+    SuggestedZone[]
+  >([]);
 
-  const recommendedSuggestions = useMemo(() => {
-    if (!listing) return [];
-    return getSuggestedMeetupLocationsByZip(
-      currentUserZipcode,
-      sellerZipcode,
-      3,
-    );
-  }, [listing, currentUserZipcode, sellerZipcode]);
+  useEffect(() => {
+    if (!listing) return;
+    let cancelled = false;
 
-  const allSuggestionsSorted = useMemo(() => {
-    if (!listing) return [];
-    return getAllZonesByCombinedDistance(currentUserZipcode, sellerZipcode);
-  }, [listing, currentUserZipcode, sellerZipcode]);
+    const loadSuggestions = async () => {
+      try {
+        const res = await fetch(
+          `/api/listings/${params.id}/meetup-suggestions`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ buyerZipcode: currentUserZipcode }),
+          },
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          recommended: SuggestedZone[];
+          all: SuggestedZone[];
+        };
+        if (cancelled) return;
+        setRecommendedSuggestions(data.recommended ?? []);
+        setAllSuggestionsSorted(data.all ?? []);
+      } catch {
+        // Non-fatal: the picker falls back to the unsorted zone list.
+      }
+    };
+
+    loadSuggestions();
+    return () => {
+      cancelled = true;
+    };
+  }, [listing, currentUserZipcode, params.id]);
 
   const needsZipcodePrompt = !!currentUserId && !currentUserZipcode;
 
@@ -288,7 +319,7 @@ function RequestToBuyPageInner() {
         meetup_window_start: start.toISOString(),
         meetup_window_end: end.toISOString(),
         meetup_location: JSON.stringify(payload),
-        deposit_amount: 0, // deposit model retired — full payment on accept (Phase 2)
+        deposit_amount: 0, // deposit model retired â€” full payment on accept (Phase 2)
         status: "requested",
       })
       .select("id")
@@ -555,7 +586,7 @@ function StepOffer({
           type="full_price"
           amount={listingPriceDollars}
           label="Full Price"
-          sub="⚡ Fastest seller response"
+          sub="âš¡ Fastest seller response"
           sub2="Most likely to be accepted"
           primary
         />
@@ -563,13 +594,13 @@ function StepOffer({
           type="minus_10"
           amount={lightOffer}
           label="Friendly Offer"
-          sub="10% off · Usually accepted"
+          sub="10% off Â· Usually accepted"
         />
         <Card
           type="minus_15"
           amount={moderateOffer}
           label="Haggle"
-          sub="15% off · Seller may counter"
+          sub="15% off Â· Seller may counter"
         />
       </div>
 
@@ -614,7 +645,7 @@ function StepOffer({
                 : "text-muted-foreground"
             }`}
           >
-            Minimum offer {formatMoney(minOfferDollars)} · Maximum{" "}
+            Minimum offer {formatMoney(minOfferDollars)} Â· Maximum{" "}
             {formatMoney(listingPriceDollars)}
           </p>
         </div>
@@ -642,7 +673,7 @@ function StepTime({
         When Works for You?
       </h1>
       <p className="text-sm text-muted-foreground mb-4">
-        Pick a 2-hour window — firm up exact time via message after seller
+        Pick a 2-hour window â€” firm up exact time via message after seller
         accepts.
       </p>
 
@@ -654,7 +685,7 @@ function StepTime({
               month: "short",
               day: "numeric",
             })}{" "}
-            · {selectedWindow.short}
+            Â· {selectedWindow.short}
           </p>
         </div>
       )}
@@ -748,7 +779,7 @@ function ZoneCard({
           </p>
           {showDistance && (
             <p className="text-xs text-orange font-medium mt-1 tabular-nums">
-              {suggestion.buyerMiles.toFixed(1)} mi from you ·{" "}
+              {suggestion.buyerMiles.toFixed(1)} mi from you Â·{" "}
               {suggestion.sellerMiles.toFixed(1)} mi from seller
             </p>
           )}
@@ -847,12 +878,12 @@ function StepLocation({
             </p>
             {selectedLocation.type === "custom" && (
               <p className="text-xs text-muted-foreground">
-                Custom location · {selectedLocation.address}
+                Custom location Â· {selectedLocation.address}
               </p>
             )}
             {selectedLocation.type === "home_buyer" && (
               <p className="text-xs text-muted-foreground">
-                Your home · {selectedLocation.address || "address pending"}
+                Your home Â· {selectedLocation.address || "address pending"}
               </p>
             )}
             {selectedLocation.type === "home_seller" && (
@@ -992,7 +1023,7 @@ function StepLocation({
             className="input-large"
           />
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 leading-relaxed">
-            <span className="font-semibold">⚠️ Heads up:</span> Custom spots
+            <span className="font-semibold">âš ï¸ Heads up:</span> Custom spots
             aren&apos;t verified safe zones. Choose somewhere public and
             well-lit. Avoid private homes for first-time meetups.
           </div>
@@ -1262,7 +1293,7 @@ function StepReview({
         <p className="font-semibold">You won&apos;t be charged now</p>
         <p className="mt-1 leading-relaxed">
           We&apos;ll send your request to the seller. If they accept, you&apos;ll
-          pay the total securely online — held by NearGear until you confirm the
+          pay the total securely online â€” held by NearGear until you confirm the
           handoff at your meetup.
         </p>
       </div>

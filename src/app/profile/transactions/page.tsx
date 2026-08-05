@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -48,8 +48,8 @@ function ProfileTransactionsInner() {
         .select(
           `*,
            listing:listings!listing_id(id, title, photo_urls),
-           buyer:users!buyer_id(full_name),
-           seller:users!seller_id(full_name)`,
+           buyer:public_profiles!buyer_id(full_name),
+           seller:public_profiles!seller_id(full_name)`,
         )
         .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
         .order("created_at", { ascending: false });
@@ -145,7 +145,7 @@ function ProfileTransactionsInner() {
                       {t.listing?.title || "Item"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {other?.full_name || "Other party"} · {date}
+                      {other?.full_name || "Other party"} Â· {date}
                     </p>
                     <div className="mt-1 flex items-center gap-2">
                       <Badge

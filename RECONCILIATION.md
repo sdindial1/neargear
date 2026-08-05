@@ -35,6 +35,18 @@ expression, RLS toggle, trigger and function matched exactly.
 `meetups.status = 'item_dispute'`. Signup records terms acceptance. The
 tightened `004` policies are no longer being overridden.
 
+### Migration 020 (users RLS) — applied 2026-08-05
+
+Added after the acceptance test, so the invariant now covers `001` → `020`.
+It was applied to dev **through `apply-to-dev.mjs`**, i.e. the same whole-file
+path as `008`/`011`/`019`, so the files and dev stay in step.
+
+Worth recording why: `020` was first hand-pasted into the SQL Editor and
+**silently did not apply at all** — no view, no policy change, while the app
+code had already been repointed at the view. The whole-file path has now
+succeeded 5/5 where hand-pasting has failed 4 times. That is the argument for
+item 12 in POST-LAUNCH, stated as evidence rather than principle.
+
 ### Still open
 
 - **Prevention** — nothing records which migrations have run. This is the root

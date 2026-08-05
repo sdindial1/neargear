@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -121,9 +121,9 @@ function formatMeetupDate(start: string | null, end: string | null): string {
     day: "numeric",
   });
   if (!end) {
-    return `${day} · ${formatTime(start)}`;
+    return `${day} Â· ${formatTime(start)}`;
   }
-  return `${day} · ${formatTime(start)} – ${formatTime(end)}`;
+  return `${day} Â· ${formatTime(start)} â€“ ${formatTime(end)}`;
 }
 
 function AceAvatar({ size = 32 }: { size?: number }) {
@@ -184,8 +184,8 @@ function MeetupMessagesPageInner() {
           `id, buyer_id, seller_id, listing_id, offered_price,
            meetup_window_start, meetup_window_end, meetup_location,
            listing:listings!listing_id(id, title, photo_urls),
-           buyer:users!buyer_id(id, full_name),
-           seller:users!seller_id(id, full_name)`,
+           buyer:public_profiles!buyer_id(id, full_name),
+           seller:public_profiles!seller_id(id, full_name)`,
         )
         .eq("id", params.id)
         .single();
@@ -284,7 +284,7 @@ function MeetupMessagesPageInner() {
     const otherId = userId === ctx.buyer_id ? ctx.seller_id : ctx.buyer_id;
 
     // Insert with meetup_id (post-009). If migration 009 hasn't been run
-    // the column won't exist — retry without it so the chat still works.
+    // the column won't exist â€” retry without it so the chat still works.
     let inserted: Msg | null = null;
     let sendErr: { message?: string; code?: string } | null = null;
 
@@ -405,18 +405,18 @@ function MeetupMessagesPageInner() {
       })
     : null;
 
-  const aceMessage = `Hey! 👋 Your meetup for ${
+  const aceMessage = `Hey! ðŸ‘‹ Your meetup for ${
     ctx.listing?.title ?? "your item"
   } is confirmed.
 
-📅 ${dateLine}
-📍 ${location?.name ?? "TBD"}${
-    offered ? `\n💰 ${offered}` : ""
+ðŸ“… ${dateLine}
+ðŸ“ ${location?.name ?? "TBD"}${
+    offered ? `\nðŸ’° ${offered}` : ""
   }
 
-This is your direct line to ${otherFirst}. Now that your meetup is confirmed, you can coordinate the details here. Good luck! 🤝`;
+This is your direct line to ${otherFirst}. Now that your meetup is confirmed, you can coordinate the details here. Good luck! ðŸ¤`;
 
-  // Phase: before meetup day → during meetup day → after window ends.
+  // Phase: before meetup day â†’ during meetup day â†’ after window ends.
   // Compares today's date vs the meetup's start date (calendar day),
   // then promotes to "after" once the window's end has passed.
   const startDate = ctx.meetup_window_start
@@ -450,23 +450,23 @@ This is your direct line to ${otherFirst}. Now that your meetup is confirmed, yo
   const quickChips =
     phase === "before"
       ? [
-          "👋 Hey! When works best for you?",
-          `📍 See you at ${zoneName}!`,
-          "✅ Looking forward to it!",
-          "🙏 Thanks for the quick response!",
+          "ðŸ‘‹ Hey! When works best for you?",
+          `ðŸ“ See you at ${zoneName}!`,
+          "âœ… Looking forward to it!",
+          "ðŸ™ Thanks for the quick response!",
         ]
       : phase === "during"
         ? [
-            "🚗 On my way now!",
-            "✅ I'm here!",
-            "⏱️ Running a few minutes late, be right there!",
-            `📍 I'm at ${zoneName}`,
+            "ðŸš— On my way now!",
+            "âœ… I'm here!",
+            "â±ï¸ Running a few minutes late, be right there!",
+            `ðŸ“ I'm at ${zoneName}`,
           ]
         : [
-            "🤝 Great doing business with you!",
-            "⭐ Just left you a review!",
-            "👏 Smooth transaction, thanks!",
-            "🙌 Hope to do business again!",
+            "ðŸ¤ Great doing business with you!",
+            "â­ Just left you a review!",
+            "ðŸ‘ Smooth transaction, thanks!",
+            "ðŸ™Œ Hope to do business again!",
           ];
 
   let lastDayHeader = "";
@@ -530,7 +530,7 @@ This is your direct line to ${otherFirst}. Now that your meetup is confirmed, yo
 
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-lg mx-auto px-3 py-4 space-y-2">
-          {/* Ace opener — UI only, never persisted */}
+          {/* Ace opener â€” UI only, never persisted */}
           <div className="flex gap-2 items-start mt-2">
             <AceAvatar size={32} />
             <div className="flex-1 min-w-0">
@@ -548,7 +548,7 @@ This is your direct line to ${otherFirst}. Now that your meetup is confirmed, yo
           {messages.length === 0 && (
             <div className="text-center pt-6 pb-2">
               <p className="text-xs text-muted-foreground font-semibold">
-                Start the conversation 👇
+                Start the conversation ðŸ‘‡
               </p>
             </div>
           )}
@@ -602,7 +602,7 @@ This is your direct line to ${otherFirst}. Now that your meetup is confirmed, yo
           paddingBottom: "max(16px, env(safe-area-inset-bottom))",
         }}
       >
-        {/* Persistent quick-reply chips — phase auto-switches before / day-of /
+        {/* Persistent quick-reply chips â€” phase auto-switches before / day-of /
             after the meetup. Always visible above the input. */}
         <div className="max-w-lg mx-auto px-3 pt-3 pb-1">
           <div className="flex gap-2 overflow-x-auto no-scrollbar">
