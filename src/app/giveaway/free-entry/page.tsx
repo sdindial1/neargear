@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { trackStandard } from "@/lib/meta-pixel";
 import s from "../giveaway.module.css";
 
 /**
@@ -55,6 +56,14 @@ export default function FreeEntryPage() {
         return;
       }
 
+      // Only a genuinely new entry is a Lead. The already_entered_today path
+      // returns above without reaching here, which is correct — a repeat
+      // visitor is the same person, and counting them again would inflate the
+      // conversion rate the campaign is optimized against.
+      //
+      // This form collects a name, email and ZIP. None of it is passed here:
+      // trackStandard takes no payload at all.
+      trackStandard("Lead");
       setStatus("done");
     } catch {
       setError("Network error. Please check your connection and try again.");

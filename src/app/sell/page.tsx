@@ -27,6 +27,7 @@ import { dataUrlToBlob, resizeImage } from "@/lib/image";
 import { formatCondition } from "@/lib/utils";
 import { ensurePublicUserRow } from "@/lib/ensure-profile";
 import { isSellerSuspended } from "@/lib/strikes";
+import { trackCustomEvent } from "@/lib/meta-pixel";
 import { SuspensionScreen } from "@/components/suspension-screen";
 import {
   AlertCircle,
@@ -356,6 +357,13 @@ function SellPageInner() {
       setSubmitting(false);
       return;
     }
+
+    // The campaign optimization event. Deliberately after the insert error
+    // check above — a failed insert returns early, so this only fires once a
+    // row genuinely exists. Firing on button click instead would teach Meta to
+    // optimize for people who *attempt* to list, which is the opposite of what
+    // we want to buy. Carries no title, price or photo: no payload is accepted.
+    trackCustomEvent("ListingCreated");
 
     router.push(`/listings/${listing.id}`);
   };

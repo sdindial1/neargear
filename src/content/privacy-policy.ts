@@ -1,7 +1,7 @@
 export const CONTENT = `# Privacy Policy
 
-**Effective Date: May 27, 2026**
-**Last Updated: May 27, 2026**
+**Effective Date: August 6, 2026**
+**Last Updated: August 6, 2026**
 
 NearGear LLC ("NearGear," "we," "us," or "our") respects your privacy and is committed to protecting your personal information. This Privacy Policy explains how we collect, use, share, and protect information when you use our website at near-gear.com, our mobile-optimized web application, and any related services (collectively, the "Service").
 
@@ -31,7 +31,7 @@ While we do not allow children to use the Service directly, our platform involve
 - Used solely to facilitate accurate marketplace listings (e.g., "fits ages 8-10")
 - Never collected directly from children
 - Never used for marketing to children
-- Never sold or shared with third parties for marketing purposes
+- Never sold or shared with third parties for marketing purposes, including advertising partners such as Meta. We do advertise NearGear to adults, and Section 9 explains the advertising cookies that involves — but the information those tools receive never includes listing content or any detail about a child.
 
 ### COPPA Compliance
 
@@ -191,8 +191,11 @@ We share information with third-party service providers who help us operate the 
 | Twilio | SMS delivery | Phone numbers, message content |
 | Anthropic | AI features (Ace, listing analysis) | Messages, photos, content for AI processing |
 | Remove.bg | Photo background removal | Listing photos |
+| Meta (Facebook/Instagram) | Advertising measurement | Cookie identifiers, IP address, page address, and the fact that an action occurred (page view, signup, listing posted, giveaway entry). No name, email, phone, address, or listing content. |
 
 Each provider is bound by contractual obligations to protect your data and use it only for the services they provide to us.
+
+Meta is the one provider in this table that uses information for its own advertising purposes rather than solely to deliver a service to us. See Section 9 for what the Meta Pixel collects and how to opt out.
 
 ### 5.3 For Legal Reasons
 We may disclose information if required to do so by law or in good faith belief that such action is necessary to:
@@ -307,13 +310,20 @@ Cookies are small data files stored on your device. We use them to operate and i
 - Improve features and performance
 - We may use services like Google Analytics or similar privacy-respecting alternatives.
 
+**Advertising Cookies:**
+- We use the Meta Pixel, an advertising measurement tool provided by Meta Platforms, Inc. (Facebook and Instagram), to understand which of our ads lead people to NearGear.
+- The pixel records that certain actions happened — a page was viewed, an account was created, a listing was posted, or a giveaway entry was submitted — together with cookie identifiers Meta sets on your device, your IP address, browser type, and the address of the page you were on.
+- **We do not send Meta your name, email address, phone number, mailing address, ZIP code, or the contents of your listings or messages.** The events we send record that something happened, not who did it or what it was about.
+- Meta may combine this information with data it already holds about you to measure and target advertising. Meta's handling of that data is governed by its own privacy policy, not this one.
+
 ### Your Choices
 - Most browsers allow you to refuse or delete cookies
 - Disabling essential cookies may prevent the Service from functioning
-- We do not use cookies for advertising or third-party tracking
+- You can opt out of advertising cookies by enabling Global Privacy Control in your browser (see below), by using a content blocker, or through your Meta ad preferences at facebook.com/adpreferences
+- Refusing advertising cookies does not affect your ability to use any part of the Service, including entering the giveaway
 
-### Do Not Track
-NearGear honors browser "Do Not Track" signals where technically feasible.
+### Do Not Track and Global Privacy Control
+NearGear honors the Global Privacy Control (GPC) signal. When your browser sends GPC, we do not load advertising or tracking scripts at all — they are never placed on the page, rather than placed and then asked not to act. Many browsers and extensions send GPC automatically; some send an older "Do Not Track" header, which we also treat as an opt-out where technically feasible.
 
 ---
 
