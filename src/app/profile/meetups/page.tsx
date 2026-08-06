@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -408,7 +408,7 @@ function MeetupCard({
                   {other.avg_rating.toFixed(1)}
                 </span>
               )}
-              <span>Â· {formatRelative(meetup.created_at)}</span>
+              <span>· {formatRelative(meetup.created_at)}</span>
             </div>
           )}
           <div className="mt-1">
@@ -437,7 +437,7 @@ function MeetupCard({
         </span>
         <span className="inline-flex items-center gap-1">
           <Clock className="w-3 h-3" />
-          {formatHour(start)}â€“{formatHour(end)}
+          {formatHour(start)}–{formatHour(end)}
         </span>
         {location?.name && (
           <span className="inline-flex items-center gap-1">

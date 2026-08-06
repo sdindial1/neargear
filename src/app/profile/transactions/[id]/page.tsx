@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState, use } from "react";
 import Link from "next/link";
@@ -217,7 +217,7 @@ function TransactionDetailInner({ id }: { id: string }) {
                 <p className="text-xs text-muted-foreground capitalize">
                   {[tx.listing?.sport, tx.listing?.category]
                     .filter(Boolean)
-                    .join(" Â· ")}
+                    .join(" · ")}
                 </p>
               </div>
             </div>
@@ -286,7 +286,7 @@ function TransactionDetailInner({ id }: { id: string }) {
               </div>
               {tx.retail_price && (
                 <p className="text-xs text-muted-foreground pt-2">
-                  Retail price was {formatMoney(tx.retail_price)} â€”
+                  Retail price was {formatMoney(tx.retail_price)} —
                   {isSeller
                     ? " thanks for keeping gear in play."
                     : ` you saved ${formatMoney(tx.retail_price - tx.gross_amount)}.`}

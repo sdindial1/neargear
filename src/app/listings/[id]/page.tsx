@@ -1,4 +1,4 @@
-﻿import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +58,7 @@ export async function generateMetadata({
     .single();
 
   if (!listing) {
-    return { title: "Listing â€” NearGear" };
+    return { title: "Listing — NearGear" };
   }
 
   const dollars = listing.price ? `$${(listing.price / 100).toFixed(0)}` : "";
@@ -71,8 +71,8 @@ export async function generateMetadata({
     poor: "Poor",
   };
   const conditionLabel = conditionMap[listing.condition] ?? listing.condition;
-  const description = `${conditionLabel} ${listing.sport} gear Â· ${dollars} Â· ${city}. Find youth sports gear near you on NearGear.`;
-  const ogTitle = `${listing.title} â€” NearGear`;
+  const description = `${conditionLabel} ${listing.sport} gear · ${dollars} · ${city}. Find youth sports gear near you on NearGear.`;
+  const ogTitle = `${listing.title} — NearGear`;
   const photo = (listing.photo_urls as string[] | null)?.[0];
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://near-gear.com";
   const url = `${baseUrl}/listings/${id}`;
@@ -82,7 +82,7 @@ export async function generateMetadata({
     description,
     openGraph: {
       title: ogTitle,
-      description: `${conditionLabel} condition Â· ${dollars} Â· ${city}`,
+      description: `${conditionLabel} condition · ${dollars} · ${city}`,
       images: photo ? [photo] : [],
       url,
       type: "website",
@@ -90,7 +90,7 @@ export async function generateMetadata({
     twitter: {
       card: "summary_large_image",
       title: ogTitle,
-      description: `${conditionLabel} condition Â· ${dollars} Â· ${city}`,
+      description: `${conditionLabel} condition · ${dollars} · ${city}`,
       images: photo ? [photo] : [],
     },
   };
@@ -227,8 +227,8 @@ export default async function ListingPage({
               {listing.title}
             </h1>
             <ShareButton
-              title={`${listing.title} â€” NearGear`}
-              text={`Check out this ${listing.sport} gear on NearGear â€” ${listing.title} for $${price}${
+              title={`${listing.title} — NearGear`}
+              text={`Check out this ${listing.sport} gear on NearGear — ${listing.title} for $${price}${
                 listing.city || listing.seller?.city
                   ? ` in ${listing.city || listing.seller?.city}`
                   : ""

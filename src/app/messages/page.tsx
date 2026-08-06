@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -15,7 +15,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 
-// Show any meetup that's still "live" â€” not just the four post-accept
+// Show any meetup that's still "live" — not just the four post-accept
 // statuses from the original spec. Sellers often have unread messages
 // from a `requested` meetup (buyer asking a question before they accept)
 // and need to see those threads here. Terminal states (completed,
@@ -127,7 +127,7 @@ function MessagesInner() {
 
       const enriched = await Promise.all(
         rows.map(async (m): Promise<Conversation> => {
-          // Last message â€” prefer meetup_id, fall back to legacy listing+pair
+          // Last message — prefer meetup_id, fall back to legacy listing+pair
           // for messages inserted before migration 009.
           const [{ data: lastByMeetup }, { data: lastLegacy }] =
             await Promise.all([

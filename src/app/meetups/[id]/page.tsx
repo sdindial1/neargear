@@ -1,4 +1,4 @@
-﻿import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
 import { Button } from "@/components/ui/button";
@@ -317,7 +317,7 @@ export default async function MeetupDetailPage({
               <Clock className="w-3 h-3" /> Window
             </p>
             <p className="font-semibold text-navy mt-1">
-              {formatHour(start)} â€“ {formatHour(end)}
+              {formatHour(start)} – {formatHour(end)}
             </p>
           </div>
           {location && (
@@ -359,7 +359,7 @@ export default async function MeetupDetailPage({
               )}
               {isHomeLoc && (
                 <p className="text-xs text-amber-800 mt-2 leading-relaxed">
-                  âš ï¸ Home meetup â€” make sure you&apos;re comfortable before
+                  ⚠️ Home meetup — make sure you&apos;re comfortable before
                   accepting.
                 </p>
               )}
@@ -395,7 +395,7 @@ export default async function MeetupDetailPage({
                 <dd className="font-semibold text-green-700 tabular-nums">
                   $0.00{" "}
                   <span className="text-[11px] font-normal text-green-700/80">
-                    (Founding Family â­)
+                    (Founding Family ⭐)
                   </span>
                 </dd>
               </div>

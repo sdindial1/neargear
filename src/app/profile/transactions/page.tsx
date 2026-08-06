@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -145,7 +145,7 @@ function ProfileTransactionsInner() {
                       {t.listing?.title || "Item"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {other?.full_name || "Other party"} Â· {date}
+                      {other?.full_name || "Other party"} · {date}
                     </p>
                     <div className="mt-1 flex items-center gap-2">
                       <Badge
