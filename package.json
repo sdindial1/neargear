@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/check-encoding.mjs && next build",
+    "check:encoding": "node scripts/check-encoding.mjs",
+    "fix:encoding": "node scripts/check-encoding.mjs --fix",
     "start": "next start",
     "lint": "eslint",
     "seed:demo": "tsx scripts/seed-demo-data.ts",

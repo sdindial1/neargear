@@ -1,0 +1,14 @@
+#!/bin/sh
+#
+# Blocks commits containing UTF-8-read-as-CP1252 mojibake or a BOM.
+#
+# Versioned in .githooks rather than .git/hooks so it survives a clone. Enable
+# it once per checkout with:
+#
+#   git config core.hooksPath .githooks
+#
+# Bypassable with --no-verify, which is why the same check also runs in
+# `npm run build` and therefore fails the Vercel deploy.
+#
+# Escape hatch if the check is ever wrong: SKIP_ENCODING_CHECK=1 git commit ...
+node scripts/check-encoding.mjs || exit 1
