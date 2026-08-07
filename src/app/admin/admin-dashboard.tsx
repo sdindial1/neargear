@@ -406,8 +406,8 @@ export function AdminDashboard({ payload }: { payload: AdminPayload }) {
             <Button
               onClick={handleRefresh}
               disabled={refreshing}
-              variant="outline"
-              className="border-white/20 text-white hover:bg-white/10 h-10"
+              variant="outlineOnDark"
+              className="h-10"
             >
               {refreshing ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

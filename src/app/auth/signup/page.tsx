@@ -268,9 +268,9 @@ function SignupInner() {
               </Button>
               <Button
                 type="button"
-                variant="outline"
+                variant="outlineOnDark"
                 onClick={goHome}
-                className="btn-large w-full text-white border-white/30 hover:bg-white/10"
+                className="btn-large w-full"
               >
                 No thanks, take me home
               </Button>

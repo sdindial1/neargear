@@ -45,6 +45,18 @@ interface Props {
   /** Display only — no money is computed in this component. */
   itemPriceCents: number;
   retailPriceCents: number | null;
+  /**
+   * Seller's net payout (item price minus the seller fee), taken from the order
+   * row. Null when there is no order yet. Passed in rather than derived because
+   * founding sellers pay no fee, so a client-side 10% would be wrong for them.
+   */
+  sellerPayoutCents: number | null;
+  /**
+   * What the buyer was actually charged, from the order row. Used for the
+   * buyer's savings comparison so it is measured against what they really paid
+   * rather than the item price, which excludes the buyer fee.
+   */
+  buyerPaidCents: number | null;
 }
 
 type Phase =
@@ -71,6 +83,8 @@ export function CompleteTransactionSection({
   disputedAt,
   itemPriceCents,
   retailPriceCents,
+  sellerPayoutCents,
+  buyerPaidCents,
 }: Props) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -238,13 +252,22 @@ export function CompleteTransactionSection({
     return (
       <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
         <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0" />
+        {/*
+          Seller and buyer see different sentences here. The seller RECEIVES the
+          money, so "Your payment has been released" read as though they had
+          paid — and it named no amount, on the one screen where the amount is
+          the whole point. Wording matches the release notification so the app
+          and the notification do not describe the same event differently.
+        */}
         <div>
           <p className="font-heading font-semibold text-green-900">
-            Transaction complete
+            {isSeller ? "Payment released to you" : "Transaction complete"}
           </p>
           <p className="text-sm text-green-800">
             {isSeller
-              ? "Your payment has been released."
+              ? sellerPayoutCents != null
+                ? `$${(sellerPayoutCents / 100).toFixed(2)} is on its way to your account.`
+                : "Your payout is on its way to your account."
               : "Thanks for using NearGear."}
           </p>
         </div>
@@ -256,7 +279,11 @@ export function CompleteTransactionSection({
     return (
       <TransactionCelebration
         role={isBuyer ? "buyer" : "seller"}
-        grossDollars={itemPriceCents / 100}
+        itemDollars={itemPriceCents / 100}
+        buyerPaidDollars={buyerPaidCents != null ? buyerPaidCents / 100 : null}
+        sellerPayoutDollars={
+          sellerPayoutCents != null ? sellerPayoutCents / 100 : null
+        }
         retailDollars={retailPriceCents ? retailPriceCents / 100 : null}
         meetupId={meetupId}
       />
@@ -270,9 +297,13 @@ export function CompleteTransactionSection({
         <p className="font-heading font-semibold text-navy">
           Payment processing…
         </p>
+        {/* Both roles reach this state, so it cannot say "the seller's
+            payment" — that describes the seller in the third person to the
+            seller themselves. */}
         <p className="text-sm text-muted-foreground mt-1">
-          We&apos;ve recorded the confirmation. The seller&apos;s payment will
-          complete shortly.
+          {isSeller
+            ? "We've recorded the confirmation. Your payout will complete shortly."
+            : "We've recorded the confirmation. The seller's payment will complete shortly."}
         </p>
       </div>
     );
@@ -291,7 +322,7 @@ export function CompleteTransactionSection({
             <p className="text-sm text-muted-foreground flex items-center gap-1">
               <span className="inline-block w-2 h-2 rounded-full bg-orange animate-pulse" />
               Waiting on the buyer. If they don&apos;t respond within 24 hours,
-              your payment is released automatically.
+              your payout is released automatically.
             </p>
           </div>
         </div>

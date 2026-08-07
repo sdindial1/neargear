@@ -11,6 +11,15 @@ const buttonVariants = cva(
         default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+        // Outline button for navy/dark surfaces. Exists because the obvious
+        // spelling is silently invisible: `variant="outline"` sets
+        // `bg-background` (white), so adding `text-white` in className yields
+        // white-on-white — the className overrides the text colour but nothing
+        // overrides the background. That shipped to production twice (the admin
+        // refresh button, and "Back to Home" on the buyer's completion screen).
+        // Use this instead of hand-rolling outline + text-white.
+        outlineOnDark:
+          "border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white aria-expanded:bg-white/10",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:

@@ -119,13 +119,15 @@ export default async function MeetupDetailPage({
     seller_confirmed_at: string | null;
     disputed_at: string | null;
     item_price_cents: number;
+    seller_fee_cents: number | null;
+    gross_captured_cents: number | null;
   } | null = null;
 
   if (isBuyer || isSeller) {
     const { data: orderRows } = await supabase
       .from("orders")
       .select(
-        "id, status, buyer_confirmed_at, seller_confirmed_at, disputed_at, item_price_cents",
+        "id, status, buyer_confirmed_at, seller_confirmed_at, disputed_at, item_price_cents, seller_fee_cents, gross_captured_cents",
       )
       .eq("meetup_id", id);
 
@@ -249,6 +251,16 @@ export default async function MeetupDetailPage({
                   order?.item_price_cents ?? meetup.offered_price ?? 0
                 }
                 retailPriceCents={meetup.listing?.retail_price ?? null}
+                // Both values come straight from the order row, so the figure
+                // the seller sees is the one that was actually transferred.
+                // Null unless the order exists and the fee was recorded — the
+                // UI then omits the amount rather than guessing one.
+                sellerPayoutCents={
+                  order != null && order.seller_fee_cents != null
+                    ? order.item_price_cents - order.seller_fee_cents
+                    : null
+                }
+                buyerPaidCents={order?.gross_captured_cents ?? null}
               />
             </div>
           )}

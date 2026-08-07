@@ -9,14 +9,34 @@ import { CheckCircle2 } from "lucide-react";
 
 interface Props {
   role: "buyer" | "seller";
-  grossDollars: number;
+  /** Item price. Fallback only — see buyerPaidDollars. */
+  itemDollars: number;
+  /**
+   * What the buyer was actually charged (item price plus the buyer fee), from
+   * the order row. The savings claim is measured against THIS, not the item
+   * price: the buyer paid $11.22 for a $10.20 item, so comparing retail to
+   * $10.20 credits them $1.02 of savings they did not get. The Terms describe
+   * the fee plainly, and this number should not contradict them.
+   */
+  buyerPaidDollars: number | null;
+  /**
+   * What the seller actually receives: item price minus the seller fee, read
+   * from the order row. This screen used to show the seller the item price
+   * instead, which overstated the payout by the 10% seller fee — a real number
+   * on a celebration screen, wrong. It is not derived here because the fee is
+   * 0 for founding sellers, so any client-side percentage would be wrong for
+   * exactly the sellers we most want to keep happy.
+   */
+  sellerPayoutDollars: number | null;
   retailDollars: number | null;
   meetupId: string;
 }
 
 export function TransactionCelebration({
   role,
-  grossDollars,
+  itemDollars,
+  buyerPaidDollars,
+  sellerPayoutDollars,
   retailDollars,
   meetupId,
 }: Props) {
@@ -55,9 +75,13 @@ export function TransactionCelebration({
     return () => clearTimeout(timeout);
   }, [router]);
 
+  // Falls back to the item price only if the order row had no captured total.
+  // That path understates the buyer's cost, so it can overstate savings — it
+  // exists so the screen still renders, not because it is equally correct.
+  const buyerCost = buyerPaidDollars ?? itemDollars;
   const savings =
-    retailDollars && retailDollars > grossDollars
-      ? Math.round(retailDollars - grossDollars)
+    retailDollars && retailDollars > buyerCost
+      ? Math.round(retailDollars - buyerCost)
       : 0;
 
   return (
@@ -72,20 +96,28 @@ export function TransactionCelebration({
       {role === "seller" ? (
         <>
           <h1 className="font-heading text-3xl md:text-4xl font-bold text-white mb-3">
-            Payment Received!
+            Payment Released!
           </h1>
-          <p className="font-heading text-5xl md:text-6xl font-bold text-orange tabular-nums mb-10">
-            ${grossDollars.toFixed(2)}
-          </p>
+          {sellerPayoutDollars != null ? (
+            <>
+              <p className="font-heading text-5xl md:text-6xl font-bold text-orange tabular-nums mb-2">
+                ${sellerPayoutDollars.toFixed(2)}
+              </p>
+              <p className="text-base text-white/70 mb-10">
+                On its way to your account.
+              </p>
+            </>
+          ) : (
+            <p className="text-base text-white/70 mb-10">
+              Your payout is on its way to your account.
+            </p>
+          )}
           <div className="space-y-2 w-full max-w-xs">
             <Link href="/profile/wallet">
               <Button className="btn-large btn-primary">View Wallet</Button>
             </Link>
             <Link href="/">
-              <Button
-                variant="outline"
-                className="btn-large w-full text-white border-white/30 hover:bg-white/10"
-              >
+              <Button variant="outlineOnDark" className="btn-large w-full">
                 Back to Home
               </Button>
             </Link>
@@ -112,10 +144,7 @@ export function TransactionCelebration({
               </Button>
             </Link>
             <Link href="/">
-              <Button
-                variant="outline"
-                className="btn-large w-full text-white border-white/30 hover:bg-white/10"
-              >
+              <Button variant="outlineOnDark" className="btn-large w-full">
                 Back to Home
               </Button>
             </Link>
