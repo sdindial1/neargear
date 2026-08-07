@@ -499,6 +499,47 @@ also strands the buyer's money until Phase 4 resolves it.
 
 ---
 
+## 🟡 13. No record of what email we sent to whom
+
+**We cannot answer "did we send it, and to what address?" from our own data.**
+There is no email log table. `notifications` is the in-app notification centre,
+not a send log. Today, answering a user who says they never got an email means
+correlating two external systems:
+
+- **Resend dashboard → Emails** — the authoritative delivery record
+  (`delivered` / `bounced` / `complained`, or absent entirely, which means we
+  never sent it and it is a code bug rather than deliverability)
+- **Vercel logs** — `[email:sent] "<subject>" → <address>` from
+  `sendOrLog` in `src/lib/notifications/email.ts`
+
+**Why it matters:** both sources expire. Vercel Hobby log retention is short and
+Resend's history is finite, so the evidence for a disputed receipt is gone
+exactly when a dispute escalates. These are payment receipts and meetup
+confirmations — the emails most likely to be argued about.
+
+**Scope when picked up:** a table written by `sendOrLog` recording recipient,
+subject, template key, Resend message id, the `from` actually used, and status.
+The `from` column matters specifically: it makes a fallback to
+`onboarding@resend.dev` queryable after the fact rather than only alertable in
+the moment (see the fallback alerting in `email.ts`). A Resend webhook can
+later update delivered/bounced status against the stored message id.
+
+**Related, verified clean 2026-08-07:** emails are addressed from
+`public.users.email`, which is written once at signup and never synced from
+`auth.users`. If the two diverge, login keeps working while every notification
+goes to a stale address, and nothing surfaces it. Checked at 19 users: zero
+divergent rows, zero auth users without a `public.users` row, no null or
+duplicate addresses. Worth re-running as signups scale, since nothing enforces
+it:
+
+```sql
+select u.email as users_email, a.email as auth_email
+from public.users u join auth.users a on a.id = u.id
+where u.email is distinct from a.email;
+```
+
+---
+
 # Phase 4 (refunds & dispute resolution) — scope inputs
 
 Not deferrals; these are things Phase 3 deliberately left for Phase 4 and

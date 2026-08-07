@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { alertCritical } from "./alert";
 import {
   ctaButton,
   emailShell,
@@ -11,6 +12,41 @@ import {
 
 const FROM = "NearGear <support@near-gear.com>";
 const FROM_FALLBACK = "NearGear <onboarding@resend.dev>";
+
+/**
+ * The fallback sender exists so a DNS problem does not swallow mail outright.
+ * It is not a healthy state: a payment receipt arriving from a shared
+ * onboarding@resend.dev address reads like phishing to a buyer, and shared
+ * domains deliver worse. Worst of all it is INVISIBLE — mail keeps arriving, so
+ * a lapsed domain looks exactly like a working one.
+ *
+ * So firing the fallback raises a critical alert. Throttled to once an hour per
+ * process: the trigger is a configuration fault affecting every send, and
+ * without the throttle a busy hour would mail one alert per transactional
+ * email. The console line below is NOT throttled — the log always tells the
+ * whole story even when the alert is suppressed.
+ */
+const FALLBACK_ALERT_INTERVAL_MS = 60 * 60 * 1000;
+let lastFallbackAlertAt = 0;
+
+function reportFallback(subject: string, to: string, reason: string): void {
+  console.error(
+    `[email:FALLBACK] near-gear.com rejected by Resend — "${subject}" → ${to} ` +
+      `was sent from ${FROM_FALLBACK} instead. Reason: ${reason}`,
+  );
+  const now = Date.now();
+  if (now - lastFallbackAlertAt < FALLBACK_ALERT_INTERVAL_MS) return;
+  lastFallbackAlertAt = now;
+  // Deliberately not awaited: alerting must never delay or fail a user-facing
+  // send. alertCritical never throws.
+  void alertCritical({
+    event: "email_domain_unverified",
+    summary:
+      "Sending from support@near-gear.com failed; mail is going out from " +
+      "onboarding@resend.dev. Check the Resend domain and DNS records.",
+    details: { subject, recipient: to, resendError: reason, fallbackFrom: FROM_FALLBACK },
+  });
+}
 
 function getClient(): Resend | null {
   const key = process.env.RESEND_API_KEY;
@@ -55,8 +91,9 @@ async function sendOrLog(
       html,
     });
     if (error) {
-      // Domain not verified yet → retry with onboarding sender once
+      // Domain not verified yet → retry with onboarding sender once, loudly.
       if (attempt === "primary" && /domain|from/i.test(String(error.message))) {
+        reportFallback(subject, to, error.message);
         return sendOrLog(to, subject, html, "fallback");
       }
       console.error(`[email:error] "${subject}" → ${to}:`, error.message);

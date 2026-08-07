@@ -13,10 +13,15 @@ import * as Sentry from "@sentry/nextjs";
  *   - NOT the templating layer in ./email.ts, so a template change can never
  *     break the alert path.
  *
- * It sends email via Resend (already configured, near-gear.com verified) AND
- * calls Sentry, so it works whether or not Sentry is ever wired up. Every
- * channel is best-effort and the function never throws — an alert failing must
- * not break the caller, which by definition is already in a bad state.
+ * It sends email via Resend AND calls Sentry, so it works whether or not Sentry
+ * is ever wired up. Every channel is best-effort and the function never throws —
+ * an alert failing must not break the caller, which by definition is already in
+ * a bad state.
+ *
+ * If near-gear.com is not verified with Resend this falls back to a shared
+ * sender rather than dropping the alert, and says so on every channel it has.
+ * It cannot call alertCritical about that (it is alertCritical), so the report
+ * is console plus Sentry only.
  *
  * Reserved for events where money moved (or may have moved) and the system
  * cannot self-correct. Do not use it for ordinary errors.
@@ -64,6 +69,18 @@ async function emailAlert(
     });
     if (error) {
       if (attempt === "primary" && /domain|from/i.test(String(error.message))) {
+        const note =
+          `near-gear.com rejected by Resend — this CRITICAL alert is being sent ` +
+          `from ${FROM_FALLBACK}. Verify the domain and DNS records. ` +
+          `Resend error: ${error.message}`;
+        console.error(`[alert:FALLBACK] ${note}`);
+        try {
+          Sentry.captureMessage(`[CRITICAL:email_domain_unverified] ${note}`, {
+            level: "error",
+          });
+        } catch {
+          // Sentry is inert without SENTRY_DSN; the console line above stands.
+        }
         return emailAlert(subject, body, "fallback");
       }
       console.error(`[alert:email-error] ${subject}:`, error.message);
