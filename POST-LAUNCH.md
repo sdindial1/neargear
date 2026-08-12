@@ -499,6 +499,43 @@ also strands the buyer's money until Phase 4 resolves it.
 
 ---
 
+## 🟡 14. Realtime connection ceiling — the failure mode is SILENT
+
+**Watch this when concurrent users approach ~400.**
+
+We are on Supabase **Pro: 500 peak concurrent Realtime connections.** Channels
+multiplex over a single websocket per client, so the unit of consumption is
+**one connection per open tab per logged-in user** — not one per subscription.
+
+The reason this needs watching: **`NotificationBell` lives in `Navbar`, so it is
+mounted on every page for every logged-in user.** Every signed-in tab therefore
+holds an open socket for as long as it is open, whether or not anything is
+happening on screen. There is no page in the app where a logged-in user is not
+consuming a connection.
+
+**At the ceiling, new connections simply fail.** There is no error surfaced to
+the user and no alert raised on our side — the bell stops updating and messages
+stop arriving live, which is indistinguishable from the bug migration 023 fixed.
+Someone reports "messages don't appear until I refresh" and the code looks
+correct, because it is.
+
+**What to do when it gets close:**
+- Watch Dashboard → Reports → Realtime for peak concurrent connections
+- Cheapest structural win: stop mounting the bell subscription on pages where it
+  is not useful, or gate it behind an idle timeout so backgrounded tabs release
+  their socket
+- Raising the Pro limit is a support request, not a self-serve setting — so it
+  is not a same-day fix under load
+- Consider whether `listings` should ever join the publication (deliberately
+  held out of 023): its cost scales as new listings × concurrent viewers, which
+  makes it the first thing to reconsider under pressure
+
+Also note the Pro Realtime **message** quota (5M/month, counted per recipient).
+The bell and chat are per-recipient filtered so they scale linearly with real
+activity; a marketplace feed would not.
+
+---
+
 ## 🟡 13. No record of what email we sent to whom
 
 **We cannot answer "did we send it, and to what address?" from our own data.**

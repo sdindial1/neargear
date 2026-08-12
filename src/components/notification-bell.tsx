@@ -98,10 +98,24 @@ export function NotificationBell({ userId }: Props) {
         },
         () => refreshCount(),
       )
-      .subscribe();
+      .subscribe((status) => {
+        // Also fires after an automatic reconnect. Re-counting here recovers
+        // any notification inserted while the socket was down — those events
+        // are gone for good, so the count would otherwise stay stale until the
+        // next full page load.
+        if (status === "SUBSCRIBED") refreshCount();
+      });
+
+    // Same reasoning on tab focus: one cheap head-count query, and it covers
+    // the window where realtime was not connected at all.
+    const onFocus = () => refreshCount();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
 
     return () => {
       alive = false;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
       supabase.removeChannel(channel);
     };
   }, [supabase, userId]);

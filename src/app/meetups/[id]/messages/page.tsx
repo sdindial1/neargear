@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -236,6 +236,55 @@ function MeetupMessagesPageInner() {
     load();
   }, [params.id, supabase]);
 
+  /**
+   * Refetch the thread and merge by id.
+   *
+   * A realtime subscription alone is not enough. Events that occur while the
+   * socket is down are dropped permanently — Postgres replication has no replay
+   * for a disconnected subscriber — so a locked phone, a backgrounded tab or a
+   * wifi handoff silently loses messages while the UI looks perfectly healthy.
+   * That is the same "my message didn't send" failure this work exists to fix,
+   * only harder to diagnose. So we reconcile whenever the connection is
+   * (re)established and whenever the tab regains focus.
+   *
+   * Merges rather than replaces, so a message appended optimistically by the
+   * send path is never yanked out from under the user. Queries by meetup_id
+   * only; pre-009 rows with a null meetup_id are picked up by the initial load
+   * and cannot be newly created.
+   */
+  const reconcile = useCallback(async () => {
+    if (!ctx) return;
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("meetup_id", ctx.id)
+      .order("created_at", { ascending: true });
+    const rows = (data as Msg[] | null) ?? [];
+    if (rows.length === 0) return;
+    setMessages((prev) => {
+      const byId = new Map(prev.map((m) => [m.id, m]));
+      for (const r of rows) byId.set(r.id, r);
+      return [...byId.values()].sort((a, b) =>
+        a.created_at.localeCompare(b.created_at),
+      );
+    });
+  }, [ctx, supabase]);
+
+  // Reconcile on tab focus. Cheap (one indexed query), and it covers the case
+  // realtime structurally cannot: time spent disconnected.
+  useEffect(() => {
+    if (!ctx) return;
+    const onFocus = () => {
+      void reconcile();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [ctx, reconcile]);
+
   useEffect(() => {
     if (!ctx || !userId) return;
     const channel = supabase
@@ -267,11 +316,16 @@ function MeetupMessagesPageInner() {
           }
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        // Fires on first subscribe AND after every automatic reconnect, which
+        // is exactly when we may have missed events. Reconciling here closes
+        // the gap without polling on a timer.
+        if (status === "SUBSCRIBED") void reconcile();
+      });
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [ctx, userId, supabase]);
+  }, [ctx, userId, supabase, reconcile]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

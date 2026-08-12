@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Navbar } from "@/components/navbar";
@@ -97,6 +97,41 @@ function MessagesInner() {
   const [userId, setUserId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  // Seeded on mount (inside the effect below, not here — Date.now() during
+  // render is impure) so regaining focus right after the initial load does not
+  // fire a duplicate pass.
+  const lastRefreshRef = useRef(0);
+
+  /**
+   * The inbox deliberately has NO realtime subscription.
+   *
+   * Its unread badges are a fan-out — roughly four queries per conversation —
+   * so keeping them live over a socket would mean recomputing the whole list on
+   * every inserted message, for a screen users normally just glance at. The
+   * actual complaint here is "I came back to the app and the badge is stale",
+   * and refetching on focus fixes exactly that at a fraction of the cost.
+   *
+   * Throttled because `focus` and `visibilitychange` both fire, and mobile
+   * browsers fire them liberally.
+   */
+  useEffect(() => {
+    const REFRESH_THROTTLE_MS = 10_000;
+    lastRefreshRef.current = Date.now();
+    const onFocus = () => {
+      if (document.visibilityState === "hidden") return;
+      const now = Date.now();
+      if (now - lastRefreshRef.current < REFRESH_THROTTLE_MS) return;
+      lastRefreshRef.current = now;
+      setRefreshKey((k) => k + 1);
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -195,7 +230,7 @@ function MessagesInner() {
     return () => {
       alive = false;
     };
-  }, [supabase]);
+  }, [supabase, refreshKey]);
 
   if (loading) {
     return (
