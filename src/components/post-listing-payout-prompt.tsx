@@ -20,9 +20,20 @@ import { PayoutSetupButton, usePayoutStatus } from "@/components/payout-setup";
  */
 export function PostListingPayoutPrompt() {
   const params = useSearchParams();
-  const isNew = params.get("new") === "1";
   const { status, loading } = usePayoutStatus();
   const [dismissed, setDismissed] = useState(false);
+
+  /**
+   * Captured ONCE, on first render — deliberately not derived from live params.
+   *
+   * Next patches window.history.replaceState so that useSearchParams() reflects
+   * it. Reading the param on every render therefore raced the effect below:
+   * first paint returned null because the payout status was still loading, the
+   * effect stripped `new`, the re-render saw isNew === false, and the prompt
+   * never appeared at all. Freezing the value here is what makes it survive its
+   * own cleanup.
+   */
+  const [isNew] = useState(() => params.get("new") === "1");
 
   // Drop ?new=1 from the URL so a refresh or a shared link doesn't replay the
   // prompt. Runs regardless of payout state — the param has done its job.

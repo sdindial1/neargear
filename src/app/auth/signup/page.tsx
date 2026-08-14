@@ -166,7 +166,11 @@ function SignupInner() {
       }
     }
 
-    router.push(redirectTo);
+    // Brand-new accounts get the first-run experience, which then forwards to
+    // wherever they were headed. /welcome decides eligibility server-side and
+    // redirects straight through for anyone who isn't actually new, so this is
+    // safe to send everyone to.
+    router.push(`/welcome?next=${encodeURIComponent(redirectTo)}`);
     router.refresh();
   };
 
@@ -208,8 +212,10 @@ function SignupInner() {
     setFoundingPhase("waitlist_joined");
   };
 
+  // Exit from the founding-member celebration. Same first-run routing as the
+  // standard path — a founding signup is still someone's first minute here.
   const goHome = () => {
-    router.push(redirectTo);
+    router.push(`/welcome?next=${encodeURIComponent(redirectTo)}`);
     router.refresh();
   };
 

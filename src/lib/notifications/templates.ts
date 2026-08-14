@@ -341,7 +341,18 @@ export function ctaButton(href: string, label: string): string {
 // Layout
 // ---------------------------------------------------------------------------
 
-export function emailLayout(opts: EmailLayoutOpts): string {
+export interface RenderedEmail {
+  html: string;
+  /**
+   * text/plain alternative. Sending HTML with no plain-text part is one of the
+   * few content-side spam signals fully within our control — most legitimate
+   * senders provide both, and a single-part HTML message is a cheap thing for
+   * a filter to score against.
+   */
+  text: string;
+}
+
+export function emailLayout(opts: EmailLayoutOpts): RenderedEmail {
   const {
     preheader,
     eyebrow,
@@ -363,7 +374,14 @@ export function emailLayout(opts: EmailLayoutOpts): string {
     )
     .join("");
 
-  return `<!DOCTYPE html>
+  // NOTE ON THE PREHEADER SPAN BELOW. Its hiding rules were trimmed from nine
+  // properties to five: `color:transparent` and `visibility:hidden` stacked on
+  // top of `display:none` is the shape spam filters score as deliberately
+  // concealed text, and they bought nothing `display:none` doesn't already do.
+  // Kept deliberately as a code comment rather than an HTML one — anything in
+  // the template literal ships in every message, and an inline note about spam
+  // filters is not something to mail to customers.
+  const html = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -374,7 +392,7 @@ export function emailLayout(opts: EmailLayoutOpts): string {
     <style>${DARK_STYLES}</style>
   </head>
   <body class="ng-page" bgcolor="${C.page}" style="margin:0;padding:0;background-color:${C.page};font-family:${FONT};color:${C.ink};">
-    <span style="display:none;visibility:hidden;opacity:0;color:transparent;height:0;width:0;font-size:1px;line-height:1px;max-height:0;max-width:0;overflow:hidden;">${escapeHtml(preheader)}</span>
+    <span style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;overflow:hidden;">${escapeHtml(preheader)}</span>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="ng-page" bgcolor="${C.page}" style="background-color:${C.page};">
       <tr><td align="center" style="padding:20px 10px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="ng-card" bgcolor="${C.card}" style="max-width:560px;background-color:${C.card};border-radius:14px;overflow:hidden;border:1px solid ${C.border};">
@@ -425,4 +443,102 @@ export function emailLayout(opts: EmailLayoutOpts): string {
     </table>
   </body>
 </html>`;
+
+  return { html, text: renderText(opts) };
+}
+
+// ---------------------------------------------------------------------------
+// Plain-text alternative
+// ---------------------------------------------------------------------------
+
+/**
+ * Reduce the one HTML escape hatch (bodyHtml) to readable text.
+ *
+ * Deliberately narrow: it handles the tags and entities this system actually
+ * emits rather than pretending to be a general HTML-to-text converter. A
+ * half-right general parser would fail silently on the next unusual input; this
+ * one only has to keep up with the blocks above it.
+ */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+    .replace(/<\s*\/\s*(p|div|li|tr)\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&middot;/g, "-")
+    .replace(/&ndash;/g, "-")
+    .replace(/&mdash;/g, "-")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    // Ampersand last, so a literal "&amp;lt;" cannot be double-decoded into a tag.
+    .replace(/&amp;/g, "&")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function renderText(opts: EmailLayoutOpts): string {
+  const parts: string[] = [];
+
+  parts.push(opts.eyebrow.toUpperCase());
+  parts.push(opts.heading);
+  parts.push("");
+
+  for (const p of opts.intro) parts.push(p);
+
+  if (opts.product) {
+    parts.push("");
+    parts.push(
+      opts.product.meta
+        ? `${opts.product.title} (${opts.product.meta})`
+        : opts.product.title,
+    );
+  }
+
+  if (opts.amount) {
+    parts.push("");
+    parts.push(`${opts.amount.label}: ${opts.amount.value}`);
+    for (const line of opts.amount.lines ?? []) {
+      parts.push(`  ${line.label}: ${line.value}`);
+    }
+    if (opts.amount.note) parts.push(opts.amount.note);
+  }
+
+  if (opts.details?.length) {
+    parts.push("");
+    for (const row of opts.details) {
+      parts.push(`${row.label}: ${row.value}`);
+      if (row.sub) parts.push(`  ${row.sub}`);
+      if (row.link) parts.push(`  ${row.link.label}: ${row.link.href}`);
+    }
+  }
+
+  if (opts.notice) {
+    parts.push("");
+    parts.push(opts.notice.title);
+    parts.push(opts.notice.body);
+  }
+
+  if (opts.bodyHtml) {
+    parts.push("");
+    parts.push(htmlToText(opts.bodyHtml));
+  }
+
+  if (opts.cta) {
+    parts.push("");
+    parts.push(`${opts.cta.label}: ${opts.cta.href}`);
+  }
+  if (opts.ctaNote) parts.push(opts.ctaNote);
+
+  parts.push("");
+  parts.push("---");
+  parts.push(
+    "Questions? Reply to this email or write support@near-gear.com",
+  );
+  parts.push("NearGear - Dallas-Fort Worth, Texas");
+
+  return parts.join("\n").replace(/\n{3,}/g, "\n\n");
 }

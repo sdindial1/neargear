@@ -9,6 +9,7 @@ import {
   orderRef,
   type DetailRow,
   type ProductBlock,
+  type RenderedEmail,
 } from "./templates";
 
 const FROM = "NearGear <support@near-gear.com>";
@@ -144,10 +145,17 @@ function locationRows(
 // Transport
 // ---------------------------------------------------------------------------
 
+/**
+ * Sends BOTH parts. A multipart message with a real text/plain alternative is
+ * the one deliverability lever fully inside our control — HTML-only mail is
+ * cheap for a filter to score against, and every legitimate bulk sender ships
+ * both. The text is generated from the same options as the HTML, so the two
+ * cannot drift.
+ */
 async function sendOrLog(
   to: string,
   subject: string,
-  html: string,
+  mail: RenderedEmail,
   attempt: "primary" | "fallback" = "primary",
 ): Promise<void> {
   const client = getClient();
@@ -160,13 +168,14 @@ async function sendOrLog(
       from: attempt === "primary" ? FROM : FROM_FALLBACK,
       to,
       subject,
-      html,
+      html: mail.html,
+      text: mail.text,
     });
     if (error) {
       // Domain not verified yet → retry with onboarding sender once, loudly.
       if (attempt === "primary" && /domain|from/i.test(String(error.message))) {
         reportFallback(subject, to, error.message);
-        return sendOrLog(to, subject, html, "fallback");
+        return sendOrLog(to, subject, mail, "fallback");
       }
       console.error(`[email:error] "${subject}" → ${to}:`, error.message);
       return;
@@ -197,7 +206,7 @@ export async function sendNewRequestEmail(opts: {
   const { seller, buyer, listing, meetup, offeredPriceCents } = opts;
   const href = `${appUrl()}/meetups/${meetup.meetupId}`;
 
-  const html = emailLayout({
+  const mail = emailLayout({
     preheader: `${shortName(buyer.fullName)} offered ${formatMoney(offeredPriceCents)} for ${listing.title}.`,
     eyebrow: "New buy request",
     heading: "You have a new buy request",
@@ -219,7 +228,7 @@ export async function sendNewRequestEmail(opts: {
     ctaNote: "Requests are easier to close while the buyer is still looking.",
   });
 
-  await sendOrLog(seller.email, "New buy request on NearGear 🛎️", html);
+  await sendOrLog(seller.email, "New buy request on NearGear", mail);
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +245,7 @@ export async function sendRequestDeclinedEmail(opts: {
   const { buyer, seller, listing, listingId, offeredPriceCents } = opts;
   const href = `${appUrl()}/listings/${listingId}`;
 
-  const html = emailLayout({
+  const mail = emailLayout({
     preheader: `${shortName(seller.fullName)} declined your request for ${listing.title}.`,
     eyebrow: "Request declined",
     heading: "Your request wasn't accepted",
@@ -252,7 +261,7 @@ export async function sendRequestDeclinedEmail(opts: {
     cta: { href, label: "See the listing" },
   });
 
-  await sendOrLog(buyer.email, "Your NearGear request was declined", html);
+  await sendOrLog(buyer.email, "Your NearGear request was declined", mail);
 }
 
 // ---------------------------------------------------------------------------
@@ -270,7 +279,7 @@ export async function sendMeetupScheduledEmails(opts: {
   const href = `${appUrl()}/meetups/${meetup.meetupId}`;
   const product = productOf(listing);
 
-  const sellerHtml = emailLayout({
+  const sellerMail = emailLayout({
     preheader: `You accepted ${firstName(buyer.fullName)}'s request for ${listing.title}.`,
     eyebrow: "Meetup scheduled",
     heading: "You accepted the request",
@@ -289,7 +298,7 @@ export async function sendMeetupScheduledEmails(opts: {
     ctaNote: "Mark the handoff complete in the app once you've met.",
   });
 
-  const buyerHtml = emailLayout({
+  const buyerMail = emailLayout({
     preheader: `${firstName(seller.fullName)} accepted your request for ${listing.title}.`,
     eyebrow: "Meetup confirmed",
     heading: "Your meetup is confirmed",
@@ -309,8 +318,8 @@ export async function sendMeetupScheduledEmails(opts: {
   });
 
   await Promise.all([
-    sendOrLog(seller.email, "You accepted a meetup request 🤝", sellerHtml),
-    sendOrLog(buyer.email, "Your meetup is confirmed! 🎉", buyerHtml),
+    sendOrLog(seller.email, "You accepted a meetup request", sellerMail),
+    sendOrLog(buyer.email, "Your meetup is confirmed", buyerMail),
   ]);
 }
 
@@ -340,7 +349,7 @@ export async function sendHandoffConfirmedEmail(opts: {
   // Both actions live on the meetup page: confirm receipt, or report a problem.
   const href = `${appUrl()}/meetups/${meetupId}`;
 
-  const html = emailLayout({
+  const mail = emailLayout({
     preheader: `${firstName(seller.fullName)} marked ${listing.title} as handed off — confirm or report a problem within 24 hours.`,
     eyebrow: "Action needed",
     heading: "Confirm you received your item",
@@ -368,7 +377,7 @@ export async function sendHandoffConfirmedEmail(opts: {
   await sendOrLog(
     buyer.email,
     `Confirm you received ${listing.title} — 24 hours`,
-    html,
+    mail,
   );
 }
 
@@ -432,7 +441,7 @@ export async function sendTransactionCompleteEmails(opts: {
     { label: "Order reference", value: orderRef(orderId), mono: true },
   ];
 
-  const buyerHtml = emailLayout({
+  const buyerMail = emailLayout({
     preheader: `Your receipt for ${listing.title} — ${formatMoney(money.grossCapturedCents)}.`,
     eyebrow: "Order complete",
     heading: "Your purchase is complete",
@@ -460,7 +469,7 @@ export async function sendTransactionCompleteEmails(opts: {
     ctaNote: "Help other DFW families — reviews take about a minute.",
   });
 
-  const sellerHtml = emailLayout({
+  const sellerMail = emailLayout({
     preheader: `Your payout for ${listing.title} — ${formatMoney(money.payoutCents)}.`,
     eyebrow: "Payment released",
     heading: "Your payout is on the way",
@@ -492,8 +501,8 @@ export async function sendTransactionCompleteEmails(opts: {
   });
 
   await Promise.all([
-    sendOrLog(seller.email, "Payment released 💰", sellerHtml),
-    sendOrLog(buyer.email, "Enjoy your new gear! 🏅", buyerHtml),
+    sendOrLog(seller.email, "Payment released", sellerMail),
+    sendOrLog(buyer.email, "Enjoy your new gear", buyerMail),
   ]);
 }
 
@@ -536,7 +545,7 @@ export async function sendRefundEmails(opts: {
     mono: true,
   };
 
-  const buyerHtml = emailLayout({
+  const buyerMail = emailLayout({
     preheader: `${formatMoney(amountCents)} is on its way back to you for ${listing.title}.`,
     eyebrow: "Refund issued",
     heading: "Your refund is on the way",
@@ -555,11 +564,11 @@ export async function sendRefundEmails(opts: {
     cta: { href, label: "View your orders" },
   });
 
-  await sendOrLog(buyer.email, "Your NearGear refund is on the way 💸", buyerHtml);
+  await sendOrLog(buyer.email, "Your NearGear refund is on the way", buyerMail);
 
   if (!seller?.email) return;
 
-  const sellerHtml = emailLayout({
+  const sellerMail = emailLayout({
     preheader: `The order for ${listing.title} was refunded to the buyer.`,
     eyebrow: "Order refunded",
     heading: "This order was refunded",
@@ -572,7 +581,7 @@ export async function sendRefundEmails(opts: {
     cta: { href: `${appUrl()}/profile/wallet`, label: "Open your wallet" },
   });
 
-  await sendOrLog(seller.email, "An order was refunded", sellerHtml);
+  await sendOrLog(seller.email, "An order was refunded", sellerMail);
 }
 
 // ---------------------------------------------------------------------------
@@ -603,7 +612,7 @@ export async function sendDisputeResolvedEmails(opts: {
     mono: true,
   };
 
-  const buyerHtml = emailLayout({
+  const buyerMail = emailLayout({
     preheader: `We've finished reviewing your case for ${listing.title}.`,
     eyebrow: "Case resolved",
     heading: "We've completed our review",
@@ -616,11 +625,11 @@ export async function sendDisputeResolvedEmails(opts: {
     cta: { href: `${appUrl()}/profile/transactions`, label: "View your orders" },
   });
 
-  await sendOrLog(buyer.email, "Your NearGear case has been resolved", buyerHtml);
+  await sendOrLog(buyer.email, "Your NearGear case has been resolved", buyerMail);
 
   if (!seller?.email) return;
 
-  const sellerHtml = emailLayout({
+  const sellerMail = emailLayout({
     preheader: `Your case for ${listing.title} was resolved in your favour.`,
     eyebrow: "Case resolved",
     heading: "Your payment has been released",
@@ -634,7 +643,7 @@ export async function sendDisputeResolvedEmails(opts: {
     cta: { href: `${appUrl()}/profile/wallet`, label: "Open your wallet" },
   });
 
-  await sendOrLog(seller.email, "Your NearGear case was resolved 💰", sellerHtml);
+  await sendOrLog(seller.email, "Your NearGear case was resolved", sellerMail);
 }
 
 // ---------------------------------------------------------------------------
@@ -661,7 +670,7 @@ export async function sendPayoutSetupNeededEmail(opts: {
 }): Promise<void> {
   const { seller, buyer, listing, meetupId, itemPriceCents } = opts;
 
-  const html = emailLayout({
+  const mail = emailLayout({
     preheader: `${shortName(buyer.fullName)} is trying to pay for ${listing.title} — your payouts aren't set up yet.`,
     eyebrow: "Action needed",
     heading: "A buyer is waiting to pay you",
@@ -689,7 +698,7 @@ export async function sendPayoutSetupNeededEmail(opts: {
   await sendOrLog(
     seller.email,
     "A buyer is waiting to pay you — finish payout setup",
-    html,
+    mail,
   );
 }
 
@@ -704,7 +713,7 @@ export async function sendFoundingWelcomeEmail(opts: {
 }): Promise<void> {
   const { to, spotsRemaining, totalSpots } = opts;
 
-  const html = emailLayout({
+  const mail = emailLayout({
     preheader: `You're one of only ${totalSpots} DFW founding families on NearGear.`,
     eyebrow: "Founding Family",
     heading: "Welcome to the Founding Family",
@@ -728,5 +737,5 @@ export async function sendFoundingWelcomeEmail(opts: {
     ctaNote: "Thanks for being one of the first.",
   });
 
-  await sendOrLog(to.email, "Welcome to the NearGear Founding Family ⭐", html);
+  await sendOrLog(to.email, "Welcome to the NearGear Founding Family", mail);
 }
