@@ -8,6 +8,7 @@ import {
   mapsLink,
   orderRef,
   type DetailRow,
+  type NoticeBlock,
   type ProductBlock,
   type RenderedEmail,
 } from "./templates";
@@ -124,6 +125,33 @@ function productOf(listing: EmailListing): ProductBlock {
   };
 }
 
+/**
+ * The payout warning carried INSIDE emails a seller already wants to open.
+ *
+ * Deliberately not a standalone reminder campaign. A separate "you haven't set
+ * up payouts" send would go to people with no buyer interest yet, on a young
+ * domain that is currently landing in spam — unengaged recipients generating
+ * complaints is exactly what damages sender reputation, and it would work
+ * against the deliverability fixes. Riding a message about a real buyer costs
+ * zero extra sends and arrives when it actually means something.
+ *
+ * Returns null when payouts are fine, so callers can spread it straight into
+ * the layout options.
+ */
+function payoutNotice(
+  payoutsEnabled: boolean | undefined,
+  context: "request" | "accepted",
+): NoticeBlock | null {
+  if (payoutsEnabled !== false) return null;
+  return {
+    title: "Set up payouts before you meet",
+    body:
+      context === "request"
+        ? `Your payouts aren't set up yet, so this buyer can't complete checkout even after you accept. It takes about 3 minutes at ${appUrl()}/profile/wallet`
+        : `Your payouts still aren't set up, so this buyer can't pay for the item. Finish setup at ${appUrl()}/profile/wallet — about 3 minutes, one time.`,
+  };
+}
+
 /** Location rows, shared by every email that references a meetup. */
 function locationRows(
   meetup: EmailMeetupContext,
@@ -202,8 +230,17 @@ export async function sendNewRequestEmail(opts: {
   listing: EmailListing;
   meetup: EmailMeetupContext;
   offeredPriceCents: number;
+  /** Undefined means unknown — the warning is only added on an explicit false. */
+  sellerPayoutsEnabled?: boolean;
 }): Promise<void> {
-  const { seller, buyer, listing, meetup, offeredPriceCents } = opts;
+  const {
+    seller,
+    buyer,
+    listing,
+    meetup,
+    offeredPriceCents,
+    sellerPayoutsEnabled,
+  } = opts;
   const href = `${appUrl()}/meetups/${meetup.meetupId}`;
 
   const mail = emailLayout({
@@ -219,6 +256,7 @@ export async function sendNewRequestEmail(opts: {
       label: "Their offer",
       value: formatMoney(offeredPriceCents),
     },
+    notice: payoutNotice(sellerPayoutsEnabled, "request"),
     details: [
       { label: "Buyer", value: shortName(buyer.fullName) },
       { label: "Proposed time", value: meetup.dateLine },
@@ -274,8 +312,17 @@ export async function sendMeetupScheduledEmails(opts: {
   listing: EmailListing;
   meetup: EmailMeetupContext;
   offeredPriceCents: number;
+  /** Undefined means unknown — the warning is only added on an explicit false. */
+  sellerPayoutsEnabled?: boolean;
 }): Promise<void> {
-  const { buyer, seller, listing, meetup, offeredPriceCents } = opts;
+  const {
+    buyer,
+    seller,
+    listing,
+    meetup,
+    offeredPriceCents,
+    sellerPayoutsEnabled,
+  } = opts;
   const href = `${appUrl()}/meetups/${meetup.meetupId}`;
   const product = productOf(listing);
 
@@ -288,6 +335,10 @@ export async function sendMeetupScheduledEmails(opts: {
       `Message ${firstName(buyer.fullName)} in the app to firm up the exact time.`,
     ],
     product,
+    // Seller copy only. The buyer's copy below deliberately says nothing about
+    // this — telling them the person they just agreed to buy from might not be
+    // able to take their money is alarming and not theirs to act on.
+    notice: payoutNotice(sellerPayoutsEnabled, "accepted"),
     details: [
       { label: "Buyer", value: shortName(buyer.fullName) },
       { label: "When", value: meetup.dateLine },

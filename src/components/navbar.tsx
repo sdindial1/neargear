@@ -13,6 +13,7 @@ import {
 import { LogOut, Receipt, UserCircle, Wallet } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { NotificationBell } from "@/components/notification-bell";
+import { PayoutBanner } from "@/components/payout-banner";
 import { getActiveName, type ActiveProfile } from "@/lib/active-profile";
 
 interface SignedInUser {
@@ -122,6 +123,7 @@ export function Navbar() {
   };
 
   return (
+    <>
     <nav className="sticky top-0 z-50 bg-navy text-white shadow-lg safe-top">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-14">
@@ -187,5 +189,16 @@ export function Navbar() {
         </div>
       </div>
     </nav>
+
+    {/* Outside the sticky <nav> on purpose: this scrolls away with the page
+        rather than permanently eating fixed header height on a phone. It
+        renders nothing unless the viewer is a seller with live listings and
+        no working payouts, so buyers never pay for it.
+
+        Gated on `user` so signed-out visitors don't fire the check at all —
+        ad traffic lands on public pages, and that would be one wasted request
+        per pageview for people who can't possibly need it. */}
+    {user && <PayoutBanner />}
+    </>
   );
 }

@@ -39,6 +39,8 @@ interface Party {
 
 interface PartyWithPhone extends Party {
   phone: string | null;
+  /** Drives the payout warning carried inside the seller's emails. */
+  stripe_payouts_enabled: boolean | null;
 }
 
 interface Listing {
@@ -82,8 +84,8 @@ async function loadMeetup(meetupId: string): Promise<MeetupRow | null> {
     .from("meetups")
     .select(
       `id, status, offered_price, meetup_window_start, meetup_window_end, meetup_location,
-       buyer:users!buyer_id(id, email, full_name, phone),
-       seller:users!seller_id(id, email, full_name, phone),
+       buyer:users!buyer_id(id, email, full_name, phone, stripe_payouts_enabled),
+       seller:users!seller_id(id, email, full_name, phone, stripe_payouts_enabled),
        listing:listings!listing_id(id, title, retail_price, photo_urls, condition)`,
     )
     .eq("id", meetupId)
@@ -155,6 +157,9 @@ export async function POST(request: Request) {
             listing: emailListing,
             meetup: meetupContext,
             offeredPriceCents: offered,
+            // Rides an email the seller will definitely open, instead of a
+            // standalone nudge that would go to a young domain's spam folder.
+            sellerPayoutsEnabled: Boolean(seller.stripe_payouts_enabled),
           }),
           sendNewRequestSMS({
             sellerPhone: seller.phone,
@@ -179,6 +184,7 @@ export async function POST(request: Request) {
             listing: emailListing,
             meetup: meetupContext,
             offeredPriceCents: offered,
+            sellerPayoutsEnabled: Boolean(seller.stripe_payouts_enabled),
           }),
           sendMeetupAcceptedSMS({
             buyerPhone: buyer.phone,
