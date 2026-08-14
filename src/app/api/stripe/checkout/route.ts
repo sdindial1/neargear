@@ -1,9 +1,12 @@
 import * as Sentry from "@sentry/nextjs";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createAdminSupabaseClient } from "@/lib/supabase-admin";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import { computeOrderBreakdown } from "@/lib/fees";
 import { appBaseUrl } from "@/lib/stripe-connect";
+import { createNotification } from "@/lib/notifications/inapp";
+import { sendPayoutSetupNeededEmail } from "@/lib/notifications/email";
 
 export const runtime = "nodejs";
 
@@ -28,6 +31,112 @@ interface CheckoutMeetup {
       }>
     | null;
   listing: { title: string | null } | Array<{ title: string | null }> | null;
+}
+
+/** Notification type used to dedupe the blocked-seller email, one per meetup. */
+const BLOCKED_TYPE = "payout_setup_needed" as const;
+
+/**
+ * Tell the seller a buyer is stuck at checkout because their payouts aren't
+ * set up. Never throws — the caller fires this without awaiting it.
+ *
+ * DEDUPED PER MEETUP, not per seller and not per attempt. A buyer who taps Pay
+ * four times must generate one email, but a seller with three different blocked
+ * buyers should hear about all three. The existing notifications row is the
+ * dedupe key, which means it survives across serverless instances — an
+ * in-process throttle would not.
+ */
+async function notifyBlockedSeller(
+  admin: SupabaseClient,
+  meetup: CheckoutMeetup,
+): Promise<void> {
+  try {
+    const sellerId = meetup.seller_id;
+    const buyerId = meetup.buyer_id;
+    if (!sellerId || !buyerId) return;
+
+    const link = `/meetups/${meetup.id}`;
+
+    const { data: already, error: dedupeErr } = await admin
+      .from("notifications")
+      .select("id")
+      .eq("user_id", sellerId)
+      .eq("type", BLOCKED_TYPE)
+      .eq("link", link)
+      .maybeSingle();
+    // A failed dedupe check must not become a silent no-send: the seller not
+    // hearing at all is the bug we are fixing. Log and continue.
+    if (dedupeErr) {
+      console.error("[checkout] blocked-seller dedupe check failed", dedupeErr);
+    }
+    if (already) return;
+
+    const [{ data: sellerRow }, { data: buyerRow }, { data: listingRow }] =
+      await Promise.all([
+        admin
+          .from("users")
+          .select("email, full_name")
+          .eq("id", sellerId)
+          .maybeSingle(),
+        admin
+          .from("users")
+          .select("email, full_name")
+          .eq("id", buyerId)
+          .maybeSingle(),
+        admin
+          .from("listings")
+          .select("title, photo_urls, condition")
+          .eq("id", meetup.listing_id ?? "")
+          .maybeSingle(),
+      ]);
+
+    const sellerUser = sellerRow as {
+      email: string;
+      full_name: string | null;
+    } | null;
+    const buyerUser = buyerRow as {
+      email: string;
+      full_name: string | null;
+    } | null;
+    const listingInfo = listingRow as {
+      title: string;
+      photo_urls: string[] | null;
+      condition: string | null;
+    } | null;
+
+    const title = listingInfo?.title ?? "your item";
+
+    // Write the dedupe row BEFORE sending. Two concurrent taps can still race
+    // to a duplicate email, but the ordering means the failure mode is one
+    // extra email rather than a seller who is never told.
+    await createNotification({
+      userId: sellerId,
+      type: BLOCKED_TYPE,
+      title: "A buyer is waiting to pay you",
+      body: `${title}: checkout is blocked until you finish payout setup. It takes about 3 minutes.`,
+      link,
+    });
+
+    if (!sellerUser?.email) return;
+
+    await sendPayoutSetupNeededEmail({
+      seller: { email: sellerUser.email, fullName: sellerUser.full_name },
+      buyer: {
+        email: buyerUser?.email ?? "",
+        fullName: buyerUser?.full_name ?? null,
+      },
+      listing: {
+        title,
+        imageUrl: listingInfo?.photo_urls?.[0] ?? null,
+        condition: listingInfo?.condition ?? null,
+      },
+      meetupId: meetup.id,
+      itemPriceCents: meetup.offered_price ?? 0,
+    });
+  } catch (err) {
+    console.error("[checkout] failed to notify blocked seller", err);
+    Sentry.captureException(err);
+  }
 }
 
 /**
@@ -105,7 +214,14 @@ export async function POST(req: Request) {
       : meetup.listing;
 
     // Guard: can't buy if the seller can't be paid out.
+    //
+    // This 409 used to be a dead end for everyone: the buyer saw a message
+    // about someone else's setup, and the seller — the only person who can fix
+    // it — was never told on any channel. Now it tells them. Deliberately not
+    // awaited: a notification must never delay or fail the buyer's response,
+    // and notifyBlockedSeller swallows its own errors.
     if (!seller?.stripe_payouts_enabled) {
+      void notifyBlockedSeller(admin, meetup);
       return Response.json(
         {
           error: "seller_not_ready",

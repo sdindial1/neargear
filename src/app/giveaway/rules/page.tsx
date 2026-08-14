@@ -29,7 +29,7 @@ export default function GiveawayRulesPage() {
         <Link href="/giveaway" className={`${s.logo} ${s.display}`}>
           Near<span className={s.g}>Gear</span>
         </Link>
-        <Link href="/auth/signup" className={s.ctaSm}>
+        <Link href="/auth/signup?redirect=/sell" className={s.ctaSm}>
           List Your Gear
         </Link>
       </nav>

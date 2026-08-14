@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PayoutSetupButton } from "@/components/payout-setup";
 import {
   Loader2,
   Wallet,
@@ -320,7 +321,9 @@ function ConnectCard({
     );
   }
 
-  // Not connected at all — first-time entry point.
+  // Not connected at all — first-time entry point. Routes through the shared
+  // PayoutSetupButton so the explainer here is the same one shown at accept
+  // time and after publishing a listing.
   return (
     <div className="bg-white rounded-2xl border p-5 mb-5">
       <div className="flex items-start gap-3">
@@ -329,16 +332,15 @@ function ConnectCard({
           <p className="font-semibold text-navy">Set up payouts</p>
           <p className="text-sm text-muted-foreground mt-0.5">
             Connect your bank securely through Stripe so you can get paid when
-            your gear sells. Takes a couple of minutes.
+            your gear sells.
           </p>
-          <Button
-            onClick={onStart}
-            disabled={redirecting}
-            className="mt-3 bg-orange text-white hover:bg-orange/90"
-          >
-            {redirecting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            Connect with Stripe
-          </Button>
+          <div className="mt-3">
+            <PayoutSetupButton
+              status={status}
+              label="Connect with Stripe"
+              className="btn-primary min-h-[44px] w-full sm:w-auto"
+            />
+          </div>
         </div>
       </div>
     </div>

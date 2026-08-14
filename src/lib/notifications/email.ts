@@ -638,7 +638,63 @@ export async function sendDisputeResolvedEmails(opts: {
 }
 
 // ---------------------------------------------------------------------------
-// 8. Founding Family welcome
+// 8. Payout setup needed — a buyer is blocked at checkout
+// ---------------------------------------------------------------------------
+
+/**
+ * Fires when a buyer hits the `seller_not_ready` 409 at checkout.
+ *
+ * Until now that failure notified nobody. The buyer saw "the seller is still
+ * finishing their payout setup" and the seller — the only person who can fix
+ * it — was never told, on any channel. This is the backstop for every case the
+ * in-app warnings miss.
+ *
+ * Deliberately does not scold. The seller has a real buyer with money in hand;
+ * the only useful thing this email does is say so and hand them the link.
+ */
+export async function sendPayoutSetupNeededEmail(opts: {
+  seller: EmailParty;
+  buyer: EmailParty;
+  listing: EmailListing;
+  meetupId: string;
+  itemPriceCents: number;
+}): Promise<void> {
+  const { seller, buyer, listing, meetupId, itemPriceCents } = opts;
+
+  const html = emailLayout({
+    preheader: `${shortName(buyer.fullName)} is trying to pay for ${listing.title} — your payouts aren't set up yet.`,
+    eyebrow: "Action needed",
+    heading: "A buyer is waiting to pay you",
+    intro: [
+      `Hi ${firstName(seller.fullName)} — ${shortName(buyer.fullName)} tried to pay for ${listing.title}, but checkout is blocked because your payouts aren't set up yet.`,
+    ],
+    product: productOf(listing),
+    notice: {
+      title: "They can't complete the purchase until you finish setup.",
+      body:
+        "It takes about 3 minutes and you only do it once. Stripe handles the " +
+        "money, so NearGear never stores your bank details.",
+    },
+    details: [
+      { label: "Buyer", value: shortName(buyer.fullName) },
+      { label: "Waiting to pay", value: formatMoney(itemPriceCents) },
+    ],
+    cta: {
+      href: `${appUrl()}/profile/wallet`,
+      label: "Set up payouts",
+    },
+    ctaNote: `Your meetup: ${appUrl()}/meetups/${meetupId}`,
+  });
+
+  await sendOrLog(
+    seller.email,
+    "A buyer is waiting to pay you — finish payout setup",
+    html,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 9. Founding Family welcome
 // ---------------------------------------------------------------------------
 
 export async function sendFoundingWelcomeEmail(opts: {

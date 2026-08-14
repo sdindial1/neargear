@@ -8,6 +8,7 @@ import { MeetupCountdown } from "@/components/meetup-countdown";
 import { CompleteTransactionSection } from "@/components/complete-transaction-section";
 import { MeetupPaySection } from "@/components/meetup-pay-section";
 import { MeetupSellerActions } from "@/components/meetup-seller-actions";
+import { SellerPayoutWarning } from "@/components/seller-payout-warning";
 import { ItemDisputeButton } from "@/components/item-dispute-modal";
 import {
   AlertTriangle,
@@ -212,6 +213,14 @@ export default async function MeetupDetailPage({
               listingId={meetup.listing_id ?? null}
             />
           )}
+
+        {/* The warning has to outlive the accept. Once the meetup is scheduled
+            the seller actions card is gone, but the buyer's checkout is still
+            blocked — so this is the only thing standing between them and a
+            meetup that cannot be paid for. */}
+        {isSeller && meetup.status === "scheduled" && (
+          <SellerPayoutWarning variant="scheduled" className="mb-4" />
+        )}
 
         {isBuyer && meetup.status === "scheduled" && (
           <div className="mb-4">

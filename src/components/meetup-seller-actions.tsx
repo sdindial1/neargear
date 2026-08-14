@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { acceptMeetup, declineMeetup } from "@/lib/meetups/actions";
 import { fireNotification } from "@/lib/notifications/trigger";
 import { Button } from "@/components/ui/button";
+import { SellerPayoutWarning } from "@/components/seller-payout-warning";
 import { Check, Loader2, X } from "lucide-react";
 
 export function MeetupSellerActions({
@@ -43,6 +44,9 @@ export function MeetupSellerActions({
 
   return (
     <div className="bg-white rounded-2xl border p-4 mb-4">
+      {/* Warns, never blocks. Accept stays enabled — see SellerPayoutWarning. */}
+      <SellerPayoutWarning variant="pre-accept" className="mb-4" />
+
       <p className="font-semibold text-navy">Respond to this request</p>
       <p className="text-xs text-muted-foreground mt-1 mb-3">
         Accept to schedule the meetup. The buyer then pays the total securely

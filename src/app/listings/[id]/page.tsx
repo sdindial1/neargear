@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { PostListingPayoutPrompt } from "@/components/post-listing-payout-prompt";
 import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
 import { Badge } from "@/components/ui/badge";
@@ -192,6 +194,15 @@ export default async function ListingPage({
         </div>
 
         <div className="max-w-3xl mx-auto w-full px-4 py-4 pb-28 md:pb-8">
+          {/* Only ever for the seller who just published this, and only when
+              their payouts aren't live yet. Suspense because the prompt reads
+              search params. */}
+          {isOwner && (
+            <Suspense fallback={null}>
+              <PostListingPayoutPrompt />
+            </Suspense>
+          )}
+
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             {isOwner && (
               <Badge className="bg-orange/10 text-orange border border-orange/20">

@@ -13,7 +13,12 @@ export type NotificationType =
   | "item_dispute_reported"
   | "item_dispute_filed"
   /** Payments Phase 3 rung 2: seller marked handoff, buyer has 24h to respond. */
-  | "handoff_confirmed";
+  | "handoff_confirmed"
+  /**
+   * A buyer hit the checkout 409 because the seller has no payouts set up.
+   * Doubles as the dedupe key for the matching email — one row per meetup.
+   */
+  | "payout_setup_needed";
 
 export interface CreateNotificationInput {
   userId: string | null;

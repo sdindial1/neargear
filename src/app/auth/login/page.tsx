@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, LogIn } from "lucide-react";
+import { safeRedirect } from "@/lib/safe-redirect";
 
 function LoginInner() {
   const [email, setEmail] = useState("");
@@ -21,7 +22,10 @@ function LoginInner() {
   // users can't tell they're signed in (no bottom nav, no avatar visible
   // above the fold). Sending them straight to the app avoids the perceived
   // "kicked back to landing" bug.
-  const redirectTo = searchParams.get("redirect") || "/marketplace";
+  // safeRedirect rejects anything that isn't a same-origin path — without it
+  // this value reaches router.push()/replace() and an absolute URL navigates
+  // off-site, which on a sign-in page is a phishing handoff.
+  const redirectTo = safeRedirect(searchParams.get("redirect"), "/marketplace");
 
   // If the visitor is already signed in, don't make them log in again —
   // recognize the live session and send them straight into the app. Also

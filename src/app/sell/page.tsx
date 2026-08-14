@@ -365,8 +365,28 @@ function SellPageInner() {
     // we want to buy. Carries no title, price or photo: no payload is accepted.
     trackCustomEvent("ListingCreated");
 
-    router.push(`/listings/${listing.id}`);
+    // ?new=1 is what tells the listing page to offer payout setup. Prompting
+    // here rather than gating /sell keeps listing itself completely ungated —
+    // the ask lands once the seller can picture the item selling.
+    router.push(`/listings/${listing.id}?new=1`);
   };
+
+  /**
+   * What still blocks Post Listing, in the order the fields appear.
+   *
+   * description and city became required deliberately: the giveaway's official
+   * rules define a Qualifying Listing as one with an accurate description, and
+   * proximity search is the product, so a listing missing either was earning an
+   * entry it did not qualify for and could not be found locally.
+   */
+  const missingFields = [
+    !title.trim() && "a title",
+    !sport && "a sport",
+    !condition && "a condition",
+    !price && "a price",
+    !description.trim() && "a description",
+    !city && "your city",
+  ].filter((v): v is string => typeof v === "string");
 
   if (
     !suspensionLoading &&
@@ -702,6 +722,14 @@ function SellPageInner() {
                   onChange={(e) => setDescription(e.target.value)}
                   className="text-base"
                 />
+                {/* Required as of the giveaway: the official rules define a
+                    Qualifying Listing as one with an accurate description, so
+                    leaving this optional let a listing earn an entry it did not
+                    qualify for under our own rules. */}
+                <p className="text-xs text-muted-foreground">
+                  Say what buyers can&apos;t see in the photos — size, any wear,
+                  and what&apos;s included.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -718,6 +746,12 @@ function SellPageInner() {
                     ))}
                   </SelectContent>
                 </Select>
+                {/* Required because proximity IS the product — a listing with
+                    no city cannot be found by the search that matters. */}
+                <p className="text-xs text-muted-foreground">
+                  Buyers search by how close you are, so this is how they find
+                  you.
+                </p>
               </div>
 
               {error && (
@@ -726,11 +760,18 @@ function SellPageInner() {
                 </div>
               )}
 
+              {/* A disabled button with no explanation is a dead end, and this
+                  flow now has two more requirements than it used to. Name what
+                  is missing rather than making them hunt for it. */}
+              {missingFields.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Still needed: {missingFields.join(", ")}.
+                </p>
+              )}
+
               <Button
                 onClick={handleSubmit}
-                disabled={
-                  submitting || !title || !sport || !price || !condition
-                }
+                disabled={submitting || missingFields.length > 0}
                 className="btn-large btn-primary"
               >
                 {submitting ? (

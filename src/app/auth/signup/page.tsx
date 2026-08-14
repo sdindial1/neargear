@@ -20,6 +20,7 @@ import { ArrowLeft, ArrowRight, Loader2, Star, UserPlus } from "lucide-react";
 import { DFW_CITIES } from "@/lib/constants";
 import { isValidZipcodeFormat } from "@/lib/zipcodes";
 import { formatPhone, isValidUSPhone, toE164 } from "@/lib/phone";
+import { safeRedirect } from "@/lib/safe-redirect";
 import { trackStandard } from "@/lib/meta-pixel";
 
 type FoundingPhase =
@@ -61,7 +62,9 @@ function SignupInner() {
   const searchParams = useSearchParams();
   const supabase = createClient();
   // Default to /marketplace (see login/page.tsx for the same reasoning).
-  const redirectTo = searchParams.get("redirect") || "/marketplace";
+  // safeRedirect rejects anything that isn't a same-origin path — without it
+  // this value reaches router.push() and an absolute URL navigates off-site.
+  const redirectTo = safeRedirect(searchParams.get("redirect"), "/marketplace");
   const isFoundingFlow = searchParams.get("founding") === "true";
   const passwordsMatch = password === confirmPassword;
 

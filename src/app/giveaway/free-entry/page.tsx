@@ -77,7 +77,7 @@ export default function FreeEntryPage() {
         <Link href="/giveaway" className={`${s.logo} ${s.display}`}>
           Near<span className={s.g}>Gear</span>
         </Link>
-        <Link href="/auth/signup" className={s.ctaSm}>
+        <Link href="/auth/signup?redirect=/sell" className={s.ctaSm}>
           List Your Gear
         </Link>
       </nav>
@@ -99,7 +99,7 @@ export default function FreeEntryPage() {
               We&rsquo;ll email the winner after the drawing.
             </p>
             <div style={{ marginTop: 32 }}>
-              <Link href="/auth/signup" className={s.btn}>
+              <Link href="/auth/signup?redirect=/sell" className={s.btn}>
                 Want more entries? List gear &rarr;
               </Link>
             </div>

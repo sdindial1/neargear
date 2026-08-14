@@ -49,7 +49,7 @@ export default async function GiveawayPage() {
         <Link href="/" className={`${s.logo} ${s.display}`}>
           Near<span className={s.g}>Gear</span>
         </Link>
-        <Link href="/auth/signup" className={s.ctaSm}>
+        <Link href="/auth/signup?redirect=/sell" className={s.ctaSm}>
           List Your Gear
         </Link>
       </nav>
@@ -65,7 +65,7 @@ export default async function GiveawayPage() {
           <p className={s.pick}>
             Winner&rsquo;s choice: <b>Easton Ghost</b> or <b>The Dub</b>.
           </p>
-          <Link href="/auth/signup" className={`${s.btn} ${s.btnBig}`}>
+          <Link href="/auth/signup?redirect=/sell" className={`${s.btn} ${s.btnBig}`}>
             Start Listing &rarr;
           </Link>
           <div className={s.free}>
@@ -213,7 +213,7 @@ export default async function GiveawayPage() {
             </div>
           </div>
           <div style={{ textAlign: "center", marginTop: 44 }}>
-            <Link href="/auth/signup" className={s.btn}>
+            <Link href="/auth/signup?redirect=/sell" className={s.btn}>
               Create Your Account &rarr;
             </Link>
           </div>
@@ -297,7 +297,7 @@ export default async function GiveawayPage() {
             <br />
             Win The <span className={s.amtSm}>$500</span> Bat.
           </h2>
-          <Link href="/auth/signup" className={`${s.btn} ${s.btnBig}`}>
+          <Link href="/auth/signup?redirect=/sell" className={`${s.btn} ${s.btnBig}`}>
             Start Listing &rarr;
           </Link>
           <div className={s.free}>
