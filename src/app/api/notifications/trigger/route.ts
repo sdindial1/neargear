@@ -3,13 +3,21 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createAdminSupabaseClient } from "@/lib/supabase-admin";
 import {
   sendMeetupScheduledEmails,
+  sendNewRequestEmail,
+  sendRequestDeclinedEmail,
   sendTransactionCompleteEmails,
+  type EmailListing,
 } from "@/lib/notifications/email";
 import {
   sendMeetupAcceptedSMS,
   sendNewRequestSMS,
 } from "@/lib/notifications/sms";
 import { createNotification } from "@/lib/notifications/inapp";
+import {
+  formatDateLine,
+  formatDateOnly,
+  parseLocation,
+} from "@/lib/notifications/meetup-context";
 
 type Event =
   | "meetup_requested"
@@ -27,6 +35,9 @@ interface Party {
   id: string;
   email: string;
   full_name: string | null;
+}
+
+interface PartyWithPhone extends Party {
   phone: string | null;
 }
 
@@ -34,6 +45,8 @@ interface Listing {
   id: string;
   title: string;
   retail_price: number | null;
+  photo_urls: string[] | null;
+  condition: string | null;
 }
 
 interface MeetupRow {
@@ -43,61 +56,25 @@ interface MeetupRow {
   meetup_window_start: string | null;
   meetup_window_end: string | null;
   meetup_location: string | null;
-  buyer: Party | null;
-  seller: Party | null;
+  buyer: PartyWithPhone | null;
+  seller: PartyWithPhone | null;
   listing: Listing | null;
 }
 
-function parseLocation(raw: string | null): {
-  name: string;
-  address: string;
-} {
-  if (!raw) return { name: "TBD", address: "Address shared in app" };
-  try {
-    const parsed = JSON.parse(raw) as {
-      name?: string;
-      address?: string;
-      type?: string;
-    };
-    if (parsed.type === "home_seller") {
-      return {
-        name: "Seller's home",
-        address: parsed.address || "Address shared in app",
-      };
-    }
-    if (parsed.type === "home_buyer") {
-      return {
-        name: "Buyer's home",
-        address: parsed.address || "Address shared in app",
-      };
-    }
-    return {
-      name: parsed.name || "Meetup location",
-      address: parsed.address || "Address shared in app",
-    };
-  } catch {
-    return { name: "Meetup location", address: "Address shared in app" };
-  }
+/**
+ * Listing row -> product card input. photo_urls defaults to '{}' in the schema,
+ * so an empty array is legal and must render as no image rather than a broken
+ * one; the layout skips the <img> entirely when imageUrl is null.
+ */
+function toEmailListing(listing: Listing): EmailListing {
+  return {
+    title: listing.title,
+    imageUrl: listing.photo_urls?.[0] ?? null,
+    condition: listing.condition,
+  };
 }
 
-function formatDateLine(start: string | null, end: string | null): string {
-  if (!start) return "TBD";
-  const s = new Date(start);
-  const datePart = s.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-  if (!end) {
-    return `${datePart}, ${s.toLocaleTimeString("en-US", { hour: "numeric", hour12: true })}`;
-  }
-  const e = new Date(end);
-  return `${datePart}, ${s.toLocaleTimeString("en-US", { hour: "numeric", hour12: true })} – ${e.toLocaleTimeString("en-US", { hour: "numeric", hour12: true })}`;
-}
-
-async function loadMeetup(
-  meetupId: string,
-): Promise<MeetupRow | null> {
+async function loadMeetup(meetupId: string): Promise<MeetupRow | null> {
   const admin = createAdminSupabaseClient();
   if (!admin) return null;
 
@@ -107,7 +84,7 @@ async function loadMeetup(
       `id, status, offered_price, meetup_window_start, meetup_window_end, meetup_location,
        buyer:users!buyer_id(id, email, full_name, phone),
        seller:users!seller_id(id, email, full_name, phone),
-       listing:listings!listing_id(id, title, retail_price)`,
+       listing:listings!listing_id(id, title, retail_price, photo_urls, condition)`,
     )
     .eq("id", meetupId)
     .single();
@@ -158,9 +135,27 @@ export async function POST(request: Request) {
       );
       const offered = m.offered_price ?? 0;
       const meetupHref = `/meetups/${m.id}`;
+      const emailListing = toEmailListing(listing);
+      const meetupContext = {
+        meetupId: m.id,
+        dateLine,
+        zoneName: location.name,
+        zoneAddress: location.address,
+      };
 
       if (event === "meetup_requested") {
         await Promise.all([
+          // The most time-sensitive event in the product. It previously reached
+          // the seller only by SMS (Twilio is unconfigured outside production)
+          // and an in-app notice that does not alert in real time — so a seller
+          // could miss an offer entirely.
+          sendNewRequestEmail({
+            seller: { email: seller.email, fullName: seller.full_name },
+            buyer: { email: buyer.email, fullName: buyer.full_name },
+            listing: emailListing,
+            meetup: meetupContext,
+            offeredPriceCents: offered,
+          }),
           sendNewRequestSMS({
             sellerPhone: seller.phone,
             buyerName: (buyer.full_name || "").split(" ")[0] || "A buyer",
@@ -181,14 +176,9 @@ export async function POST(request: Request) {
           sendMeetupScheduledEmails({
             buyer: { email: buyer.email, fullName: buyer.full_name },
             seller: { email: seller.email, fullName: seller.full_name },
-            meetup: {
-              meetupId: m.id,
-              listingTitle: listing.title,
-              dateLine,
-              zoneName: location.name,
-              zoneAddress: location.address,
-              offeredPrice: offered,
-            },
+            listing: emailListing,
+            meetup: meetupContext,
+            offeredPriceCents: offered,
           }),
           sendMeetupAcceptedSMS({
             buyerPhone: buyer.phone,
@@ -214,13 +204,22 @@ export async function POST(request: Request) {
           }),
         ]);
       } else if (event === "meetup_declined") {
-        await createNotification({
-          userId: buyer.id,
-          type: "meetup_declined",
-          title: "Request declined",
-          body: `Your request for ${listing.title} was declined. The listing is back to active.`,
-          link: `/listings/${listing.id}`,
-        });
+        await Promise.all([
+          sendRequestDeclinedEmail({
+            buyer: { email: buyer.email, fullName: buyer.full_name },
+            seller: { email: seller.email, fullName: seller.full_name },
+            listing: emailListing,
+            listingId: listing.id,
+            offeredPriceCents: offered,
+          }),
+          createNotification({
+            userId: buyer.id,
+            type: "meetup_declined",
+            title: "Request declined",
+            body: `Your request for ${listing.title} was declined. The listing is back to active.`,
+            link: `/listings/${listing.id}`,
+          }),
+        ]);
       }
 
       return Response.json({ ok: true });
@@ -237,29 +236,53 @@ export async function POST(request: Request) {
       if (!admin) {
         return Response.json({ ok: false, error: "no service role" });
       }
+      // The order join is what makes the buyer's receipt correct. `transactions`
+      // stores gross_amount = the ITEM price; the buyer's card was charged
+      // gross_captured_cents = item + Buyer Protection fee, which lives only on
+      // the order. Migration 015's own comment says to join here for the full
+      // breakdown — before this, the receipt understated the charge by our fee.
       const { data: tx, error: txErr } = await admin
         .from("transactions")
         .select(
-          `id, meetup_id, gross_amount, platform_fee, net_amount, retail_price,
+          `id, meetup_id, order_id, gross_amount, platform_fee, net_amount, retail_price, created_at,
            buyer:users!buyer_id(id, email, full_name),
-           seller:users!seller_id(id, email, full_name),
-           listing:listings!listing_id(id, title)`,
+           seller:users!seller_id(id, email, full_name, is_founding_member),
+           listing:listings!listing_id(id, title, photo_urls, condition),
+           order:orders!order_id(id, item_price_cents, buyer_fee_cents, seller_fee_cents, gross_captured_cents),
+           meetup:meetups!meetup_id(id, meetup_location, meetup_window_start, meetup_window_end, completed_at)`,
         )
         .eq("id", body.transactionId)
         .single();
       if (txErr || !tx) {
+        console.error("[notify] transaction lookup failed", txErr);
         return Response.json({ error: "tx not found" }, { status: 404 });
       }
       const t = tx as unknown as {
         id: string;
-        meetup_id: string;
+        meetup_id: string | null;
+        order_id: string | null;
         gross_amount: number;
         platform_fee: number;
         net_amount: number;
         retail_price: number | null;
-        buyer: { id: string; email: string; full_name: string | null } | null;
-        seller: { id: string; email: string; full_name: string | null } | null;
-        listing: { id: string; title: string } | null;
+        created_at: string | null;
+        buyer: Party | null;
+        seller: (Party & { is_founding_member: boolean | null }) | null;
+        listing: Listing | null;
+        order: {
+          id: string;
+          item_price_cents: number;
+          buyer_fee_cents: number;
+          seller_fee_cents: number;
+          gross_captured_cents: number;
+        } | null;
+        meetup: {
+          id: string;
+          meetup_location: string | null;
+          meetup_window_start: string | null;
+          meetup_window_end: string | null;
+          completed_at: string | null;
+        } | null;
       };
       if (t.buyer?.id !== user.id && t.seller?.id !== user.id) {
         return Response.json({ error: "Forbidden" }, { status: 403 });
@@ -268,23 +291,63 @@ export async function POST(request: Request) {
         return Response.json({ ok: false, error: "missing parties" });
       }
 
+      // transactions.order_id is ON DELETE SET NULL and predates the payments
+      // phases, so a missing order is possible. Fall back to the ledger figures
+      // and derive the buyer fee rather than skipping the email — but never
+      // pretend a derived total is a captured one when we have the real column.
+      const money = t.order
+        ? {
+            itemPriceCents: t.order.item_price_cents,
+            buyerFeeCents: t.order.buyer_fee_cents,
+            grossCapturedCents: t.order.gross_captured_cents,
+            sellerFeeCents: t.order.seller_fee_cents,
+            payoutCents: t.order.item_price_cents - t.order.seller_fee_cents,
+          }
+        : {
+            itemPriceCents: t.gross_amount,
+            buyerFeeCents: Math.round(t.gross_amount * 0.1),
+            grossCapturedCents: t.gross_amount + Math.round(t.gross_amount * 0.1),
+            sellerFeeCents: t.platform_fee,
+            payoutCents: t.net_amount,
+          };
+      if (!t.order) {
+        console.warn(
+          `[notify] transaction ${t.id} has no order row; receipt totals derived from the ledger`,
+        );
+      }
+
+      const location = t.meetup ? parseLocation(t.meetup.meetup_location) : null;
+
       await Promise.all([
         sendTransactionCompleteEmails({
           buyer: { email: t.buyer.email, fullName: t.buyer.full_name },
           seller: { email: t.seller.email, fullName: t.seller.full_name },
+          listing: toEmailListing(t.listing),
+          money,
+          orderId: t.order_id ?? t.id,
           transactionId: t.id,
           meetupId: t.meetup_id,
-          listingTitle: t.listing.title,
-          grossAmount: t.gross_amount,
-          platformFee: t.platform_fee,
-          netAmount: t.net_amount,
-          retailPrice: t.retail_price,
+          meetup:
+            t.meetup && location
+              ? {
+                  meetupId: t.meetup.id,
+                  dateLine: formatDateLine(
+                    t.meetup.meetup_window_start,
+                    t.meetup.meetup_window_end,
+                  ),
+                  zoneName: location.name,
+                  zoneAddress: location.address,
+                }
+              : null,
+          metOn: formatDateOnly(t.meetup?.completed_at ?? t.created_at),
+          retailPriceCents: t.retail_price,
+          sellerIsFounding: t.seller.is_founding_member ?? false,
         }),
         createNotification({
           userId: t.seller.id,
           type: "transaction_complete",
           title: "Sale complete 💰",
-          body: `Your sale of ${t.listing.title} closed for $${(t.gross_amount / 100).toFixed(0)}.`,
+          body: `Your sale of ${t.listing.title} closed for $${(money.itemPriceCents / 100).toFixed(0)}.`,
           link: `/profile/transactions/${t.id}`,
         }),
         createNotification({

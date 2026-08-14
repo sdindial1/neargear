@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import * as Sentry from "@sentry/nextjs";
 import { getStripe } from "@/lib/stripe";
 import { createNotification } from "@/lib/notifications/inapp";
+import { sendRefundEmails } from "@/lib/notifications/email";
 import { alertCritical } from "@/lib/notifications/alert";
 import type { RefundReason } from "@/types/database";
 
@@ -477,12 +478,34 @@ async function notifyRefunded(
       }
     }
 
-    const { data: listingRow } = await admin
-      .from("listings")
-      .select("title")
-      .eq("id", order.listing_id ?? "")
-      .maybeSingle();
-    const title = (listingRow as { title: string } | null)?.title ?? "your order";
+    const [{ data: listingRow }, { data: buyerRow }, { data: sellerRow }] =
+      await Promise.all([
+        admin
+          .from("listings")
+          .select("title, photo_urls, condition")
+          .eq("id", order.listing_id ?? "")
+          .maybeSingle(),
+        admin
+          .from("users")
+          .select("email, full_name")
+          .eq("id", order.buyer_id ?? "")
+          .maybeSingle(),
+        admin
+          .from("users")
+          .select("email, full_name")
+          .eq("id", order.seller_id ?? "")
+          .maybeSingle(),
+      ]);
+
+    const listing = listingRow as {
+      title: string;
+      photo_urls: string[] | null;
+      condition: string | null;
+    } | null;
+    const buyer = buyerRow as { email: string; full_name: string | null } | null;
+    const seller = sellerRow as { email: string; full_name: string | null } | null;
+
+    const title = listing?.title ?? "your order";
     const amount = `$${(amountCents / 100).toFixed(2)}`;
 
     const why: Record<RefundReason, string> = {
@@ -507,6 +530,25 @@ async function notifyRefunded(
         body: `The payment for ${title} was refunded to the buyer. No payout will be made for this order.`,
         link: "/profile/wallet",
       }),
+      // We take real money and give it back; until now that was said only in an
+      // in-app notice. Email is the receipt people expect for a refund, and the
+      // one they go looking for when the money hasn't landed yet.
+      buyer?.email
+        ? sendRefundEmails({
+            buyer: { email: buyer.email, fullName: buyer.full_name },
+            seller: seller?.email
+              ? { email: seller.email, fullName: seller.full_name }
+              : null,
+            listing: {
+              title,
+              imageUrl: listing?.photo_urls?.[0] ?? null,
+              condition: listing?.condition ?? null,
+            },
+            orderId: order.id,
+            amountCents,
+            reason,
+          })
+        : Promise.resolve(),
     ]);
   } catch (err) {
     console.error(`[refund] notification failed for order ${order.id}`, err);

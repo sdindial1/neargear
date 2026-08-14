@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import { refundOrder } from "@/lib/orders/refund";
 import { releaseOrder } from "@/lib/orders/release";
 import { createNotification } from "@/lib/notifications/inapp";
+import { sendDisputeResolvedEmails } from "@/lib/notifications/email";
 import { alertCritical } from "@/lib/notifications/alert";
 import type { DisputeResolution } from "@/types/database";
 
@@ -281,17 +282,41 @@ async function notifyResolution(
   amountCents: number | null,
 ): Promise<void> {
   try {
-    const { data: listingRow } = await admin
-      .from("listings")
-      .select("title")
-      .eq("id", order.listing_id ?? "")
-      .maybeSingle();
-    const title = (listingRow as { title: string } | null)?.title ?? "your order";
+    const [{ data: listingRow }, { data: buyerRow }, { data: sellerRow }] =
+      await Promise.all([
+        admin
+          .from("listings")
+          .select("title, photo_urls, condition")
+          .eq("id", order.listing_id ?? "")
+          .maybeSingle(),
+        admin
+          .from("users")
+          .select("email, full_name")
+          .eq("id", order.buyer_id ?? "")
+          .maybeSingle(),
+        admin
+          .from("users")
+          .select("email, full_name")
+          .eq("id", order.seller_id ?? "")
+          .maybeSingle(),
+      ]);
+
+    const listing = listingRow as {
+      title: string;
+      photo_urls: string[] | null;
+      condition: string | null;
+    } | null;
+    const buyer = buyerRow as { email: string; full_name: string | null } | null;
+    const seller = sellerRow as { email: string; full_name: string | null } | null;
+
+    const title = listing?.title ?? "your order";
     const amount = amountCents ? `$${(amountCents / 100).toFixed(2)}` : "";
 
     if (resolution === "refund_buyer") {
-      // refundOrder already notified both parties about the refund itself;
-      // this adds the "we reviewed it" framing that a queued case needs.
+      // refundOrder already emailed BOTH parties with dispute_upheld wording,
+      // so a second "case resolved" email would be duplicate mail about a
+      // single decision. In-app only here, adding the "we reviewed it" framing
+      // that a queued case needs.
       await createNotification({
         userId: order.buyer_id,
         type: "item_dispute_filed",
@@ -314,9 +339,27 @@ async function notifyResolution(
         userId: order.buyer_id,
         type: "item_dispute_filed",
         title: "Your case was resolved",
-        body: `We reviewed ${title} and released the payment to the seller. Reply to your notification email if you'd like to discuss it.`,
+        // This line used to point at "your notification email" — an email we
+        // had never sent. It is now accurate because sendDisputeResolvedEmails
+        // below actually sends it.
+        body: `We reviewed ${title} and released the payment to the seller. Reply to the email we just sent if you'd like to discuss it.`,
         link: "/profile/transactions",
       }),
+      buyer?.email
+        ? sendDisputeResolvedEmails({
+            buyer: { email: buyer.email, fullName: buyer.full_name },
+            seller: seller?.email
+              ? { email: seller.email, fullName: seller.full_name }
+              : null,
+            listing: {
+              title,
+              imageUrl: listing?.photo_urls?.[0] ?? null,
+              condition: listing?.condition ?? null,
+            },
+            orderId: order.id,
+            payoutCents: amountCents ?? 0,
+          })
+        : Promise.resolve(),
     ]);
   } catch (err) {
     console.error(`[resolve] notification failed for order ${order.id}`, err);

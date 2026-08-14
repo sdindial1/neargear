@@ -4,6 +4,11 @@ import * as Sentry from "@sentry/nextjs";
 import { getStripe } from "@/lib/stripe";
 import { createNotification } from "@/lib/notifications/inapp";
 import { sendTransactionCompleteEmails } from "@/lib/notifications/email";
+import {
+  formatDateLine,
+  formatDateOnly,
+  parseLocation,
+} from "@/lib/notifications/meetup-context";
 import { alertCritical } from "@/lib/notifications/alert";
 import type { ReleaseReason } from "@/types/database";
 
@@ -87,6 +92,8 @@ interface OrderRow {
   buyer_id: string | null;
   seller_id: string | null;
   item_price_cents: number;
+  /** Buyer Protection, charged on top of the item price. Receipt needs it. */
+  buyer_fee_cents: number;
   seller_fee_cents: number;
   gross_captured_cents: number;
   currency: string;
@@ -101,7 +108,7 @@ interface OrderRow {
 
 const ORDER_SELECT =
   "id, meetup_id, listing_id, buyer_id, seller_id, item_price_cents, " +
-  "seller_fee_cents, gross_captured_cents, currency, status, " +
+  "buyer_fee_cents, seller_fee_cents, gross_captured_cents, currency, status, " +
   "stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, " +
   "disputed_at, transfer_attempts";
 
@@ -216,7 +223,7 @@ export async function releaseOrder(
   // on whether the transfer can land — a rejection retries like any other.
   const { data: sellerRow } = await admin
     .from("users")
-    .select("id, stripe_account_id, email, full_name")
+    .select("id, stripe_account_id, email, full_name, is_founding_member")
     .eq("id", order.seller_id ?? "")
     .maybeSingle();
   const seller = sellerRow as {
@@ -224,6 +231,7 @@ export async function releaseOrder(
     stripe_account_id: string | null;
     email: string;
     full_name: string | null;
+    is_founding_member: boolean | null;
   } | null;
 
   if (!seller?.stripe_account_id) {
@@ -451,7 +459,12 @@ async function projectRelease(
     payoutCents: number;
     reason: ReleaseReason;
     releasedAt: string;
-    seller: { id: string; email: string; full_name: string | null };
+    seller: {
+      id: string;
+      email: string;
+      full_name: string | null;
+      is_founding_member: boolean | null;
+    };
   },
 ): Promise<void> {
   const { payoutCents, reason, releasedAt, seller } = ctx;
@@ -530,6 +543,7 @@ async function projectRelease(
     await notifyReleased(admin, order, {
       transactionId: (tx as { id: string } | null)?.id ?? null,
       payoutCents,
+      releasedAt,
       seller,
     });
   } catch (err) {
@@ -551,29 +565,65 @@ async function notifyReleased(
   ctx: {
     transactionId: string | null;
     payoutCents: number;
-    seller: { id: string; email: string; full_name: string | null };
+    releasedAt: string;
+    seller: {
+      id: string;
+      email: string;
+      full_name: string | null;
+      is_founding_member: boolean | null;
+    };
   },
 ): Promise<void> {
-  const { transactionId, payoutCents, seller } = ctx;
+  const { transactionId, payoutCents, releasedAt, seller } = ctx;
 
-  const { data: buyerRow } = await admin
-    .from("users")
-    .select("id, email, full_name")
-    .eq("id", order.buyer_id ?? "")
-    .maybeSingle();
+  // These three lookups widened when the emails did. The receipt needs the
+  // photo and condition for the product card, and the meetup for the "met on"
+  // and safe-zone rows — none of which this path could reach before, which is
+  // why the money emails carried no context at all.
+  const [{ data: buyerRow }, { data: listingRow }, { data: meetupRow }] =
+    await Promise.all([
+      admin
+        .from("users")
+        .select("id, email, full_name")
+        .eq("id", order.buyer_id ?? "")
+        .maybeSingle(),
+      admin
+        .from("listings")
+        .select("title, photo_urls, condition, retail_price")
+        .eq("id", order.listing_id ?? "")
+        .maybeSingle(),
+      order.meetup_id
+        ? admin
+            .from("meetups")
+            .select(
+              "id, meetup_location, meetup_window_start, meetup_window_end, completed_at",
+            )
+            .eq("id", order.meetup_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+
   const buyer = buyerRow as {
     id: string;
     email: string;
     full_name: string | null;
   } | null;
+  const listing = listingRow as {
+    title: string;
+    photo_urls: string[] | null;
+    condition: string | null;
+    retail_price: number | null;
+  } | null;
+  const meetup = meetupRow as {
+    id: string;
+    meetup_location: string | null;
+    meetup_window_start: string | null;
+    meetup_window_end: string | null;
+    completed_at: string | null;
+  } | null;
 
-  const { data: listingRow } = await admin
-    .from("listings")
-    .select("title")
-    .eq("id", order.listing_id ?? "")
-    .maybeSingle();
-  const listingTitle =
-    (listingRow as { title: string } | null)?.title ?? "your item";
+  const listingTitle = listing?.title ?? "your item";
+  const location = meetup ? parseLocation(meetup.meetup_location) : null;
 
   await Promise.all([
     createNotification({
@@ -590,17 +640,43 @@ async function notifyReleased(
       body: `Your purchase of ${listingTitle} is complete. Thanks for using NearGear.`,
       link: transactionId ? `/profile/transactions/${transactionId}` : "/profile/transactions",
     }),
-    buyer && transactionId
+    buyer
       ? sendTransactionCompleteEmails({
           buyer: { email: buyer.email, fullName: buyer.full_name },
           seller: { email: seller.email, fullName: seller.full_name },
+          listing: {
+            title: listingTitle,
+            imageUrl: listing?.photo_urls?.[0] ?? null,
+            condition: listing?.condition ?? null,
+          },
+          // Every figure named for exactly what it is. The buyer's receipt
+          // leads with grossCapturedCents — what the card was charged — which
+          // is the number the old shape got wrong.
+          money: {
+            itemPriceCents: order.item_price_cents,
+            buyerFeeCents: order.buyer_fee_cents,
+            grossCapturedCents: order.gross_captured_cents,
+            sellerFeeCents: order.seller_fee_cents,
+            payoutCents,
+          },
+          orderId: order.id,
           transactionId,
-          meetupId: order.meetup_id ?? "",
-          listingTitle,
-          grossAmount: order.item_price_cents,
-          platformFee: order.seller_fee_cents,
-          netAmount: payoutCents,
-          retailPrice: null,
+          meetupId: order.meetup_id,
+          meetup:
+            meetup && location
+              ? {
+                  meetupId: meetup.id,
+                  dateLine: formatDateLine(
+                    meetup.meetup_window_start,
+                    meetup.meetup_window_end,
+                  ),
+                  zoneName: location.name,
+                  zoneAddress: location.address,
+                }
+              : null,
+          metOn: formatDateOnly(meetup?.completed_at ?? releasedAt),
+          retailPriceCents: listing?.retail_price ?? null,
+          sellerIsFounding: seller.is_founding_member ?? false,
         })
       : Promise.resolve(),
   ]);

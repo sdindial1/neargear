@@ -83,7 +83,7 @@ export async function POST(
       await Promise.all([
         admin
           .from("listings")
-          .select("title")
+          .select("title, photo_urls, condition")
           .eq("id", order.listing_id ?? "")
           .maybeSingle(),
         admin
@@ -98,8 +98,12 @@ export async function POST(
           .maybeSingle(),
       ]);
 
-    const listingTitle =
-      (listingRow as { title: string } | null)?.title ?? "your item";
+    const listing = listingRow as {
+      title: string;
+      photo_urls: string[] | null;
+      condition: string | null;
+    } | null;
+    const listingTitle = listing?.title ?? "your item";
     const buyer = buyerRow as { email: string; full_name: string | null } | null;
     const seller = sellerRow as {
       email: string;
@@ -124,7 +128,11 @@ export async function POST(
               fullName: seller?.full_name ?? null,
             },
             meetupId: order.meetup_id,
-            listingTitle,
+            listing: {
+              title: listingTitle,
+              imageUrl: listing?.photo_urls?.[0] ?? null,
+              condition: listing?.condition ?? null,
+            },
             itemPriceCents: order.item_price_cents,
           })
         : Promise.resolve(),
