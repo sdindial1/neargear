@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createAdminSupabaseClient } from "@/lib/supabase-admin";
 import { classifyListing, messageFor } from "@/lib/moderation/classify";
+import { canonicalSport } from "@/lib/constants";
 
 export const runtime = "nodejs";
 // The classifier is a live model call; the default serverless budget is not
@@ -86,7 +87,14 @@ export async function POST(request: NextRequest) {
     // giveaway's Official Rules define a Qualifying Listing as one with an
     // accurate description, city because proximity is the product.
     const title = (body.title ?? "").trim();
-    const sport = (body.sport ?? "").trim();
+    // Canonicalised, not just trimmed. /marketplace filters on an exact
+    // equality against SPORTS, so a value stored in any other casing is
+    // invisible to every filter pill — which is exactly how 25 listings ended
+    // up unreachable (migration 029). Falls back to the raw trimmed value so an
+    // unrecognised sport still saves rather than being silently dropped; the
+    // classifier and the admin queue can deal with it.
+    const rawSport = (body.sport ?? "").trim();
+    const sport = canonicalSport(rawSport) ?? rawSport;
     const category = (body.category ?? "").trim();
     const condition = (body.condition ?? "").trim();
     const description = (body.description ?? "").trim();

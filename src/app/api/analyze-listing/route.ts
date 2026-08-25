@@ -98,7 +98,7 @@ Return ONLY this JSON structure with no other text:
   "item": "descriptive item name",
   "brand": "brand name or Unknown",
   "model": "model name or Unknown",
-  "sport": "Baseball|Softball|Soccer|Basketball|Football|Lacrosse|Hockey|Volleyball|Tennis|Other",
+  "sport": "Baseball|Softball|Soccer|Basketball|Football|Lacrosse|Hockey|Volleyball|Tennis|Golf|Swimming|Track & Field|Wrestling|Other",
   "category": "Glove|Bat|Cleats|Helmet|Ball|Shin Guards|Stick|Pads|Shoes|Jersey|Bag|Other",
   "condition": "like_new|good|fair|poor",
   "conditionNotes": "specific observations about condition",
