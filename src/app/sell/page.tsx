@@ -27,7 +27,10 @@ import { dataUrlToBlob, resizeImage } from "@/lib/image";
 import { formatCondition } from "@/lib/utils";
 import { ensurePublicUserRow } from "@/lib/ensure-profile";
 import { isSellerSuspended } from "@/lib/strikes";
-import { trackCustomEvent } from "@/lib/meta-pixel";
+import {
+  trackCustomEventBeforeUnload,
+  reportTrackResult,
+} from "@/lib/meta-pixel";
 import { SuspensionScreen } from "@/components/suspension-screen";
 import {
   AlertCircle,
@@ -396,7 +399,34 @@ function SellPageInner() {
     // row genuinely exists. Firing on button click instead would teach Meta to
     // optimize for people who *attempt* to list, which is the opposite of what
     // we want to buy. Carries no title, price or photo: no payload is accepted.
-    trackCustomEvent("ListingCreated");
+    //
+    // AWAITED, unlike every other call site. router.push() below used to be the
+    // very next statement, so the event and the navigation raced in the same
+    // tick — and because the old wrapper returned an event id whether or not
+    // anything was sent, it looked fine while ~22 listings produced one
+    // recorded conversion. This waits for fbevents.js (briefly) and yields
+    // before navigating. It always resolves: a conversion event must never be
+    // able to block a seller's listing.
+    const pixelResult = await trackCustomEventBeforeUnload("ListingCreated");
+    reportTrackResult("ListingCreated", pixelResult);
+
+    // TEMPORARY PROBE — see migration 027. Records the browser's own account of
+    // what it did with the event, so it can be compared against what Meta
+    // actually received. Meta knows what ARRIVED; only this knows what was SENT.
+    //
+    // Fire and forget, and it must stay that way: no await, every error
+    // swallowed, keepalive so it survives the navigation below. A diagnostic
+    // that can delay or break a seller's listing is worse than no diagnostic.
+    // Delete this block when 027 is dropped.
+    void fetch("/api/listings/pixel-dispatch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        listingId: result.listingId,
+        status: pixelResult.status,
+      }),
+      keepalive: true,
+    }).catch(() => {});
 
     // ?new=1 is what tells the listing page to offer payout setup. Prompting
     // here rather than gating /sell keeps listing itself completely ungated —

@@ -21,7 +21,7 @@ import { DFW_CITIES } from "@/lib/constants";
 import { isValidZipcodeFormat } from "@/lib/zipcodes";
 import { formatPhone, isValidUSPhone, toE164 } from "@/lib/phone";
 import { safeRedirect } from "@/lib/safe-redirect";
-import { trackStandard } from "@/lib/meta-pixel";
+import { trackStandard, reportTrackResult } from "@/lib/meta-pixel";
 
 type FoundingPhase =
   | "off"
@@ -129,7 +129,10 @@ function SignupInner() {
       // reports a conversion. Placed before the founding-flow branch below,
       // which returns early — instrumenting after it would silently miss every
       // founding signup. Sends no data: see lib/meta-pixel.ts.
-      trackStandard("CompleteRegistration");
+      reportTrackResult(
+        "CompleteRegistration",
+        trackStandard("CompleteRegistration"),
+      );
     }
 
     const { error: signInError } = await supabase.auth.signInWithPassword({

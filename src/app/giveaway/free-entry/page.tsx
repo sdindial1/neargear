@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { trackStandard } from "@/lib/meta-pixel";
+import { trackStandard, reportTrackResult } from "@/lib/meta-pixel";
 import s from "../giveaway.module.css";
 
 /**
@@ -63,7 +63,7 @@ export default function FreeEntryPage() {
       //
       // This form collects a name, email and ZIP. None of it is passed here:
       // trackStandard takes no payload at all.
-      trackStandard("Lead");
+      reportTrackResult("Lead", trackStandard("Lead"));
       setStatus("done");
     } catch {
       setError("Network error. Please check your connection and try again.");
