@@ -1,4 +1,34 @@
 import { NextRequest } from "next/server";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { prescreen, messageFor } from "@/lib/moderation/classify";
+
+/**
+ * Per-user call ceiling for photo analysis.
+ *
+ * HONEST LIMITATION: this counter lives in the module scope of one serverless
+ * instance, so the effective platform-wide limit is this number times however
+ * many instances are warm. It is a brake on a naive loop, not a hard quota.
+ * The load-bearing control is the auth check below — before it, ANY anonymous
+ * caller could POST images and spend Anthropic tokens without an account.
+ * A durable quota needs its own table; noted for POST-LAUNCH.
+ */
+const MAX_ANALYSES_PER_HOUR = 40;
+const analysisHits = new Map<string, number[]>();
+
+function overRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const cutoff = now - 60 * 60 * 1000;
+  const hits = (analysisHits.get(userId) ?? []).filter((t) => t > cutoff);
+  hits.push(now);
+  analysisHits.set(userId, hits);
+  // Keep the map from growing without bound on a long-lived instance.
+  if (analysisHits.size > 5000) {
+    for (const [k, v] of analysisHits) {
+      if (v.every((t) => t <= cutoff)) analysisHits.delete(k);
+    }
+  }
+  return hits.length > MAX_ANALYSES_PER_HOUR;
+}
 
 const SYSTEM_PROMPT = `You are an expert youth sports equipment analyst for a peer-to-peer marketplace in DFW Texas. Analyze photos of sports gear and return accurate, helpful JSON.
 
@@ -113,11 +143,58 @@ function approxKb(base64OrDataUrl: string): number {
 }
 
 export async function POST(request: NextRequest) {
-  const { images } = await request.json();
+  // This route spends Anthropic tokens on every call. It used to accept
+  // anonymous requests with no ceiling, which with ads pointing strangers at
+  // /sell is an open tap on our own API bill.
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return Response.json(
+      { error: "Please sign in to analyze photos." },
+      { status: 401 },
+    );
+  }
+  if (overRateLimit(user.id)) {
+    console.log(`[analyze] rate limited user=${user.id}`);
+    return Response.json(
+      {
+        error:
+          "You've analyzed a lot of photos in the last hour. Try again shortly.",
+      },
+      { status: 429 },
+    );
+  }
+
+  const { images, title, description } = await request.json();
 
   if (!images || !Array.isArray(images) || images.length === 0) {
     console.log("[analyze] no images in body");
     return Response.json({ error: "At least one image is required" }, { status: 400 });
+  }
+
+  // Free deterministic policy pass, from the same module the publish route
+  // uses — one classifier, two call sites. Only the keyword half runs here:
+  // it costs nothing and lets us refuse the unambiguous cases before spending
+  // a vision call. The MODEL half deliberately does not run here. It would
+  // double the per-listing spend for an advisory answer, and POST /api/listings
+  // re-classifies from scratch anyway because anything the browser reports
+  // back is forgeable.
+  const pre = prescreen({
+    title: typeof title === "string" ? title : "",
+    description: typeof description === "string" ? description : "",
+    sport: "",
+    category: "",
+    priceDollars: 0,
+    images: [],
+  });
+  if (pre.verdict === "block") {
+    console.log(`[analyze] prescreen block: ${pre.reasons.join(",")}`);
+    return Response.json(
+      { error: messageFor("block"), reasons: pre.reasons },
+      { status: 422 },
+    );
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;

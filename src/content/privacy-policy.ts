@@ -1,7 +1,7 @@
 export const CONTENT = `# Privacy Policy
 
 **Effective Date: August 6, 2026**
-**Last Updated: August 6, 2026**
+**Last Updated: August 21, 2026**
 
 NearGear LLC ("NearGear," "we," "us," or "our") respects your privacy and is committed to protecting your personal information. This Privacy Policy explains how we collect, use, share, and protect information when you use our website at near-gear.com, our mobile-optimized web application, and any related services (collectively, the "Service").
 
@@ -97,6 +97,7 @@ We reserve the right to remove any content that appears to compromise child safe
 - Pages visited and time spent
 - Referring URLs
 - Click and scroll behavior
+- Search queries and filters you use on the marketplace
 
 **Location Information:**
 - Approximate location based on IP address
@@ -284,6 +285,7 @@ We retain your information for as long as your account is active or as needed to
 | Transaction records | 7 years (legal/tax requirements) |
 | Aggregated analytics | Indefinitely |
 | Marketing data | Until you opt out |
+| Search and usage logs | 180 days |
 | Security logs | 1 year |
 
 ---

@@ -122,6 +122,15 @@ export default async function ListingPage({
   const isOwner = user?.id === listing.seller_id;
   const isActive = listing.status === "active";
   const isPending = listing.status === "pending";
+  // Held by moderation. RLS makes this row unreachable by anyone but the
+  // seller, so in practice isOwner is always true when this is.
+  const isUnderReview = listing.status === "pending_review";
+  // Cards are never AI Verified. We cannot tell a real rookie card from a good
+  // counterfeit in a photo, and the badge would be vouching for authenticity
+  // we have no way to assess. See src/lib/moderation/classify.ts.
+  const isTradingCard = (listing.moderation_reasons ?? []).includes(
+    "trading_card",
+  );
 
   await supabase
     .from("listings")
@@ -226,11 +235,13 @@ export default async function ListingPage({
                 {listing.ai_size}
               </Badge>
             )}
-            {listing.ai_confidence != null && listing.ai_confidence >= 0.7 && (
-              <Badge className="bg-green-50 text-green-700 border border-green-200">
-                <ShieldCheck className="w-3 h-3 mr-1" /> AI Verified
-              </Badge>
-            )}
+            {listing.ai_confidence != null &&
+              listing.ai_confidence >= 0.7 &&
+              !isTradingCard && (
+                <Badge className="bg-green-50 text-green-700 border border-green-200">
+                  <ShieldCheck className="w-3 h-3 mr-1" /> AI Verified
+                </Badge>
+              )}
           </div>
 
           <div className="flex items-start justify-between gap-3">
@@ -248,6 +259,34 @@ export default async function ListingPage({
               label=""
             />
           </div>
+
+          {isUnderReview ? (
+            <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-blue-700 flex-shrink-0" />
+                <p className="font-heading font-bold text-blue-900">
+                  Under review
+                </p>
+              </div>
+              <p className="text-sm text-blue-900 mt-2 leading-relaxed">
+                We check new listings to keep NearGear to youth sports gear.
+                This usually takes less than 24 hours, and you don&apos;t need
+                to do anything — we&apos;ll email you as soon as it&apos;s
+                approved. Only you can see this page until then.
+              </p>
+            </div>
+          ) : null}
+
+          {isTradingCard && !isUnderReview ? (
+            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-sm text-amber-900 leading-relaxed">
+                <span className="font-semibold">Trading card.</span> NearGear
+                does not authenticate or grade trading cards, and no listing
+                here is verified as genuine. Inspect the card in person before
+                you confirm the handoff.
+              </p>
+            </div>
+          ) : null}
 
           {isPending && !isOwner ? (
             <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4">

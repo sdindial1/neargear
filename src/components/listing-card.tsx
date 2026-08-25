@@ -80,11 +80,17 @@ export function ListingCard({ listing, initiallySaved = false }: ListingCardProp
           >
             {formatCondition(listing.condition)}
           </Badge>
-          {listing.ai_confidence !== null && listing.ai_confidence !== undefined && listing.ai_confidence > 0.7 && (
-            <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-white/90 rounded-full px-2 py-0.5 text-[10px] text-navy font-medium">
-              <ShieldCheck className="w-3 h-3 text-green-600" /> AI Verified
-            </div>
-          )}
+          {/* Never on trading cards — the badge would be vouching for
+              authenticity we cannot assess from a photo. Mirrors the same
+              suppression on the listing detail page. */}
+          {listing.ai_confidence !== null &&
+            listing.ai_confidence !== undefined &&
+            listing.ai_confidence > 0.7 &&
+            !(listing.moderation_reasons ?? []).includes("trading_card") && (
+              <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-white/90 rounded-full px-2 py-0.5 text-[10px] text-navy font-medium">
+                <ShieldCheck className="w-3 h-3 text-green-600" /> AI Verified
+              </div>
+            )}
         </div>
 
         <div className="p-3">

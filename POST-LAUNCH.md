@@ -618,3 +618,51 @@ likely need a real dispute record to resolve against.
 **5. The charge id is not persisted.** `releaseOrder` resolves it at runtime
 from the PaymentIntent for `source_transaction`. Refunds need it too; consider
 storing `stripe_charge_id` on the order rather than re-deriving it.
+
+---
+
+## Moderation (added 2026-08-21, with the pre-ads listing gate)
+
+**15. Admin access is a hardcoded email allowlist.** `src/lib/admin.ts`. Every
+admin change is a deploy, and a non-allowlisted address gets a silent
+`redirect("/")` that is indistinguishable from "page doesn't exist" -- that
+cost an afternoon of debugging on 2026-08-21. Fine at two people; move it to a
+`users` column before there is a third.
+
+**16. No durable quota on `/api/analyze-listing`.** The route now requires auth
+(it previously accepted anonymous calls and spent Anthropic tokens for anyone
+who POSTed images) and carries a per-user hourly ceiling, but the counter lives
+in one serverless instance's module scope. The effective platform-wide limit is
+that number times however many instances are warm. A real quota needs its own
+table.
+
+**17. Edit-after-approval is not re-screened.** A seller can publish innocuous
+content, get auto-approved, then edit the title, description, or photos to
+something prohibited via `/listings/[id]/edit`, which writes straight to
+PostgREST. Re-screening every edit would push queue volume up, which is the one
+thing the gate is tuned to avoid, so it was left open deliberately. Options
+later: re-screen only when photos change, or screen asynchronously and demote
+to `pending_review` on a bad verdict.
+
+**18. Fail-open is a deliberate accepted risk.** When the classifier errors or
+times out, the listing publishes with `moderation_verdict = 'error'` rather
+than queueing. The alternative -- failing closed -- means one Anthropic blip
+queues every listing submitted during ad spend, with a single admin to clear
+it. The keyword prescreen still runs during an outage, so the unambiguous cases
+are still refused. `/admin/moderation` surfaces these for retroactive sweep and
+they are LIVE until swept.
+
+**19. Buyer request never actually reserves a listing.**
+`src/app/listings/[id]/request/page.tsx` updates the listing to
+`status='pending'`, but the UPDATE policy is `USING (auth.uid() = seller_id)`
+and the caller is the BUYER -- so RLS silently rejects it and the return value
+is never checked. Listings stay `active` after a request. Pre-existing, found
+during the moderation audit, not fixed here.
+
+**20. Seed listings use lowercase sports and an unlisted sport.** The 25 seed
+listings carry `sport` values like `baseball`/`golf` while the sport filter
+matches exact-case against `SPORTS` in `src/lib/constants.ts` (`Baseball`,
+...), which has no `golf` entry at all. Every seed listing is therefore
+unreachable through the sport filter pills, and the six golf ones are
+unreachable by any sport filter. Also one real listing has an empty `category`
+and a `sport` of Baseball on a pair of soccer cleats.

@@ -1,7 +1,21 @@
 export type UserRole = "parent" | "coach" | "both";
 export type StrikeStatus = "active" | "warned" | "blackout_30" | "blackout_60" | "banned";
 export type ListingCondition = "like_new" | "good" | "fair" | "poor";
-export type ListingStatus = "active" | "sold" | "removed" | "pending";
+/**
+ * `pending` means a BUYER has requested the item and it is reserved.
+ * `pending_review` means moderation is holding it — invisible to everyone but
+ * the seller, and earning no sweepstakes entry until approved. Two different
+ * things; do not collapse them.
+ */
+export type ListingStatus =
+  | "active"
+  | "sold"
+  | "removed"
+  | "pending"
+  | "pending_review";
+
+/** Classifier outcome. "error" = published fail-open, needs retroactive sweep. */
+export type ModerationVerdictValue = "allow" | "review" | "block" | "error";
 export type MeetupStatus =
   | "deposit_pending"
   | "scheduled"
@@ -147,6 +161,11 @@ export interface Listing {
   ai_brand: string | null;
   ai_confidence: number | null;
   retail_price: number | null;
+  moderation_verdict: ModerationVerdictValue | null;
+  moderation_reasons: string[] | null;
+  moderation_confidence: number | null;
+  moderated_at: string | null;
+  moderated_by: string | null;
   views: number;
   city: string | null;
   age_min: number | null;

@@ -790,3 +790,69 @@ export async function sendFoundingWelcomeEmail(opts: {
 
   await sendOrLog(to.email, "Welcome to the NearGear Founding Family", mail);
 }
+
+// ---------------------------------------------------------------------------
+// 10. Listing moderation — approved / rejected
+//
+// Both go through emailLayout() like every other send. A seller whose listing
+// was held has been told "usually within 24 hours"; these are the emails that
+// keep that promise, so they are transactional, not marketing.
+// ---------------------------------------------------------------------------
+
+export async function sendListingApprovedEmail(opts: {
+  seller: EmailParty;
+  listing: EmailListing;
+  listingId: string;
+}): Promise<void> {
+  const { seller, listing, listingId } = opts;
+
+  const mail = emailLayout({
+    preheader: `${listing.title} is now live on NearGear.`,
+    eyebrow: "Listing approved",
+    heading: "Your listing is live",
+    intro: [
+      `Hi ${firstName(seller.fullName)} — we've finished reviewing ${listing.title} and it's now visible to buyers in DFW.`,
+      "Nothing else to do. You'll get an email the moment someone requests it.",
+    ],
+    product: productOf(listing),
+    cta: { href: `${appUrl()}/listings/${listingId}`, label: "View your listing" },
+    ctaNote: "Free to list. You only pay when it sells.",
+  });
+
+  await sendOrLog(seller.email, `Your listing is live — ${listing.title}`, mail);
+}
+
+export async function sendListingRejectedEmail(opts: {
+  seller: EmailParty;
+  listing: EmailListing;
+  /** One sentence, seller-facing. Never a raw classifier reason code. */
+  reason: string;
+}): Promise<void> {
+  const { seller, listing, reason } = opts;
+
+  const mail = emailLayout({
+    preheader: `We couldn't publish ${listing.title}.`,
+    eyebrow: "Listing not approved",
+    heading: "We couldn't publish this listing",
+    intro: [
+      `Hi ${firstName(seller.fullName)} — we reviewed ${listing.title} and weren't able to publish it.`,
+    ],
+    product: productOf(listing),
+    notice: {
+      title: "Why",
+      body: reason,
+    },
+    bodyHtml: `
+      <p style="margin:0 0 8px;">NearGear is a marketplace for youth sports gear specifically — equipment, sports apparel, team wear, and training equipment. Anything outside that we can't list, even when it's perfectly fine to sell elsewhere.</p>
+      <p style="margin:0;">If you think we've got this wrong, reply to this email or write to support@near-gear.com and a person will look at it.</p>
+    `,
+    cta: { href: `${appUrl()}/sell`, label: "List something else" },
+    ctaNote: "This doesn't affect your account or your other listings.",
+  });
+
+  await sendOrLog(
+    seller.email,
+    `About your listing — ${listing.title}`,
+    mail,
+  );
+}

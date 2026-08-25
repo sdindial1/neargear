@@ -318,42 +318,75 @@ function SellPageInner() {
         ? `${ageMinNum}-${ageMaxNum}`
         : analysis?.ageRange || null;
 
-    const { data: listing, error: insertError } = await supabase
-      .from("listings")
-      .insert({
-        seller_id: user?.id ?? null,
-        title,
-        sport,
-        category,
-        condition,
-        price: priceInCents,
-        description,
-        photo_urls: photoUrls,
-        status: "active",
-        ai_suggested_price: analysis
-          ? Math.round(analysis.suggestedPrice * 100)
-          : null,
-        retail_price: analysis?.retailPrice
-          ? Math.round(analysis.retailPrice * 100)
-          : null,
-        ai_condition_grade: analysis?.condition || null,
-        ai_identified_item: analysis?.item || null,
-        ai_age_range: ageRangeText,
-        ai_size: analysis?.size || null,
-        ai_brand: analysis?.brand || null,
-        ai_confidence: analysis?.confidence || null,
-        city: city || null,
-        age_min: ageMinNum,
-        age_max: ageMaxNum,
-      })
-      .select("id")
-      .single();
+    // Publishing goes through the server, not straight to PostgREST.
+    //
+    // This used to be a client-side insert with status hardcoded to 'active'.
+    // The anon key ships in this bundle, so that could never enforce anything:
+    // the browser was deciding whether its own listing was allowed. The route
+    // holds the service-role key, runs the moderation classifier against the
+    // final text and the uploaded photos, and decides the status. Migration 026
+    // pins any direct client insert to 'pending_review' so there is no way
+    // around it.
+    //
+    // The classifier adds a few seconds here. That is deliberate: the
+    // alternative is publishing first and retracting after, which puts a
+    // prohibited listing on a live marketplace while ads are running.
+    let result: {
+      listingId: string;
+      held: boolean;
+      message: string;
+    };
 
-    if (insertError || !listing) {
-      setError(
-        insertError?.message ||
-          "Could not save listing. You may need to sign in first.",
-      );
+    try {
+      const res = await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          sport,
+          category,
+          condition,
+          price: priceInCents,
+          description,
+          city: city || null,
+          photoUrls,
+          ageMin: ageMinNum,
+          ageMax: ageMaxNum,
+          // Display fields only. The route re-classifies from scratch and
+          // never trusts anything in here for the publish decision.
+          analysis: analysis
+            ? {
+                suggestedPrice: analysis.suggestedPrice,
+                retailPrice: analysis.retailPrice,
+                condition: analysis.condition,
+                item: analysis.item,
+                ageRange: ageRangeText ?? undefined,
+                size: analysis.size,
+                brand: analysis.brand,
+                confidence: analysis.confidence,
+              }
+            : null,
+        }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        // 422 is a policy refusal and needs the explanation, not a generic
+        // failure — the seller should know why and that support exists.
+        setError(
+          payload.message ||
+            (res.status === 401
+              ? "Please sign in to post a listing."
+              : "Could not save listing. Please try again."),
+        );
+        setSubmitting(false);
+        return;
+      }
+
+      result = payload as typeof result;
+    } catch {
+      setError("Could not reach the server. Check your connection and try again.");
       setSubmitting(false);
       return;
     }
@@ -368,7 +401,15 @@ function SellPageInner() {
     // ?new=1 is what tells the listing page to offer payout setup. Prompting
     // here rather than gating /sell keeps listing itself completely ungated —
     // the ask lands once the seller can picture the item selling.
-    router.push(`/listings/${listing.id}?new=1`);
+    //
+    // A held listing skips that prompt: asking someone to wire up Stripe
+    // payouts for an item that is not visible yet is the wrong order. The
+    // listing page reads the pending_review status and explains the hold.
+    router.push(
+      result.held
+        ? `/listings/${result.listingId}`
+        : `/listings/${result.listingId}?new=1`,
+    );
   };
 
   /**
