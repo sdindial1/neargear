@@ -39,7 +39,10 @@ export default async function AdminGiveawayPage() {
   // ---- Listing entries -----------------------------------------------------
   const { data: listingRows, error: listingErr } = await admin
     .from("listings")
-    .select("id, title, created_at, status, seller_id, seller:users!seller_id(full_name, email)")
+    .select(
+      "id, title, created_at, status, seller_id, " +
+        "seller:users!seller_id(full_name, email, sweepstakes_eligible)",
+    )
     .eq("status", "active")
     .gte("created_at", PROMOTION_START_ISO)
     .lte("created_at", PROMOTION_END_ISO)
@@ -50,7 +53,10 @@ export default async function AdminGiveawayPage() {
     title: string | null;
     created_at: string;
     seller_id: string | null;
-    seller: { full_name: string | null; email: string } | { full_name: string | null; email: string }[] | null;
+    seller:
+      | { full_name: string | null; email: string; sweepstakes_eligible: boolean | null }
+      | { full_name: string | null; email: string; sweepstakes_eligible: boolean | null }[]
+      | null;
   };
   const listings = ((listingRows ?? []) as unknown as ListingRow[]).map((r) => ({
     ...r,
@@ -61,7 +67,7 @@ export default async function AdminGiveawayPage() {
   // pattern §5 calls out — one account posting an implausible number of items.
   const byUser = new Map<
     string,
-    { name: string; email: string; count: number; titles: string[] }
+    { name: string; email: string; count: number; titles: string[]; eligible: boolean }
   >();
   for (const l of listings) {
     const key = l.seller_id ?? "unknown";
@@ -70,6 +76,9 @@ export default async function AdminGiveawayPage() {
       email: l.seller?.email ?? "(unknown)",
       count: 0,
       titles: [],
+      // Official Rules §2. Sponsor personnel and Sponsor-controlled accounts
+      // still appear here as an audit record; they are simply not drawn from.
+      eligible: l.seller?.sweepstakes_eligible !== false,
     };
     existing.count += 1;
     existing.titles.push(l.title ?? "(untitled)");
@@ -80,7 +89,7 @@ export default async function AdminGiveawayPage() {
   // ---- AMOE entries --------------------------------------------------------
   const { data: amoeRows, error: amoeErr } = await admin
     .from("sweepstakes_entries")
-    .select("id, first_name, last_name, email, zip, entry_date, created_at")
+    .select("id, first_name, last_name, email, zip, entry_date, created_at, eligible, ineligible_reason")
     .order("created_at", { ascending: true });
 
   type AmoeRow = {
@@ -91,6 +100,8 @@ export default async function AdminGiveawayPage() {
     zip: string;
     entry_date: string;
     created_at: string;
+    eligible: boolean | null;
+    ineligible_reason: string | null;
   };
   const amoe = (amoeRows ?? []) as unknown as AmoeRow[];
 
@@ -103,7 +114,16 @@ export default async function AdminGiveawayPage() {
     .select("id", { count: "exact", head: true })
     .eq("status", "active");
 
+  // Raw vs eligible. The raw figure is what the pool LOOKS like; the eligible
+  // figure is the only one a drawing may use (§7), and it is also the honest
+  // measure of whether the giveaway is acquiring anyone — our own entries were
+  // masking it entirely.
+  const eligibleListingEntries = listings.filter(
+    (l) => l.seller?.sweepstakes_eligible !== false,
+  ).length;
+  const eligibleAmoe = amoe.filter((e) => e.eligible !== false).length;
   const totalEntries = listings.length + amoe.length;
+  const totalEligible = eligibleListingEntries + eligibleAmoe;
 
   const stat = (label: string, value: string | number, note?: string) => (
     <div className="rounded-xl border bg-white p-4">
@@ -137,9 +157,21 @@ export default async function AdminGiveawayPage() {
         </div>
 
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {stat("Total entries", totalEntries, "listing + free entries")}
-          {stat("Listing entries", listings.length, `${users.length} entrants`)}
-          {stat("Free entries", amoe.length, "AMOE submissions")}
+          {stat(
+            "ELIGIBLE entries",
+            totalEligible,
+            `of ${totalEntries} total — §2 excludes Sponsor personnel`,
+          )}
+          {stat(
+            "Listing entries",
+            `${eligibleListingEntries} / ${listings.length}`,
+            `eligible / raw · ${users.length} entrants`,
+          )}
+          {stat(
+            "Free entries",
+            `${eligibleAmoe} / ${amoe.length}`,
+            "eligible / raw (AMOE)",
+          )}
           {stat(
             "Active listings",
             `${activeTotal ?? 0} / ${GIVEAWAY_GOAL}`,
@@ -198,7 +230,17 @@ export default async function AdminGiveawayPage() {
                 <tbody>
                   {users.map(([id, u]) => (
                     <tr key={id} className="border-b last:border-0 align-top">
-                      <td className="py-2 pr-4 font-medium text-navy">{u.name}</td>
+                      <td className="py-2 pr-4 font-medium text-navy">
+                        {u.name}
+                        {!u.eligible && (
+                          <span
+                            className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-700"
+                            title="Official Rules §2 — not drawn from"
+                          >
+                            §2 excluded
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2 pr-4 text-muted-foreground">{u.email}</td>
                       <td className="py-2 pr-4 text-right font-heading font-bold text-navy">
                         {u.count}

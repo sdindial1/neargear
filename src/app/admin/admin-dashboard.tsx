@@ -37,6 +37,11 @@ interface AdminUser {
   account_status: string | null;
   is_founding_member: boolean | null;
   created_at: string;
+  /** NULL = never recorded. Not the same as declined — see the Terms column. */
+  terms_accepted_at: string | null;
+  terms_version: string | null;
+  /** Official Rules §2. FALSE = Sponsor personnel or Sponsor-controlled. */
+  sweepstakes_eligible: boolean | null;
 }
 
 interface AdminWaitlistEntry {
@@ -499,6 +504,7 @@ export function AdminDashboard({ payload }: { payload: AdminPayload }) {
                   <th className="py-2 px-3">Joined</th>
                   <th className="py-2 px-3 text-right">Listings</th>
                   <th className="py-2 px-3 text-right">Txns</th>
+                  <th className="py-2 px-3">Terms</th>
                   <th className="py-2 px-3">Status</th>
                 </tr>
               </thead>
@@ -506,7 +512,7 @@ export function AdminDashboard({ payload }: { payload: AdminPayload }) {
                 {filteredUsers.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="py-6 text-center text-muted-foreground"
                     >
                       No users match.
@@ -536,12 +542,45 @@ export function AdminDashboard({ payload }: { payload: AdminPayload }) {
                         <td className="py-2 px-3 text-right tabular-nums">
                           {txnsByUser.get(u.id) ?? 0}
                         </td>
+                        {/* Terms acceptance state. A seller transacting money
+                            without recorded acceptance of the terms governing
+                            that transaction belongs on a dashboard, not in a
+                            query someone remembers to run. "none" is a badge,
+                            not a blank cell — an empty cell reads as "nothing
+                            to see here", which is the opposite of the point. */}
                         <td className="py-2 px-3">
-                          <Badge
-                            className={`${STATUS_BADGE[status] ?? "bg-gray-200 text-gray-700"} text-[11px]`}
-                          >
-                            {status}
-                          </Badge>
+                          {u.terms_accepted_at ? (
+                            <span
+                              className="text-[11px] text-muted-foreground"
+                              title={`Accepted ${fmtDate(u.terms_accepted_at)}`}
+                            >
+                              {u.terms_version ?? "recorded"}
+                            </span>
+                          ) : (
+                            <Badge
+                              className="bg-amber-100 text-amber-900 text-[11px]"
+                              title="No terms acceptance on record. Captured the next time they sign in."
+                            >
+                              none
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="py-2 px-3">
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Badge
+                              className={`${STATUS_BADGE[status] ?? "bg-gray-200 text-gray-700"} text-[11px]`}
+                            >
+                              {status}
+                            </Badge>
+                            {u.sweepstakes_eligible === false && (
+                              <Badge
+                                className="bg-gray-200 text-gray-700 text-[11px]"
+                                title="Official Rules §2 — excluded from the giveaway drawing"
+                              >
+                                §2 excluded
+                              </Badge>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

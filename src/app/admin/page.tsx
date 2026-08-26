@@ -48,6 +48,9 @@ export default async function AdminPage() {
     foundingSpotsRes,
     waitlistRes,
   ] = await Promise.all([
+    // select("*") already carries terms_accepted_at, terms_version and
+    // sweepstakes_eligible — listed here so the dependency is visible if the
+    // select is ever narrowed.
     admin.from("users").select("*").order("created_at", { ascending: false }),
     admin
       .from("listings")
