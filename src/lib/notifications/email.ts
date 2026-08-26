@@ -17,6 +17,7 @@ import {
   renderNudge,
   type NudgeStep,
   type NudgeRecipient,
+  type NudgeExample,
 } from "./listing-nudge";
 
 const FROM = "NearGear <support@near-gear.com>";
@@ -895,8 +896,10 @@ export async function sendListingNudge(opts: {
   step: NudgeStep;
   to: NudgeRecipient;
   promotionOpen: boolean;
+  /** Live listing named in email 2. Null omits the sentence entirely. */
+  example?: NudgeExample | null;
 }): Promise<SendResult> {
-  const { step, to, promotionOpen } = opts;
-  const { subject, mail } = renderNudge(step, to, { promotionOpen });
+  const { step, to, promotionOpen, example } = opts;
+  const { subject, mail } = renderNudge(step, to, { promotionOpen, example });
   return sendOrLog(to.email, subject, mail);
 }

@@ -96,12 +96,16 @@ async function eligibleFor(
   const listed = new Set((withListings ?? []).map((l) => l.seller_id));
 
   // Already handled this step. Includes 'failed' — a bad address is not retried
-  // forever — but not 'suppressed', which never actually sent.
+  // forever — and 'skipped', which is a deliberate permanent decision. Excludes
+  // 'suppressed', which never actually sent and must still go out once the flag
+  // is on. This list must stay identical to the partial unique index predicate
+  // in migration 032; if they drift, the index rejects a send the query thought
+  // was due.
   const { data: already, error: nErr } = await admin
     .from("listing_nudges")
     .select("user_id, step, status")
     .in("user_id", ids)
-    .in("status", ["sent", "failed"]);
+    .in("status", ["sent", "failed", "skipped"]);
   if (nErr) throw new Error(`nudges query: ${nErr.message}`);
   const done = new Set(
     (already ?? []).map((n) => `${n.user_id}:${n.step}`),
@@ -137,11 +141,29 @@ export async function GET(request: Request) {
       .eq("status", "active");
     const open = promotionOpen(activeListings ?? null);
 
+    // The social-proof line in email 2, read live. Organic only: naming a seed
+    // listing would advertise gear that does not exist and a seller nobody can
+    // reach. Null when there is nothing suitable, and the sentence is dropped
+    // rather than substituted — the previous hardcoded example described a
+    // listing that was taken down the same day.
+    const { data: exampleRow } = await admin
+      .from("listings")
+      .select("title, city")
+      .eq("status", "active")
+      .eq("source", "organic")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const example = exampleRow?.title
+      ? { title: exampleRow.title, city: exampleRow.city ?? null }
+      : null;
+
     const summary: Record<string, unknown> = {
       dry,
       enabled,
       promotionOpen: open,
       activeListings: activeListings ?? null,
+      example: example ? `${example.title}${example.city ? " / " + example.city : ""}` : null,
       steps: {} as Record<string, unknown>,
     };
 
@@ -181,6 +203,7 @@ export async function GET(request: Request) {
               unsubscribeToken: c.unsubscribe_token,
             },
             promotionOpen: open,
+            example,
           });
 
           // Written from the ACTUAL send outcome, not from the fact that the

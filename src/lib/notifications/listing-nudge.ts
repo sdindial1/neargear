@@ -36,6 +36,36 @@ export interface NudgeRecipient {
   unsubscribeToken: string;
 }
 
+/**
+ * A real, currently-active listing named in email 2 as social proof.
+ *
+ * Read live at send time, never hardcoded. The first version of this email said
+ * "a Rawlings youth glove went up in Keller" as fixed copy, and the listing it
+ * described was taken down the same day — which would have made a marketing
+ * email a false statement about our own marketplace.
+ *
+ * The caller must supply an ORGANIC listing. A seed listing would name gear
+ * that does not exist and whose seller cannot be reached, which is worse than
+ * saying nothing.
+ */
+export interface NudgeExample {
+  title: string;
+  city: string | null;
+}
+
+/**
+ * One sentence of social proof, or null.
+ *
+ * Returns null rather than a generic substitute when there is no suitable
+ * listing: an invented example is the failure this is designed to prevent, and
+ * email 2 reads fine without it.
+ */
+function exampleLine(example: NudgeExample | null): string | null {
+  if (!example?.title) return null;
+  const where = example.city ? ` in ${example.city}` : " nearby";
+  return `Someone listed a ${example.title}${where} — it took about a minute to post.`;
+}
+
 function appUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL || "https://near-gear.com";
 }
@@ -93,11 +123,12 @@ interface BuiltNudge {
 export function buildNudge(
   step: NudgeStep,
   to: NudgeRecipient,
-  opts: { promotionOpen: boolean },
+  opts: { promotionOpen: boolean; example?: NudgeExample | null },
 ): BuiltNudge {
   const name = firstName(to.fullName);
   const sell = `${appUrl()}/sell`;
   const give = giveawayLine(opts.promotionOpen);
+  const example = exampleLine(opts.example ?? null);
 
   if (step === 1) {
     return {
@@ -126,14 +157,18 @@ export function buildNudge(
   }
 
   if (step === 2) {
+    // Subject and body both degrade cleanly when there is no live example —
+    // neither may reference gear that is not currently listed.
     return {
-      subject: "A glove listed in Keller yesterday",
+      subject: example ? "Gear is moving near you" : "Two photos is all it takes",
       layout: {
-        preheader: "Local gear is moving. Yours can too.",
+        preheader: "Two photos, and the AI writes the rest.",
         eyebrow: "Still there?",
-        heading: "Gear is moving in your area",
+        heading: example ? "Gear is moving in your area" : "Two photos is all it takes",
         intro: [
-          `Hi ${name} — a Rawlings youth glove went up in Keller and it took about a minute to post.`,
+          example
+            ? `Hi ${name} — ${example}`
+            : `Hi ${name} — listing gear on NearGear takes about a minute.`,
           `Two photos is genuinely all you need; the AI fills in the title, the price and the description.`,
           ...(give ? [give] : []),
         ],
@@ -168,7 +203,7 @@ export function buildNudge(
 export function renderNudge(
   step: NudgeStep,
   to: NudgeRecipient,
-  opts: { promotionOpen: boolean },
+  opts: { promotionOpen: boolean; example?: NudgeExample | null },
 ) {
   const built = buildNudge(step, to, opts);
   return { subject: built.subject, mail: emailLayout(built.layout) };
