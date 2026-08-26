@@ -747,3 +747,34 @@ update, and now third-party Google authentication.
 
 **L8. The Official Rules have never been reviewed by a lawyer.** Everything above
 is a finding against a document nobody qualified has read.
+
+---
+
+**21. The Resend API key is send-scoped. This is a permissions boundary, not a
+bug.** `RESEND_API_KEY` in `.env.local` (and therefore in Vercel) can send mail
+and nothing else. Two confirmed 401s, neither of which indicates a failure:
+
+- `GET /domains` and `GET /domains/{id}` — 401. So the domain's verification
+  state and the exact DNS records Resend expects cannot be read programmatically.
+- `GET /emails/{id}` — 401. So delivery events (`delivered`, `bounced`,
+  `complained`, `delivery_delayed`) cannot be read back after a send. A message
+  accepted by the API is the last thing we can observe.
+
+**Consequence, stated so the next 401 is recognised rather than debugged:** every
+deliverability question — domain verification state, delivery events, bounce
+reasons, the suppression list — requires either a read-scoped key or someone
+opening the Resend dashboard. There is no code fix; the code is behaving
+correctly.
+
+This already cost real diagnostic reach twice. The Resend envelope domain could
+not be confirmed from the API (it had to be inferred from the DNS layout and
+still awaits a `Return-Path` header from a received message), and the
+`dmarc@near-gear.com` alias probe could be sent but its outcome could not be
+read.
+
+**A read-scoped key is cheap and would unlock:** confirming domain verification
+without a dashboard visit; reading `last_event` per send, which turns the
+listing-nudge `listing_nudges` log from "Resend accepted it" into "it was
+delivered"; bounce reasons for the deliverability work; and the suppression list,
+which is the thing that quietly explains "why did this user stop getting email".
+Creating one is Shaun's call on his account — not done.
