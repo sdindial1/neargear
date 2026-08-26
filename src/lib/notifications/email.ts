@@ -13,6 +13,12 @@ import {
   type RenderedEmail,
 } from "./templates";
 
+import {
+  renderNudge,
+  type NudgeStep,
+  type NudgeRecipient,
+} from "./listing-nudge";
+
 const FROM = "NearGear <support@near-gear.com>";
 const FROM_FALLBACK = "NearGear <onboarding@resend.dev>";
 
@@ -180,19 +186,37 @@ function locationRows(
  * both. The text is generated from the same options as the HTML, so the two
  * cannot drift.
  */
+/**
+ * Outcome of a send attempt.
+ *
+ * This used to return void, so every caller learned nothing: a missing API key,
+ * a rejected address and a delivered message were indistinguishable at the call
+ * site. That is the same shape as the pixel wrapper returning an event id
+ * whether or not anything was sent. Existing callers ignore the return value
+ * and behave exactly as before; the nudge sequence reads it, because writing
+ * "sent" into a log for an email that failed would make the log a liar.
+ */
+export interface SendResult {
+  ok: boolean;
+  /** "skipped" = not configured, "error"/"threw" = attempted and failed. */
+  reason?: "skipped" | "error" | "threw";
+  providerId?: string | null;
+  message?: string;
+}
+
 async function sendOrLog(
   to: string,
   subject: string,
   mail: RenderedEmail,
   attempt: "primary" | "fallback" = "primary",
-): Promise<void> {
+): Promise<SendResult> {
   const client = getClient();
   if (!client) {
     console.log(`[email:skip] no RESEND_API_KEY, would send "${subject}" → ${to}`);
-    return;
+    return { ok: false, reason: "skipped", message: "RESEND_API_KEY not configured" };
   }
   try {
-    const { error } = await client.emails.send({
+    const { data, error } = await client.emails.send({
       from: attempt === "primary" ? FROM : FROM_FALLBACK,
       to,
       subject,
@@ -206,11 +230,13 @@ async function sendOrLog(
         return sendOrLog(to, subject, mail, "fallback");
       }
       console.error(`[email:error] "${subject}" → ${to}:`, error.message);
-      return;
+      return { ok: false, reason: "error", message: error.message };
     }
     console.log(`[email:sent] "${subject}" → ${to}`);
+    return { ok: true, providerId: data?.id ?? null };
   } catch (err) {
     console.error(`[email:throw] "${subject}" → ${to}:`, err);
+    return { ok: false, reason: "threw", message: String(err) };
   }
 }
 
@@ -855,4 +881,22 @@ export async function sendListingRejectedEmail(opts: {
     `About your listing — ${listing.title}`,
     mail,
   );
+}
+
+// ---------------------------------------------------------------------------
+// 11. Listing nudge sequence (NON-transactional — the only such sends)
+//
+// Returns the send result rather than void: the caller writes 'sent' or
+// 'failed' into listing_nudges from it, and a log that records "sent" for a
+// message that failed is worse than no log.
+// ---------------------------------------------------------------------------
+
+export async function sendListingNudge(opts: {
+  step: NudgeStep;
+  to: NudgeRecipient;
+  promotionOpen: boolean;
+}): Promise<SendResult> {
+  const { step, to, promotionOpen } = opts;
+  const { subject, mail } = renderNudge(step, to, { promotionOpen });
+  return sendOrLog(to.email, subject, mail);
 }
