@@ -3,6 +3,7 @@ import { Barlow, Barlow_Condensed } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import { AceFloating } from "@/components/ace/ace-floating";
 import { MetaPixel } from "@/components/meta-pixel";
+import { AttributionCapture } from "@/components/attribution-capture";
 import "./globals.css";
 
 const barlow = Barlow({
@@ -140,6 +141,7 @@ export default function RootLayout({
         />
         {children}
         <MetaPixel />
+        <AttributionCapture />
         <AceFloating />
         <Toaster
           position="top-center"

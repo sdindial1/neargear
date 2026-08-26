@@ -22,6 +22,7 @@ import { isValidZipcodeFormat } from "@/lib/zipcodes";
 import { formatPhone, isValidUSPhone, toE164 } from "@/lib/phone";
 import { safeRedirect } from "@/lib/safe-redirect";
 import { trackStandard, reportTrackResult } from "@/lib/meta-pixel";
+import { attributionColumns, clearAttribution } from "@/lib/attribution";
 
 type FoundingPhase =
   | "off"
@@ -97,6 +98,12 @@ function SignupInner() {
     }
 
     if (signUpData.user) {
+      // First-touch attribution, captured when they LANDED (possibly days ago
+      // and on another page) and carried here in localStorage. This is the only
+      // moment it can be persisted — fbclid and utm_* exist solely in the URL of
+      // that first request, so a signup written without them loses the link to
+      // the ad permanently. Spreads to nothing when unknown, leaving the columns
+      // NULL rather than inventing a source.
       await supabase.from("users").insert({
         id: signUpData.user.id,
         email,
@@ -104,7 +111,12 @@ function SignupInner() {
         city,
         zipcode,
         phone: phoneE164,
+        ...attributionColumns(),
       });
+      // Cleared only after the row is written, so a failed signup keeps the
+      // attribution for the retry. On a shared or kiosk browser this also stops
+      // the next person's account inheriting the first person's ad click.
+      clearAttribution();
 
       // Record terms acceptance as an audit trail. Separate update so an
       // older schema without the new columns still lets signup succeed —
