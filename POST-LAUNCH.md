@@ -666,3 +666,60 @@ matches exact-case against `SPORTS` in `src/lib/constants.ts` (`Baseball`,
 unreachable through the sport filter pills, and the six golf ones are
 unreachable by any sport filter. Also one real listing has an empty `category`
 and a `sport` of Baseball on a pair of soccer cleats.
+
+---
+
+# LEGAL — needs a lawyer, ranked
+
+Ordered by exposure, not by discovery date. The first three are live now, with
+paid traffic pointing at the giveaway.
+
+**L1. Zero eligible entries, three weeks into a promoted Promotion Period.**
+All four listing entries belong to the two founders, whom §2 excludes as Sponsor
+personnel. Marking that correctly (migration 033) took the eligible listing pool
+to **0**. The only eligible entry of any kind is a single AMOE submission. Ads
+are actively promoting a drawing whose eligible pool is one row.
+
+**L2. Can a drawing proceed at all with an empty or single-entry pool, and what
+happens on 3 Nov if it is still zero?** The Rules as written do not say. §3 ends
+the Promotion at 500 active listings or 3 Nov, whichever comes first. §7 draws
+"at random from all eligible entries" — silent on what a drawing means when
+there are none, or one. A promotion advertised with a $500 prize that awards
+nothing needs an answer decided in advance, not improvised on the day.
+
+**L3. Eligibility is statewide; prize fulfilment is DFW-only.** §2 opens the
+Promotion to "legal residents of the State of Texas". §7 says the prize is
+"delivered or arranged for pickup within the Dallas–Fort Worth metropolitan
+area". Those do not meet. The live AMOE entry is ZIP 78945 (Giddings, ~200 miles
+from DFW) and is fully eligible as written — the Rules impose no DFW
+restriction, and `isTexasZip()` correctly accepted it. If that entry wins, the
+Rules oblige us to award the prize and simultaneously to fulfil it somewhere the
+winner does not live. Nothing says who bears the travel. This is a drafting
+conflict, not a reason to exclude the entrant.
+
+**L4. §2 family and household members are unenumerated.** The exclusion covers
+immediate family (spouse, parent, child, sibling) and household members of
+Sponsor personnel. The database cannot know this and deliberately does not
+guess — `sponsor_family` and `sponsor_household` reason codes exist and are
+unpopulated (migration 034). Shaun has to name people. Until he does, the
+exclusion is written but unenforced.
+
+**L5. Nine real users have no recorded terms acceptance.** Three hold active
+listings; one is a seller with completed Stripe onboarding. They predate the
+terms-acceptance write. Not backfilled — inventing an acceptance date is worse
+than the gap. The OAuth callback now records acceptance at next sign-in, which
+is the honest moment. Visible as an amber "none" badge on /admin.
+
+**L6. Inline OAuth assent vs the password path's explicit checkbox.** "Continue
+with Google" carries conspicuous notice immediately above the button, with
+Terms, Privacy and the Official Rules as three separate visible links, and
+acceptance is recorded server-side so no account can exist without one. That is
+the standard pattern, but it is weaker consent than a ticked box — and the Rules
+are incorporated by reference.
+
+**L7. Two overdue §12 material-change notifications.** The privacy policy commits
+to notifying users of material changes. Outstanding: the Meta Pixel / ad-tracking
+update, and now third-party Google authentication.
+
+**L8. The Official Rules have never been reviewed by a lawyer.** Everything above
+is a finding against a document nobody qualified has read.
