@@ -697,6 +697,30 @@ Rules oblige us to award the prize and simultaneously to fulfil it somewhere the
 winner does not live. Nothing says who bears the travel. This is a drafting
 conflict, not a reason to exclude the entrant.
 
+*Two things that follow from it:*
+
+- **§7 provides no travel or shipping provision at all.** It offers delivery or
+  pickup, both bounded to the DFW metro, and no third option. A winning Texas
+  resident outside DFW therefore creates an obligation the Rules cannot satisfy
+  as written — there is no clause to fall back on, only silence.
+- **The Rules were drafted assuming DFW entrants, then §2 was written
+  statewide** — most likely to widen the entry pool. Those two intentions were
+  never reconciled with each other, and the conflict only becomes visible when
+  someone outside DFW actually enters. Someone has.
+
+**PROPOSED RESOLUTION — for the lawyer to decide, NOT to be edited into the
+file.** Amend **§7**, not §2: permit shipping the prize at Sponsor expense as an
+alternative to DFW delivery or pickup.
+
+Amending §2 to narrow eligibility from statewide to DFW is the worst available
+fix and must not be done. It would narrow eligibility *after* entries exist, and
+`johnsmith@aol.com` entered on day one under the published Rules — a
+mid-promotion change that retroactively disqualifies an existing entrant. The §7
+amendment only ever *benefits* an entrant, which is what makes it defensible
+where the reverse is not.
+
+Neither is implemented. The Rules file is unchanged pending review.
+
 **L4. §2 family and household members are unenumerated.** The exclusion covers
 immediate family (spouse, parent, child, sibling) and household members of
 Sponsor personnel. The database cannot know this and deliberately does not
