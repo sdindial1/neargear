@@ -215,3 +215,33 @@ export const NUDGE_SCHEDULE: Record<NudgeStep, number> = {
   2: 72,
   3: 24 * 7,
 };
+
+/**
+ * THE COHORT LINE. Accounts created before this are never nudged, at any step.
+ *
+ * Lifecycle email applies from ship-date forward; it does not blast the
+ * backlog. When this was built there were ten zero-listing accounts already
+ * past all three thresholds, six of them real strangers who signed up between
+ * May and July — up to 113 days earlier. The first enabled run would have sent
+ * every one of them three emails inside a minute.
+ *
+ * That is the highest spam-complaint risk available to us, and the cost is not
+ * paid by this sequence. Complaints on a young sending domain degrade delivery
+ * for the TRANSACTIONAL mail — order confirmations, payout notices, handoff
+ * reminders — which is a bad trade for a low-odds resurrection attempt.
+ *
+ * Even step 3 alone would be wrong for them. This sequence is written for
+ * someone who signed up hours ago and got distracted; a 113-day-old account
+ * needs a deliberate "here is what changed since you signed up" email, written
+ * once and sent knowingly, after inbox placement is actually proven.
+ *
+ * A CONSTANT, NOT A BACKFILL. Writing 'skipped' rows for everyone would only
+ * cover accounts existing the moment the script ran, leaving anyone who signs
+ * up between then and enabling in an undefined gap. A cutoff is declarative and
+ * cannot be outrun.
+ *
+ * Set to the start of the day the sequence was built. That keeps the one signup
+ * from that day (17h old at the time — precisely the audience this is for) and
+ * excludes every older account.
+ */
+export const NUDGE_COHORT_START = "2026-08-26T00:00:00.000Z";

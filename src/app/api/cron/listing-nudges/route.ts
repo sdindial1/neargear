@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabaseClient } from "@/lib/supabase-admin";
 import { sendListingNudge } from "@/lib/notifications/email";
 import {
+  NUDGE_COHORT_START,
   NUDGE_SCHEDULE,
   promotionOpen,
   type NudgeStep,
@@ -76,6 +77,11 @@ async function eligibleFor(
   const { data: users, error } = await admin
     .from("users")
     .select("id, email, full_name, created_at, unsubscribe_token")
+    // The cohort line. Accounts predating the sequence are never nudged — see
+    // NUDGE_COHORT_START. This is the first filter for a reason: it is the one
+    // that protects transactional deliverability, and it must not be reachable
+    // around by any later condition.
+    .gte("created_at", NUDGE_COHORT_START)
     .lte("created_at", cutoff)
     .is("nudge_unsubscribed_at", null)
     .order("created_at", { ascending: true })
@@ -162,6 +168,7 @@ export async function GET(request: Request) {
       dry,
       enabled,
       promotionOpen: open,
+      cohortStart: NUDGE_COHORT_START,
       activeListings: activeListings ?? null,
       example: example ? `${example.title}${example.city ? " / " + example.city : ""}` : null,
       steps: {} as Record<string, unknown>,
