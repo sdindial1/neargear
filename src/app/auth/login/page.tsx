@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, LogIn } from "lucide-react";
 import { safeRedirect } from "@/lib/safe-redirect";
+import { GoogleAuthButton } from "@/components/google-auth-button";
 
 function LoginInner() {
   const [email, setEmail] = useState("");
@@ -94,6 +95,16 @@ function LoginInner() {
           <p className="text-center text-muted-foreground text-sm mb-8">
             Log in to buy and sell sports gear
           </p>
+
+          <GoogleAuthButton next={redirectTo} label="Continue with Google" />
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              or use email
+            </span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">

@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createAdminSupabaseClient } from "@/lib/supabase-admin";
 import { safeRedirect } from "@/lib/safe-redirect";
 import { WelcomeClient } from "./welcome-client";
+import { PostAuthBootstrap } from "@/components/post-auth-bootstrap";
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +29,13 @@ export const metadata = {
 export default async function WelcomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; new?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, new: isNewParam } = await searchParams;
+  // Set by /auth/callback when it created the profile row. Only a freshly
+  // created account fires CompleteRegistration — landing here again later must
+  // not re-report a conversion.
+  const isNew = isNewParam === "1";
   // Same guard as the auth pages — this value ends up in a client-side
   // navigation, so it must never carry an absolute URL.
   const nextPath = safeRedirect(next, "/marketplace");
@@ -76,5 +81,13 @@ export default async function WelcomePage({
 
   const firstName = row?.full_name?.trim().split(/\s+/)[0] || null;
 
-  return <WelcomeClient firstName={firstName} nextPath={nextPath} />;
+  return (
+    <>
+      {/* Finishes the OAuth signup: carries client-held attribution across the
+          round trip and fires the conversion event on a page the pixel is
+          allowed to run on. Renders nothing. */}
+      <PostAuthBootstrap isNew={isNew} />
+      <WelcomeClient firstName={firstName} nextPath={nextPath} />
+    </>
+  );
 }

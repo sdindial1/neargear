@@ -23,6 +23,8 @@ import { formatPhone, isValidUSPhone, toE164 } from "@/lib/phone";
 import { safeRedirect } from "@/lib/safe-redirect";
 import { trackStandard, reportTrackResult } from "@/lib/meta-pixel";
 import { attributionColumns, clearAttribution } from "@/lib/attribution";
+import { GoogleAuthButton } from "@/components/google-auth-button";
+import { TERMS_VERSION } from "@/lib/terms";
 
 type FoundingPhase =
   | "off"
@@ -31,18 +33,10 @@ type FoundingPhase =
   | "spots_full"
   | "waitlist_joined";
 
-// Effective date of the current Terms / Privacy Policy. Bumping this
-// invalidates older acceptances if we ever add a re-acceptance flow.
-//
-// 2026-08-05: Terms section 6 was rewritten from the retired deposit model to
-// the full-payment model actually in use — held funds, the 10% buyer and seller
-// fees, binary dispute resolution, and the fact that a released payout cannot
-// be reversed automatically. Signups from here record acceptance of THAT, not
-// the deposit-era text.
-//
-// Note there is still no re-acceptance flow, so users who signed up before this
-// date carry the old version string and have never seen the new terms.
-const TERMS_VERSION = "2026-08-05";
+// TERMS_VERSION moved to @/lib/terms — there are now two ways to create an
+// account (this form and the Google OAuth callback) and both must record the
+// same value. Two copies would drift, and the drift would only surface when
+// someone needed to prove what a given user actually agreed to.
 
 function SignupInner() {
   const [step, setStep] = useState(1);
@@ -352,6 +346,22 @@ function SignupInner() {
               <p className="text-center text-muted-foreground text-sm mb-6">
                 Join the DFW sports gear community
               </p>
+
+              {/* Above the form deliberately. Password signup depends on a
+                  confirmation email from a domain whose inbox placement is
+                  still unverified, and every one that lands in junk is a paid
+                  ad click thrown away. The cheaper path should be the visible
+                  one. */}
+              <GoogleAuthButton next={redirectTo} label="Sign up with Google" />
+
+              <div className="my-5 flex items-center gap-3">
+                <div className="h-px flex-1 bg-gray-200" />
+                <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  or use email
+                </span>
+                <div className="h-px flex-1 bg-gray-200" />
+              </div>
+
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="email">Email</Label>
