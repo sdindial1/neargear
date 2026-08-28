@@ -4,6 +4,7 @@ import { Toaster } from "react-hot-toast";
 import { AceFloating } from "@/components/ace/ace-floating";
 import { MetaPixel } from "@/components/meta-pixel";
 import { AttributionCapture } from "@/components/attribution-capture";
+import { PageViewLogger } from "@/components/page-view-logger";
 import "./globals.css";
 
 const barlow = Barlow({
@@ -142,6 +143,7 @@ export default function RootLayout({
         {children}
         <MetaPixel />
         <AttributionCapture />
+        <PageViewLogger />
         <AceFloating />
         <Toaster
           position="top-center"
