@@ -554,6 +554,15 @@ Resend's history is finite, so the evidence for a disputed receipt is gone
 exactly when a dispute escalates. These are payment receipts and meetup
 confirmations — the emails most likely to be argued about.
 
+> **Hobby cron limits, corrected 2026-09-01.** We have been carrying "Hobby
+> allows 2 cron jobs" as a constraint. That number is stale — Vercel raised it
+> to **100 cron jobs per project on every plan**, so job count has never been
+> the binding limit. What IS still true, and is the constraint that actually
+> shapes the release ladder, is that **Hobby runs each job at most once per day
+> with ±59 minutes of scheduling slack**. That is why rung 2 is really 24–48h
+> and why every threshold in the sequences is an elapsed-time `>=`: a job fires
+> late, never early. Source: Vercel docs, Cron Jobs → Usage & Pricing.
+
 **Scope when picked up:** a table written by `sendOrLog` recording recipient,
 subject, template key, Resend message id, the `from` actually used, and status.
 The `from` column matters specifically: it makes a fallback to
