@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/expire-requests",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/listing-nudges",
+      "schedule": "0 14 * * *"
     }
   ]
 }
