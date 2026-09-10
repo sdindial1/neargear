@@ -47,11 +47,12 @@
  * Everything from .brand down to .foldLegal must fit at 390x844 without
  * scrolling.
  *
- * TYPOGRAPHIC, NO PHOTOGRAPH. The two flexible spacers are what absorb the
+ * NOTHING SITS BETWEEN THE HEADLINE AND THE FIELD. The photograph is a band
+ * below the submit button, never above it: 140px above would move the field
+ * from y=418 to about y=600, which survives 390x844 and fails 375x667 once an
+ * in-app browser takes its chrome. The two flexible spacers absorb the
  * leftover height, so adding a word to the headline pushes into empty space
- * rather than pushing the email field off the screen. They are weighted 0.6
- * above and 1 below, which settles the block slightly above centre — dead
- * centre reads as a splash screen and leaves the form floating.
+ * rather than pushing the field down.
  */
 .fold {
   /* Deliberately short of the viewport, so two accordion rows show below it.
@@ -86,15 +87,13 @@
 }
 
 /*
- * The two spacers absorb the height a photograph would have occupied.
+ * Headline, prize line, form, band and fine print are ONE block — the ask sits
+ * with the reason for it, and the sponsor and rules line sits with the ask.
+ * Slack goes above and below that block rather than inside it: split it and
+ * the form ends up marooned in the middle of an empty screen, which is what
+ * the first pass at this looked like.
  *
- * Headline, prize line, form and fine print are ONE block — the ask sits with
- * the reason for it, and the sponsor and rules line sits with the ask. Slack
- * goes above and below that block rather than inside it: split it and the form
- * ends up marooned in the middle of an empty screen, which is what the first
- * pass at this looked like.
- *
- * Weighted 0.45 above and 1 below, so the block settles above centre.
+ * Weighted 0.8 above and 1 below, so the block settles just above centre.
  */
 .spacerTop {
   flex: 0.8 1 auto;
@@ -133,10 +132,9 @@
 /*
  * The prize, stated in ordinary sentence type.
  *
- * This is what stands in for a hero image, and it is deliberately the
- * opposite of what it replaces: the old page rendered "$500" as a glowing
- * neon numeral on near black, which is the visual grammar of a fake giveaway
- * and trips people's fraud reflex before they read a word.
+ * Deliberately the opposite of what it replaces: the old page rendered "$500"
+ * as a glowing neon numeral on near black, which is the visual grammar of a
+ * fake giveaway and trips people's fraud reflex before they read a word.
  */
 .prizeLine {
   flex: none;
@@ -269,6 +267,28 @@
   cursor: pointer;
 }
 
+/* ---- THE BAT BAND ----
+ * Full-bleed, sitting directly under the submit button.
+ *
+ * The negative margins cancel the fold's own 20px padding, so at any width up
+ * to the 560px column the band runs edge to edge of the screen — which is
+ * every width this ad's traffic actually arrives at. Deliberately NOT 100vw
+ * with a translate: that measures the viewport including the scrollbar gutter
+ * and buys a horizontal scrollbar on desktop for no benefit here.
+ */
+.batBand {
+  flex: none;
+  position: relative;
+  height: 140px;
+  margin: 14px -20px 0;
+  overflow: hidden;
+  background: var(--paper-warm);
+}
+
+.batBand img {
+  object-fit: cover;
+}
+
 /* ---- TRUST ---- */
 .trust {
   flex: none;
@@ -332,26 +352,6 @@
   margin: 0;
   font-size: 15px;
   color: var(--ink-soft);
-}
-
-/*
- * helmet-on-grass.jpg, above the upsell. Capped at 160px tall and cropped
- * rather than letterboxed, so a portrait or landscape original both land as
- * the same quiet band and neither pushes the CTA down the screen.
- */
-.successPhoto {
-  position: relative;
-  width: 100%;
-  height: 140px;
-  max-height: 160px;
-  margin-top: 2px;
-  border-radius: 12px;
-  overflow: hidden;
-  background: var(--paper-warm);
-}
-
-.successPhoto img {
-  object-fit: cover;
 }
 
 .upsell {
@@ -471,27 +471,6 @@
 
 .accordionBody strong {
   color: var(--ink);
-}
-
-/*
- * gear-on-bench.jpg, full width of the content column at roughly 3:1.
- *
- * aspect-ratio plus object-fit: cover is what makes it read as a band rather
- * than a photo block — the crop is the design, so the source image's own
- * proportions are deliberately not respected.
- */
-.band {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 3 / 1;
-  margin: 0 0 14px;
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--paper-warm);
-}
-
-.band img {
-  object-fit: cover;
 }
 
 .steps {

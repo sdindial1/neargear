@@ -52,16 +52,19 @@ import s from "@/app/giveaway/landing.module.css";
 type Step = "email" | "details" | "done";
 
 /**
- * Licensed stock photography, Pexels, cleared for commercial use.
+ * The one photograph on the page: a full-bleed band UNDER the submit button.
  *
- * BOTH ARE BELOW THE FOLD AND BOTH ARE LAZY. The hero is typographic on
- * purpose. Neither of these files is in the repo yet, so both render behind an
- * onError guard that hides the container rather than leaving a broken-image
- * icon on a page a live campaign is buying traffic for — dropping the files at
- * these paths is the entire change.
+ * UNDER, NOT ABOVE, AND THAT IS THE WHOLE POINT. A 140px band above the form
+ * pushes the email field from y=418 to roughly y=600. That still clears a
+ * 390x844 screen and fails a 375x667 one once an in-app browser has taken its
+ * chrome out of the top and bottom — and 375x667 inside the Instagram browser
+ * is the smallest screen this ad actually lands on. The field staying above
+ * the fold there is the hard constraint; everything else gives way to it.
+ * Below the button the band costs nothing and still gets seen.
+ *
+ * Lazy, because it is no longer the largest contentful paint — the headline is.
  */
-const BENCH_PHOTO = "/images/gear-on-bench.jpg";
-const HELMET_PHOTO = "/images/helmet-on-grass.jpg";
+const BAT_PHOTO = "/images/bat-hero.jpg";
 
 export interface GiveawayLandingProps {
   /**
@@ -86,9 +89,6 @@ export function GiveawayLanding({ entries, closed }: GiveawayLandingProps) {
   /** The server says they already entered today. Nothing went wrong — they
    *  are simply done until tomorrow, so this is softer than an error. */
   const [alreadyEntered, setAlreadyEntered] = useState(false);
-  /** Hides an image container rather than showing a broken-image icon. */
-  const [benchFailed, setBenchFailed] = useState(false);
-  const [helmetFailed, setHelmetFailed] = useState(false);
 
   /**
    * The landing view, reported to the pixel as its own custom event.
@@ -200,9 +200,11 @@ export function GiveawayLanding({ entries, closed }: GiveawayLandingProps) {
     headline = <>Nobody has entered yet. One person wins a $500 bat.</>;
     subhead = "You would be the first name in the drawing. Free, and about ten seconds.";
   } else {
+    // No "Only". The number is doing the work; the qualifier reads apologetic,
+    // as though a small pool needed excusing rather than being the offer.
     headline = (
       <>
-        Only <span className={s.count}>{entries}</span>{" "}
+        <span className={s.count}>{entries}</span>{" "}
         {entries === 1 ? "entry is" : "entries are"} in the drawing right now.
       </>
     );
@@ -243,19 +245,6 @@ export function GiveawayLanding({ entries, closed }: GiveawayLandingProps) {
               as an entry earned by listing gear. If you win, we email you at{" "}
               {email.trim().toLowerCase()}.
             </p>
-
-            {!helmetFailed && (
-              <div className={s.successPhoto}>
-                <Image
-                  src={HELMET_PHOTO}
-                  alt="Baseball helmet and balls on a field."
-                  fill
-                  sizes="(max-width: 560px) 100vw, 520px"
-                  loading="lazy"
-                  onError={() => setHelmetFailed(true)}
-                />
-              </div>
-            )}
 
             <div className={s.upsell}>
               <p className={s.upsellTitle}>Want more entries?</p>
@@ -374,6 +363,17 @@ export function GiveawayLanding({ entries, closed }: GiveawayLandingProps) {
           </form>
         )}
 
+        {/* Directly below the button. See BAT_PHOTO for why it is not above. */}
+        <div className={s.batBand}>
+          <Image
+            src={BAT_PHOTO}
+            alt="Close-up of a youth baseball bat."
+            fill
+            sizes="100vw"
+            loading="lazy"
+          />
+        </div>
+
         <p className={s.trust}>
           NearGear LLC, Keller, TX. Entries close {PROMOTION_END_LABEL} or at{" "}
           {GIVEAWAY_GOAL} listings, whichever comes first. The winner is drawn
@@ -416,18 +416,6 @@ export function GiveawayLanding({ entries, closed }: GiveawayLandingProps) {
         <details className={s.accordion}>
           <summary>Why list on NearGear</summary>
           <div className={s.accordionBody}>
-            {!benchFailed && (
-              <div className={s.band}>
-                <Image
-                  src={BENCH_PHOTO}
-                  alt="Youth baseball gear on a bench."
-                  fill
-                  sizes="(max-width: 560px) 100vw, 520px"
-                  loading="lazy"
-                  onError={() => setBenchFailed(true)}
-                />
-              </div>
-            )}
             <p>
               <strong>Free to list.</strong> No upfront cost. You only pay a
               small fee when your gear actually sells.
