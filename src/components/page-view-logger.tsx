@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { viewSessionId } from "@/lib/session-id";
 
 /**
  * Records views of /giveaway and /sell, server-side, so the funnel has a first
@@ -22,27 +23,6 @@ import { usePathname } from "next/navigation";
  */
 
 const LOGGED_PATHS = new Set(["/giveaway", "/sell"]);
-
-/** Per-visit id, so N views by one person are not counted as N people. */
-const SESSION_KEY = "ng_view_session";
-
-function sessionId(): string | null {
-  try {
-    let id = window.sessionStorage.getItem(SESSION_KEY);
-    if (!id) {
-      id =
-        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-      window.sessionStorage.setItem(SESSION_KEY, id);
-    }
-    return id;
-  } catch {
-    // Private modes can refuse storage. A view with no session id is still
-    // worth counting; it just cannot be de-duplicated.
-    return null;
-  }
-}
 
 export function PageViewLogger() {
   const pathname = usePathname();
@@ -82,7 +62,7 @@ export function PageViewLogger() {
         utm_campaign: params.get("utm_campaign"),
         fbclid: params.get("fbclid"),
         referrer,
-        session_id: sessionId(),
+        session_id: viewSessionId(),
       }),
       keepalive: true,
     }).catch(() => {});

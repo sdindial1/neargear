@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { attributionColumns, clearAttribution } from "@/lib/attribution";
 import { reportTrackResult, trackStandard } from "@/lib/meta-pixel";
+import { recordGiveawaySignupIfAttributed } from "@/lib/giveaway-events";
 
 /**
  * Finishes an OAuth signup on the first page that is NOT pixel-suppressed.
@@ -58,6 +59,11 @@ export function PostAuthBootstrap({ isNew }: { isNew: boolean }) {
 
       if (isNew) {
         reportTrackResult("CompleteRegistration", trackStandard("CompleteRegistration"));
+
+        // Closes the giveaway funnel on the OAuth path. No-op unless this
+        // signup followed a tap on the post-entry listing CTA; the mark is
+        // consumed, so the password path cannot double-count the same signup.
+        recordGiveawaySignupIfAttributed();
       }
     };
 

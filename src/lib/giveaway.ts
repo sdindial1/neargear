@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 /**
  * $500 Bat Giveaway — shared constants and helpers.
  *
@@ -56,4 +58,80 @@ export function scoreboard(activeCount: number) {
     /** Rules §3(a): the Promotion ends the moment the target is reached. */
     closed: count >= GIVEAWAY_GOAL,
   };
+}
+
+/**
+ * The number of entries actually in the drawing.
+ *
+ * THIS IS NOT THE 500-LISTING COUNTER, AND THE TWO ARE NOT CLOSE. The counter
+ * is every active listing platform-wide, which is what Rules 3(a) ends the
+ * Promotion on. An entry is a much narrower thing, and at the time this was
+ * written 60 active listings contained 9 eligible entries: 46 of them predate
+ * the Promotion and earn nothing under Rules 4.1, and 48 belong to
+ * Sponsor-controlled demo, seed and founder accounts that Rules 2 excludes.
+ *
+ * The landing page states this number to a visitor deciding whether entering is
+ * worth it, so it has to be the honest one. It is deliberately the SAME
+ * definition /admin/giveaway draws the winner from - if the page and the audit
+ * could disagree, the page would be the one that is wrong.
+ *
+ * Returns null when the count cannot be established. Callers must render
+ * something truthful in that case rather than substituting a zero: "0 entries"
+ * and "we could not read the database" are different statements, and only one
+ * of them is a reason to enter.
+ */
+export interface EntryPool {
+  /** Listing entries plus free entries, both filtered to eligible. */
+  entries: number;
+  listingEntries: number;
+  freeEntries: number;
+}
+
+export async function loadEntryPool(
+  admin: SupabaseClient,
+): Promise<EntryPool | null> {
+  try {
+    // Rules 4.1: a Qualifying Listing is posted DURING the Promotion Period and
+    // is STILL ACTIVE. Rules 5 voids the entry if the listing comes down, so
+    // filtering on active is the rule rather than a shortcut.
+    //
+    // Rows are fetched and filtered here rather than counted with an embedded
+    // filter. The pool is small by construction - it is bounded by the same 500
+    // listings that end the Promotion - and an in-process filter cannot be
+    // silently wrong the way a PostgREST embedded predicate can.
+    const { data: listingRows, error: listingErr } = await admin
+      .from("listings")
+      .select("id, seller:users!seller_id(sweepstakes_eligible)")
+      .eq("status", "active")
+      .gte("created_at", PROMOTION_START_ISO)
+      .lte("created_at", PROMOTION_END_ISO);
+
+    if (listingErr) return null;
+
+    type Seller = { sweepstakes_eligible: boolean | null };
+    type Row = { seller: Seller | Seller[] | null };
+
+    // Rules 2 excludes Sponsor personnel. sweepstakes_eligible is false for the
+    // founder addresses and the Sponsor-controlled demo accounts (migrations
+    // 033 and 034), so it is already the "not us" flag; a NULL is a real
+    // account that predates the column and counts.
+    const listingEntries = ((listingRows ?? []) as Row[]).filter((r) => {
+      const seller = Array.isArray(r.seller) ? (r.seller[0] ?? null) : r.seller;
+      return seller?.sweepstakes_eligible !== false;
+    }).length;
+
+    // AMOE. Already one per person per calendar day by unique index, so a row
+    // is an entry with no further deduplication needed.
+    const { count: freeCount, error: freeErr } = await admin
+      .from("sweepstakes_entries")
+      .select("id", { count: "exact", head: true })
+      .not("eligible", "is", false);
+
+    if (freeErr) return null;
+
+    const freeEntries = freeCount ?? 0;
+    return { entries: listingEntries + freeEntries, listingEntries, freeEntries };
+  } catch {
+    return null;
+  }
 }

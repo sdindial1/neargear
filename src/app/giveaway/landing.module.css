@@ -1,0 +1,577 @@
+/*
+ * /giveaway — the rebuilt landing page.
+ *
+ * A SEPARATE MODULE FROM giveaway.module.css ON PURPOSE. That file still
+ * dresses /giveaway/free-entry and /giveaway/rules, both of which must keep
+ * working, and it is built around a dark navy ground with neon orange display
+ * numerals. On a phone, mid-scroll, that combination reads as a prize-draw
+ * scam and costs us the visitor before a word is read. Nothing is shared
+ * between the two files, so they cannot drift into each other.
+ *
+ * LIGHT GROUND, NAVY TYPE, ORANGE ON EXACTLY ONE THING. The button. When the
+ * accent colour is everywhere it stops meaning "press this".
+ *
+ * MOBILE IS NOT THE BREAKPOINT, IT IS THE DESIGN. 90% of the traffic is
+ * Instagram Reels at 390px inside an in-app browser, where 100-140px of the
+ * 844 is eaten by the app's own chrome. The fold is sized in svh — the SMALL
+ * viewport height, the one that assumes browser UI is showing — precisely
+ * because vh and dvh both measure a viewport this visitor does not have.
+ */
+
+.page {
+  --ink: #12212e;
+  --ink-soft: #4a5b6a;
+  --ink-faint: #7b8794;
+  --paper: #faf8f4;
+  --paper-warm: #f2ede4;
+  --line: #e2dbd0;
+  --accent: #e05a20;
+  --accent-dark: #c44a15;
+  --field: #3d5a45;
+
+  font-family: var(--font-inter), system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100svh;
+}
+
+.page :focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ------------------------------------------------------------------ FOLD --
+ * Everything from .brand down to .foldLegal must fit at 390x844 without
+ * scrolling.
+ *
+ * TYPOGRAPHIC, NO PHOTOGRAPH. The two flexible spacers are what absorb the
+ * leftover height, so adding a word to the headline pushes into empty space
+ * rather than pushing the email field off the screen. They are weighted 0.6
+ * above and 1 below, which settles the block slightly above centre — dead
+ * centre reads as a splash screen and leaves the form floating.
+ */
+.fold {
+  /* Deliberately short of the viewport, so two accordion rows show below it.
+   * A fold that ends exactly at the screen edge gives no reason to believe
+   * there is anything under it.
+   *
+   * This is min-height, never height: it can only ADD space below the content,
+   * so shrinking it can never push the email field off a short screen. */
+  min-height: calc(100svh - 104px);
+  display: flex;
+  flex-direction: column;
+  padding: 10px 20px 14px;
+  max-width: 560px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.brand {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 19px;
+  color: var(--ink);
+  text-decoration: none;
+  flex: none;
+  padding: 4px 0 8px;
+}
+
+.brand .g {
+  color: var(--accent);
+}
+
+/*
+ * The two spacers absorb the height a photograph would have occupied.
+ *
+ * Headline, prize line, form and fine print are ONE block — the ask sits with
+ * the reason for it, and the sponsor and rules line sits with the ask. Slack
+ * goes above and below that block rather than inside it: split it and the form
+ * ends up marooned in the middle of an empty screen, which is what the first
+ * pass at this looked like.
+ *
+ * Weighted 0.45 above and 1 below, so the block settles above centre.
+ */
+.spacerTop {
+  flex: 0.8 1 auto;
+  min-height: 6px;
+}
+
+.spacerBottom {
+  flex: 1 1 auto;
+  min-height: 10px;
+}
+
+.headline {
+  flex: none;
+  font-size: 36px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+/* The count itself. Sized like a word in the sentence, not like a jackpot. */
+.count {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.subhead {
+  flex: none;
+  margin: 11px 0 0;
+  font-size: 16.5px;
+  line-height: 1.38;
+  color: var(--ink-soft);
+}
+
+/*
+ * The prize, stated in ordinary sentence type.
+ *
+ * This is what stands in for a hero image, and it is deliberately the
+ * opposite of what it replaces: the old page rendered "$500" as a glowing
+ * neon numeral on near black, which is the visual grammar of a fake giveaway
+ * and trips people's fraud reflex before they read a word.
+ */
+.prizeLine {
+  flex: none;
+  margin: 14px 0 0;
+  padding: 11px 0 0;
+  border-top: 1px solid var(--line);
+  font-size: 14.5px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+.prizeLine strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ---- THE ASK ---- */
+.form {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.emailRow {
+  display: flex;
+  gap: 8px;
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 50px;
+  padding: 0 14px;
+  font-size: 16px; /* below 16px and iOS zooms the whole page on focus */
+  font-family: inherit;
+  color: var(--ink);
+  background: #fff;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+.input::placeholder {
+  color: var(--ink-faint);
+}
+
+.input:focus {
+  border-color: var(--accent);
+}
+
+.submit {
+  flex: none;
+  height: 50px;
+  padding: 0 20px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--accent-dark);
+}
+
+.submit:disabled {
+  opacity: 0.62;
+  cursor: default;
+}
+
+/* Full-width submit for step two, where it is the only control in its row. */
+.submitWide {
+  width: 100%;
+}
+
+/* ---- STEP TWO: the fields Official Rules 4.2 requires ---- */
+.stepTwo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stepTwoLead {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.stepTwoNote {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.nameRow {
+  display: flex;
+  gap: 8px;
+}
+
+.nameRow .input {
+  flex: 1 1 0;
+}
+
+.zipRow .input {
+  width: 100%;
+}
+
+.emailEcho {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---- TRUST ---- */
+.trust {
+  flex: none;
+  margin: 9px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+.foldLegal {
+  flex: none;
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-faint);
+}
+
+.foldLegal a {
+  color: var(--ink-faint);
+  text-decoration: underline;
+}
+
+.error {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #b3261e;
+}
+
+.notice {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: var(--paper-warm);
+  border-radius: 8px;
+  padding: 9px 11px;
+}
+
+/* -------------------------------------------------------- SUCCESS STATE --
+ * Same page, no redirect. The listing ask lives here and nowhere above it:
+ * the whole rebuild is a bet that a ten-minute physical chore is something you
+ * ask for after a commitment rather than instead of one.
+ */
+.success {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.successMark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--field);
+}
+
+.successBody {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+/*
+ * helmet-on-grass.jpg, above the upsell. Capped at 160px tall and cropped
+ * rather than letterboxed, so a portrait or landscape original both land as
+ * the same quiet band and neither pushes the CTA down the screen.
+ */
+.successPhoto {
+  position: relative;
+  width: 100%;
+  height: 140px;
+  max-height: 160px;
+  margin-top: 2px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--paper-warm);
+}
+
+.successPhoto img {
+  object-fit: cover;
+}
+
+.upsell {
+  margin-top: 4px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--paper-warm);
+  border: 1px solid var(--line);
+}
+
+.upsellTitle {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.upsellBody {
+  margin: 0 0 11px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.upsellCta {
+  display: block;
+  text-align: center;
+  height: 48px;
+  line-height: 48px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15.5px;
+  text-decoration: none;
+}
+
+.upsellCta:hover {
+  background: var(--accent-dark);
+}
+
+.upsellOptional {
+  margin: 9px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  text-align: center;
+}
+
+/* ------------------------------------------------------- BELOW THE FOLD --
+ * Accordions, all closed on load. Collapsed, the three sections plus the
+ * footer are roughly one further screen, which is what keeps the primary
+ * action inside 1.5 screens rather than the 4,066px the old page needed.
+ */
+.below {
+  padding: 26px 20px 8px;
+  max-width: 560px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.accordion {
+  border-bottom: 1px solid var(--line);
+}
+
+.accordion:first-of-type {
+  border-top: 1px solid var(--line);
+}
+
+.accordion > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 15px 30px 15px 0;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--ink);
+  position: relative;
+}
+
+.accordion > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Chevron drawn in CSS, so the accordions cost no extra request. */
+.accordion > summary::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--ink-faint);
+  border-bottom: 2px solid var(--ink-faint);
+  transform: translateY(-70%) rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.accordion[open] > summary::after {
+  transform: translateY(-30%) rotate(225deg);
+}
+
+.accordionBody {
+  padding: 0 0 16px;
+  font-size: 14.5px;
+  color: var(--ink-soft);
+}
+
+.accordionBody p {
+  margin: 0 0 10px;
+}
+
+.accordionBody p:last-child {
+  margin-bottom: 0;
+}
+
+.accordionBody a {
+  color: var(--accent);
+}
+
+.accordionBody strong {
+  color: var(--ink);
+}
+
+/*
+ * gear-on-bench.jpg, full width of the content column at roughly 3:1.
+ *
+ * aspect-ratio plus object-fit: cover is what makes it read as a band rather
+ * than a photo block — the crop is the design, so the source image's own
+ * proportions are deliberately not respected.
+ */
+.band {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  margin: 0 0 14px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--paper-warm);
+}
+
+.band img {
+  object-fit: cover;
+}
+
+.steps {
+  margin: 0;
+  padding: 0 0 0 20px;
+}
+
+.steps li {
+  margin-bottom: 9px;
+}
+
+.steps li:last-child {
+  margin-bottom: 0;
+}
+
+.subQ {
+  margin: 0 0 4px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.subA {
+  margin: 0 0 14px;
+  font-size: 14.5px;
+  color: var(--ink-soft);
+}
+
+.subA:last-child {
+  margin-bottom: 0;
+}
+
+/* ---- FOOTER ---- */
+.footer {
+  padding: 24px 20px 34px;
+  max-width: 560px;
+  margin: 0 auto;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.footerBrand {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 17px;
+  margin-bottom: 8px;
+}
+
+.footerBrand .g {
+  color: var(--accent);
+}
+
+.legal {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  margin-top: 10px;
+}
+
+.legal a {
+  color: var(--ink-faint);
+  text-decoration: underline;
+}
+
+.copyright {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+/* Wider screens get a slightly larger headline. The layout stays one column:
+ * this page has a single job, and a second column gives it a second. */
+@media (min-width: 480px) {
+  .headline {
+    font-size: 31px;
+  }
+
+  .subhead {
+    font-size: 17px;
+  }
+}
