@@ -2,130 +2,103 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { trackStandard, reportTrackResult } from "@/lib/meta-pixel";
 import {
   markListingCtaClick,
   recordGiveawayEvent,
-  recordGiveawayPageView,
 } from "@/lib/giveaway-events";
-import {
-  GIVEAWAY_GOAL,
-  PROMOTION_END_LABEL,
-  isPlausibleEmail,
-} from "@/lib/giveaway";
 import s from "@/app/giveaway/landing.module.css";
 
 /**
- * The rebuilt /giveaway landing page.
+ * /giveaway — ported from _design/giveaway-redesign.html.
  *
- * WHAT CHANGED AND WHY. The old page's only real ask was "START LISTING",
- * which is a ten-minute physical chore — photograph the gear, write a
- * description, set a price — put in front of a visitor who arrived mid-scroll
- * from an Instagram Reel with no intent at all. Engagement was above average
- * and conversion was bottom-35%, which is what that mismatch looks like in a
- * dashboard. The listing ask has not been removed; it has been moved to after
- * a free entry, where the visitor has already committed to something.
+ * The design file is the finished article and it wins every disagreement with
+ * anything written earlier. Its markup, class names and copy are reproduced
+ * here as-is; what follows is only the wiring a static mock cannot carry.
  *
- * THE NUMBER IN THE HEADLINE IS THE ENTRY POOL, NOT THE LISTING COUNTER.
- * The old scoreboard read "60 of 500", which is active listings platform-wide.
- * 46 of those 60 predate the Promotion and earn no entry under Rules 4.1, and
- * 48 belong to Sponsor-controlled demo, seed and founder accounts that Rules 2
- * excludes. The eligible pool behind that 60 was nine. Stating the honest
- * smaller number is both the truthful thing and the persuasive one: a visitor
- * deciding whether to spend ten seconds cares how many people they are up
- * against, and nine is a genuinely good answer.
+ * THREE STATES, ONE PAGE, NO NAVIGATION. s1 collects the email and nothing
+ * else. s1 to s2 is purely client-side — NOTHING IS WRITTEN until s2 submits,
+ * so an abandoned half-entry never reaches the database and never becomes a
+ * row a drawing has to account for.
  *
- * NO ODDS RATIO IS STATED. Rules 7 defines odds as depending on the total
- * entries received, which is not known until the Entry Deadline. "About a 1 in
- * 9 shot" would be a claim about a final figure that does not exist yet and
- * that eight more weeks of entries will falsify.
+ * s2 posts to /api/giveaway/free-entry, the same handler /giveaway/free-entry
+ * has always used and which is untouched. There is deliberately no second
+ * write path: the daily limit is a unique index on that table and the Texas
+ * rule is enforced in that route, and a parallel endpoint would be a second
+ * place for both to be got wrong.
  *
- * THE FORM IS TWO STEPS ON ONE SCREEN. Rules 4.2 requires first name, last
- * name, email and a Texas ZIP; the fold asks for the email alone because four
- * fields at the top of a cold landing page is the friction this rebuild exists
- * to remove. Tapping submit expands the same card in place — no navigation, no
- * second page — and asks for the rest against a commitment already made. Both
- * steps post to the same handler /giveaway/free-entry has always used.
+ * ONE NAME FIELD, TWO NAME COLUMNS. The design asks for a single "Full name";
+ * Rules 4.2 and the handler both want first and last separately. The split
+ * happens here, on the first space. A single word cannot be split, so that is
+ * refused before the request rather than bouncing off the handler's
+ * name_required after the visitor has already filled in a ZIP.
  */
 
-type Step = "email" | "details" | "done";
-
-/**
- * The one photograph on the page: a full-bleed band UNDER the submit button.
- *
- * UNDER, NOT ABOVE, AND THAT IS THE WHOLE POINT. A 140px band above the form
- * pushes the email field from y=418 to roughly y=600. That still clears a
- * 390x844 screen and fails a 375x667 one once an in-app browser has taken its
- * chrome out of the top and bottom — and 375x667 inside the Instagram browser
- * is the smallest screen this ad actually lands on. The field staying above
- * the fold there is the hard constraint; everything else gives way to it.
- * Below the button the band costs nothing and still gets seen.
- *
- * Lazy, because it is no longer the largest contentful paint — the headline is.
- */
-const BAT_PHOTO = "/images/bat-hero.jpg";
+type Step = "s1" | "s2" | "s3";
 
 export interface GiveawayLandingProps {
-  /**
-   * Eligible entries currently in the drawing, or null when the count could
-   * not be read. Null renders a headline with no number rather than a zero —
-   * "no entries yet" and "we could not reach the database" are different
-   * statements and only one of them is a reason to enter.
-   */
-  entries: number | null;
-  /** Rules 3(a): the Promotion ends the moment 500 active listings is hit. */
-  closed: boolean;
+  /** True only when public/images/bat-band.jpg exists at build time. */
+  bandAvailable: boolean;
 }
 
-export function GiveawayLanding({ entries, closed }: GiveawayLandingProps) {
-  const [step, setStep] = useState<Step>("email");
+export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
+  const [step, setStep] = useState<Step>("s1");
   const [email, setEmail] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [fullName, setFullName] = useState("");
   const [zip, setZip] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  /** The server says they already entered today. Nothing went wrong — they
-   *  are simply done until tomorrow, so this is softer than an error. */
-  const [alreadyEntered, setAlreadyEntered] = useState(false);
+
+  const nameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+
+  /** The design's show(): swap the state and put the reader back at the top. */
+  const show = (next: Step) => {
+    setStep(next);
+    window.scrollTo({ top: 0 });
+  };
 
   /**
-   * The landing view, reported to the pixel as its own custom event.
+   * Focus follows the state change, in an effect rather than beside the
+   * setState call.
    *
-   * The database side of this step is already handled by PageViewLogger in the
-   * root layout, which is where it belongs — a view counter wired into one
-   * route stops working silently the day that route is refactored, which is
-   * exactly what this file just did to it.
+   * A requestAnimationFrame next to setStep can run before React has committed
+   * the new `hidden` attributes, and focusing an element that is still
+   * display:none silently does nothing — which is exactly what it did here
+   * first time round. An effect keyed on `step` runs after the commit, so the
+   * field is on screen by the time it is asked to take the cursor.
    *
-   * Ref-guarded because React StrictMode double-invokes effects in
-   * development, and a view counted twice is a conversion rate halved.
+   * Skipped on the first render: arriving on the page should not yank the
+   * viewport to the email field or pop a keyboard open unasked.
    */
-  const viewReported = useRef(false);
+  const mounted = useRef(false);
   useEffect(() => {
-    if (viewReported.current) return;
-    viewReported.current = true;
-    recordGiveawayPageView();
-  }, []);
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    if (step === "s2") nameRef.current?.focus();
+    if (step === "s1") emailRef.current?.focus();
+  }, [step]);
 
-  /** Step one is validation only. Nothing is sent until the rules-required
-   *  fields are in hand, so a half-filled entry is never banked. */
   const submitEmail = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!isPlausibleEmail(email.trim().toLowerCase())) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-    setStep("details");
+    show("s2");
   };
 
   const submitEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setAlreadyEntered(false);
-    setSubmitting(true);
 
+    const parts = fullName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length < 2) {
+      setError("Please enter your first and last name.");
+      return;
+    }
+    const firstName = parts[0];
+    const lastName = parts.slice(1).join(" ");
+
+    setSubmitting(true);
     try {
       const res = await fetch("/api/giveaway/free-entry", {
         method: "POST",
@@ -139,399 +112,386 @@ export function GiveawayLanding({ entries, closed }: GiveawayLandingProps) {
       };
 
       if (!res.ok) {
-        if (body.error === "already_entered_today") {
-          setAlreadyEntered(true);
-          setSubmitting(false);
-          return;
-        }
+        // Every refusal the handler can return — non-Texas ZIP, malformed
+        // email, missing surname, already entered today, promotion closed —
+        // lands in the same slot above the ZIP row, which is where the eye
+        // already is because that is where the submit button lives.
         setError(body.message || "Something went wrong. Please try again.");
         setSubmitting(false);
         return;
       }
 
-      // Our own record first, the pixel second. Meta under-reported
-      // ListingCreated for roughly 22 listings before anyone noticed, so the
-      // database is the source of truth for whether this rebuild worked and
-      // the pixel is the thing that has to agree with it.
-      //
-      // Only a genuinely new entry counts. The already_entered_today path
-      // returns above without reaching here, which is correct — a repeat
-      // visitor is the same person, and counting them again would inflate the
-      // conversion rate the campaign is optimised against.
-      recordGiveawayEvent("entry_submitted");
-      reportTrackResult("Lead", trackStandard("Lead"));
       setSubmitting(false);
-      setStep("done");
+      show("s3");
+      recordGiveawayEvent("entry_submitted");
     } catch {
       setError("Network error. Please check your connection and try again.");
       setSubmitting(false);
     }
   };
 
+  /** Back to s1 with the typed email still in the field. */
+  const useDifferentEmail = () => {
+    setError("");
+    show("s1");
+  };
+
   /**
-   * The listing ask, finally. Marks the tap before the navigation so the
-   * signup it leads to can be attributed back to this moment — the number that
-   * settles whether asking after commitment beats asking before it.
+   * The closer's "Enter free" targets #email, which is inside s1 and therefore
+   * not in the layout while s2 or s3 is showing. Switch state first, then put
+   * the cursor in the field — a bare anchor would scroll to nothing.
    */
+  const jumpToEntry = (e: React.MouseEvent) => {
+    e.preventDefault();
+    show("s1");
+  };
+
   const onListingCtaClick = () => {
     markListingCtaClick();
     recordGiveawayEvent("listing_cta_clicked");
   };
 
-  // ---- Headline ------------------------------------------------------------
-  // Every branch here has to be true of the data as read. The plural, the
-  // zero case and the unreadable case are separate sentences rather than one
-  // sentence with a number interpolated into it, because "0 entries are in the
-  // drawing" and "no one has entered yet" are not the same claim.
-  let headline: React.ReactNode;
-  let subhead: string;
-
-  if (closed) {
-    headline = <>Entries are closed.</>;
-    subhead = `We reached ${GIVEAWAY_GOAL} listings. The winner is being drawn at random from all eligible entries and will be notified by email.`;
-  } else if (entries == null) {
-    headline = (
-      <>
-        One entry wins a <span className={s.count}>$500</span> bat.
-      </>
-    );
-    subhead = "Entering is free and takes about ten seconds. No account, no listing, nothing to buy.";
-  } else if (entries === 0) {
-    headline = <>Nobody has entered yet. One person wins a $500 bat.</>;
-    subhead = "You would be the first name in the drawing. Free, and about ten seconds.";
-  } else {
-    // No "Only". The number is doing the work; the qualifier reads apologetic,
-    // as though a small pool needed excusing rather than being the offer.
-    headline = (
-      <>
-        <span className={s.count}>{entries}</span>{" "}
-        {entries === 1 ? "entry is" : "entries are"} in the drawing right now.
-      </>
-    );
-    subhead = "One of them wins a $500 bat. Entering is free and takes about ten seconds.";
-  }
-
   return (
     <div className={s.page}>
-      {/* ================================================== ABOVE THE FOLD == */}
-      <section className={s.fold}>
-        <Link href="/" className={s.brand}>
-          Near<span className={s.g}>Gear</span>
-        </Link>
+      <div className={s.wrap}>
+        <header className={s.pad}>
+          <span className={s.mark}>
+            Near<span>Gear</span>
+          </span>
+          <a className={s.hlink} href="#list">
+            List your gear
+          </a>
+        </header>
 
-        <div className={s.spacerTop} />
+        <div className={s.board}>
+          <span className={s.n}>Nov 3</span>
+          <span className={s.lab}>
+            Entries close<b>Winner drawn in 7 days</b>
+          </span>
+          <span className={s.live}>$500 bat</span>
+        </div>
 
-        <h1 className={s.headline}>{headline}</h1>
-        <p className={s.subhead}>{subhead}</p>
-
-        <p className={s.prizeLine}>
-          The prize is one bat, <strong>winner&rsquo;s choice</strong> of the
-          Easton Ghost or The Dub. Approximate retail value $500.
-        </p>
-
-        {closed ? (
-          <p className={s.notice}>
-            The drawing is closed. See the{" "}
-            <Link href="/giveaway/rules">official rules</Link> for how the
-            winner is selected.
-          </p>
-        ) : step === "done" ? (
-          <div className={s.success}>
-            <div className={s.successMark}>
-              <CheckMark /> You&rsquo;re entered.
-            </div>
-            <p className={s.successBody}>
-              Your free entry is in. It has exactly the same chance of winning
-              as an entry earned by listing gear. If you win, we email you at{" "}
-              {email.trim().toLowerCase()}.
+        <div className={`${s.hero} ${s.pad}`}>
+          {/* ---- s1: email only ---- */}
+          <div className={s.step} id="s1" hidden={step !== "s1"}>
+            <h1>
+              Somebody in DFW is getting a <em>$500 bat</em>.
+            </h1>
+            <p className={s.sub}>
+              Free to enter. No account, no purchase, about ten seconds. Then go
+              back to what you were doing.
             </p>
-
-            <div className={s.upsell}>
-              <p className={s.upsellTitle}>Want more entries?</p>
-              <p className={s.upsellBody}>
-                Every item you list on NearGear is another one. No limit — list
-                ten things, get ten more entries. Bats, gloves, cleats, helmets,
-                whatever your kids outgrew.
-              </p>
-              <Link
-                href="/auth/signup?redirect=/sell"
-                className={s.upsellCta}
-                onClick={onListingCtaClick}
-              >
-                List gear for more entries &rarr;
-              </Link>
-              <p className={s.upsellOptional}>
-                Completely optional. Your free entry is already in.
-              </p>
-            </div>
-          </div>
-        ) : step === "email" ? (
-          <form className={s.form} onSubmit={submitEmail} noValidate>
-            <div className={s.emailRow}>
+            <form id="f1" onSubmit={submitEmail}>
+              <label className={s.sr} htmlFor="email">
+                Email address
+              </label>
               <input
-                className={s.input}
+                id="email"
+                ref={emailRef}
                 type="email"
                 name="email"
-                inputMode="email"
+                placeholder="you@email.com"
                 autoComplete="email"
-                enterKeyHint="go"
+                required
                 maxLength={254}
-                placeholder="Your email"
-                aria-label="Your email address"
                 value={email}
                 onChange={(ev) => setEmail(ev.target.value)}
               />
-              <button type="submit" className={s.submit}>
-                Enter &rarr;
-              </button>
-            </div>
-            {error && <p className={s.error}>{error}</p>}
-          </form>
-        ) : (
-          <form className={s.form} onSubmit={submitEntry} noValidate>
-            <div className={s.stepTwo}>
-              <p className={s.stepTwoLead}>Almost in. The rules need three things.</p>
-              <div className={s.nameRow}>
+              <button type="submit">Enter the drawing</button>
+            </form>
+            <p className={s.legal}>
+              No purchase necessary — this form is the free entry. Open to Texas
+              residents 18+. NearGear LLC, Keller TX.{" "}
+              <Link href="/giveaway/rules">Official rules</Link>.
+            </p>
+          </div>
+
+          {/* ---- s2: the fields Rules 4.2 requires ---- */}
+          <div className={s.step} id="s2" hidden={step !== "s2"}>
+            <h1>Two more fields and you&rsquo;re in.</h1>
+            <p className={s.sub}>
+              The official rules need a name and a Texas ZIP to make an entry
+              count.
+            </p>
+            <form id="f2" onSubmit={submitEntry}>
+              <label className={s.sr} htmlFor="fullname">
+                Full name
+              </label>
+              <input
+                id="fullname"
+                ref={nameRef}
+                type="text"
+                name="name"
+                placeholder="First and last name"
+                autoComplete="name"
+                required
+                maxLength={120}
+                value={fullName}
+                onChange={(ev) => setFullName(ev.target.value)}
+              />
+
+              {error && (
+                <p className={s.err} role="alert">
+                  {error}
+                </p>
+              )}
+
+              <div className={s.fields}>
+                <label className={s.sr} htmlFor="zip">
+                  ZIP code
+                </label>
                 <input
-                  className={s.input}
-                  name="firstName"
-                  autoComplete="given-name"
-                  maxLength={60}
-                  placeholder="First name"
-                  aria-label="First name"
-                  value={firstName}
-                  onChange={(ev) => setFirstName(ev.target.value)}
-                />
-                <input
-                  className={s.input}
-                  name="lastName"
-                  autoComplete="family-name"
-                  maxLength={60}
-                  placeholder="Last name"
-                  aria-label="Last name"
-                  value={lastName}
-                  onChange={(ev) => setLastName(ev.target.value)}
-                />
-              </div>
-              <div className={s.zipRow}>
-                <input
-                  className={s.input}
+                  id="zip"
+                  type="text"
                   name="zip"
+                  placeholder="ZIP code"
                   inputMode="numeric"
-                  autoComplete="postal-code"
+                  pattern="[0-9]{5}"
                   maxLength={5}
-                  placeholder="Texas ZIP code"
-                  aria-label="Texas ZIP code"
+                  autoComplete="postal-code"
+                  required
                   value={zip}
                   onChange={(ev) =>
                     setZip(ev.target.value.replace(/\D/g, "").slice(0, 5))
                   }
                 />
-              </div>
-
-              {alreadyEntered && (
-                <p className={s.notice}>
-                  You&rsquo;ve already entered today. Come back tomorrow for
-                  another free entry — today&rsquo;s is safely in the drawing.
-                </p>
-              )}
-              {error && <p className={s.error}>{error}</p>}
-
-              <button
-                type="submit"
-                className={`${s.submit} ${s.submitWide}`}
-                disabled={submitting}
-              >
-                {submitting ? "Entering…" : "Confirm my entry →"}
-              </button>
-
-              <p className={s.emailEcho}>
-                Entering as {email.trim().toLowerCase()}.{" "}
-                <button
-                  type="button"
-                  className={s.linkish}
-                  onClick={() => {
-                    setStep("email");
-                    setError("");
-                    setAlreadyEntered(false);
-                  }}
-                >
-                  Change
+                <button type="submit" disabled={submitting}>
+                  {submitting ? "…" : "Finish"}
                 </button>
+              </div>
+            </form>
+            <button className={s.backlink} type="button" id="back" onClick={useDifferentEmail}>
+              Use a different email
+            </button>
+            <p className={s.legal}>
+              Texas residents 18+. One free entry per person per day.{" "}
+              <Link href="/giveaway/rules">Official rules</Link>.
+            </p>
+          </div>
+
+          {/* ---- s3: confirmed ---- */}
+          <div className={s.step} id="s3" hidden={step !== "s3"}>
+            <div className={s.confirm}>
+              <span className={s.tick}>✓</span>
+              <h1>You&rsquo;re entered.</h1>
+            </div>
+            <p className={s.sub}>
+              We&rsquo;ll email <b id="echo">{email.trim() || "you@email.com"}</b>{" "}
+              if you win. The drawing is November 3 and the winner is notified
+              within seven days.
+            </p>
+
+            <div className={s.next}>
+              <div className={s.eyebrow}>Want better odds</div>
+              <h3>Every item you list is another entry</h3>
+              <p>
+                Bats, gloves, cleats, helmets — whatever your kids outgrew.
+                Listing is free and takes about a minute. There&rsquo;s no cap.
+              </p>
+              <Link
+                className={s.cta}
+                href="/auth/signup?redirect=/sell"
+                onClick={onListingCtaClick}
+              >
+                List your gear
+              </Link>
+              <Link className={s.alt2} href="/marketplace">
+                Or see what DFW families are selling &rarr;
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <BandSlot available={bandAvailable} />
+
+        <section className={s.pad}>
+          <div className={s.eyebrow}>The prize</div>
+          <h2>One bat, winner&rsquo;s choice</h2>
+          <p className={s.lede}>
+            Drawn once. Shipped or handed off locally, whichever you&rsquo;d
+            rather.
+          </p>
+          <div className={s.prize}>
+            <div className={s.row}>
+              <span className={s.k}>Fastpitch</span>
+              <span className={s.v}>Easton Ghost</span>
+            </div>
+            <div className={s.row}>
+              <span className={s.k}>Baseball</span>
+              <span className={s.v}>The Dub</span>
+            </div>
+            <div className={`${s.row} ${s.stack}`}>
+              <span className={s.k}>Length &amp; drop</span>
+              <span className={`${s.v} ${s.spec}`}>
+                Winner picks the size and drop weight that fits their kid.
+              </span>
+            </div>
+            <div className={s.row}>
+              <span className={s.k}>Approximate retail value</span>
+              <span className={s.v}>$500</span>
+            </div>
+            <div className={`${s.row} ${s.stack}`}>
+              <span className={s.k}>Entries close</span>
+              <span className={`${s.v} ${s.spec}`}>
+                November 3, 2026, or when NearGear reaches 500 total listings
+                &mdash; whichever comes first.
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section className={`${s.pad} ${s.alt}`}>
+          <div className={s.eyebrow}>How it works</div>
+          <h2>Enter free, or stack the odds</h2>
+          <ol className={s.steps}>
+            <li>
+              <span className={s.num}>1</span>
+              <div>
+                <h3>Enter with your email</h3>
+                <p>
+                  That&rsquo;s a full entry. Nothing else required, and it
+                  counts exactly the same as any other.
+                </p>
+              </div>
+            </li>
+            <li>
+              <span className={s.num}>2</span>
+              <div>
+                <h3>List gear your kids outgrew</h3>
+                <p>
+                  Every item you post is one more entry. Bats, gloves, cleats,
+                  helmets. Free to list.
+                </p>
+              </div>
+            </li>
+            <li>
+              <span className={s.num}>3</span>
+              <div>
+                <h3>We draw one name</h3>
+                <p>
+                  Within seven days of close. Winner notified by email at the
+                  address you enter.
+                </p>
+              </div>
+            </li>
+          </ol>
+        </section>
+
+        <section className={s.pad} id="list">
+          <div className={s.eyebrow}>Why sell here</div>
+          <h2>Built for DFW families, not shippers</h2>
+          <div className={s.why}>
+            <div>
+              <h3>Free to list</h3>
+              <p>You only pay when the item actually sells.</p>
+            </div>
+            <div>
+              <h3>Money held</h3>
+              <p>
+                The buyer pays up front. We hold it until you hand the gear
+                over.
               </p>
             </div>
-          </form>
-        )}
-
-        {/* Directly below the button. See BAT_PHOTO for why it is not above. */}
-        <div className={s.batBand}>
-          <Image
-            src={BAT_PHOTO}
-            alt="Close-up of a youth baseball bat."
-            fill
-            sizes="100vw"
-            loading="lazy"
-          />
-        </div>
-
-        <p className={s.trust}>
-          NearGear LLC, Keller, TX. Entries close {PROMOTION_END_LABEL} or at{" "}
-          {GIVEAWAY_GOAL} listings, whichever comes first. The winner is drawn
-          within seven days and notified by email.
-        </p>
-
-        <p className={s.foldLegal}>
-          No purchase necessary — this form is the free entry. Open to Texas
-          residents 18+. <Link href="/giveaway/rules">Official rules</Link>.
-        </p>
-
-        <div className={s.spacerBottom} />
-      </section>
-
-      {/* ================================================== BELOW THE FOLD == */}
-      <section className={s.below}>
-        <details className={s.accordion}>
-          <summary>How it works</summary>
-          <div className={s.accordionBody}>
-            <ol className={s.steps}>
-              <li>
-                <strong>Enter free.</strong> The form above is the whole thing.
-                One free entry per person per day, and you can come back
-                tomorrow for another.
-              </li>
-              <li>
-                <strong>Or list gear for more entries.</strong> Create a free
-                account and post an item of youth sports equipment. Each item
-                you list earns one more entry, with no limit.
-              </li>
-              <li>
-                <strong>We draw one winner.</strong> At random, from every
-                eligible entry, within seven days of the entry deadline. Free
-                entries and listing entries have exactly the same chance.
-              </li>
-            </ol>
+            <div>
+              <h3>Local handoff</h3>
+              <p>
+                Meet a family nearby at a public spot. No shipping, no boxes.
+              </p>
+            </div>
+            <div>
+              <h3>Clear the garage</h3>
+              <p>Last season&rsquo;s bat becomes this season&rsquo;s registration fee.</p>
+            </div>
           </div>
-        </details>
+        </section>
 
-        <details className={s.accordion}>
-          <summary>Why list on NearGear</summary>
-          <div className={s.accordionBody}>
+        <section className={`${s.pad} ${s.alt}`} id="rules">
+          <div className={s.eyebrow}>Questions</div>
+          <h2>The short version</h2>
+          <details>
+            <summary>Do I have to list anything to win?</summary>
             <p>
-              <strong>Free to list.</strong> No upfront cost. You only pay a
-              small fee when your gear actually sells.
+              No. The email form above is a complete free entry with the same
+              chance of winning as any listing entry.
             </p>
+          </details>
+          <details>
+            <summary>How many entries can I get?</summary>
             <p>
-              <strong>Local and safe.</strong> Buyers are DFW sports families,
-              and you meet at a verified safe zone close to home.
+              One free entry per person per day, plus one for every qualifying
+              listing you post. There&rsquo;s no cap on listings.
             </p>
+          </details>
+          <details>
+            <summary>What counts as a qualifying listing?</summary>
             <p>
-              <strong>Payment held until handoff.</strong> Buyers pay up front
-              and we hold it, so nobody drives anywhere on a maybe.
+              Real youth sports equipment you actually own and intend to sell,
+              listed with a photo and a price.
             </p>
+          </details>
+          <details>
+            <summary>Who can enter?</summary>
+            <p>Texas residents 18 and over. Void where prohibited.</p>
+          </details>
+          <details>
+            <summary>When is the drawing?</summary>
             <p>
-              <strong>Clear the garage.</strong> Turn the cleats and bats your
-              kids outgrew into cash instead of clutter.
+              Within seven days of entries closing &mdash; November 3, 2026, or
+              when NearGear reaches 500 total listings, whichever happens first.
             </p>
-          </div>
-        </details>
+          </details>
+        </section>
 
-        <details className={s.accordion}>
-          <summary>Questions</summary>
-          <div className={s.accordionBody}>
-            <p className={s.subQ}>Do I have to buy anything?</p>
-            <p className={s.subA}>
-              No. No purchase or payment of any kind is necessary to enter or
-              win, and a purchase will not improve your chances.
-            </p>
-
-            <p className={s.subQ}>Do I need an account?</p>
-            <p className={s.subA}>
-              Not for the free entry above. You only need an account if you want
-              extra entries by listing gear. The{" "}
-              <Link href="/giveaway/free-entry">standalone free entry form</Link>{" "}
-              works the same way.
-            </p>
-
-            <p className={s.subQ}>How many times can I enter?</p>
-            <p className={s.subA}>
-              One free entry per person per calendar day, every day of the
-              promotion. Listing entries have no limit — each item you list is
-              one more entry.
-            </p>
-
-            <p className={s.subQ}>Who can enter?</p>
-            <p className={s.subA}>
-              Legal residents of Texas who are 18 or older. Sponsor employees
-              and their households are not eligible. Void where prohibited.
-            </p>
-
-            <p className={s.subQ}>What exactly is the prize?</p>
-            <p className={s.subA}>
-              One bat of the winner&rsquo;s choice, from options we offer,
-              with an approximate retail value not exceeding $500. The choice
-              includes at minimum the Easton Ghost and The Dub, subject to
-              availability of size and model.
-            </p>
-
-            <p className={s.subQ}>When is the drawing?</p>
-            <p className={s.subA}>
-              Entries close on {PROMOTION_END_LABEL}, or the moment NearGear
-              reaches {GIVEAWAY_GOAL} active listings — whichever happens first.
-              We draw within seven days of that and notify the winner by email.
-            </p>
-
-            <p className={s.subQ}>What counts as a real listing?</p>
-            <p className={s.subA}>
-              Genuine youth sports gear you own and intend to sell, with a clear
-              photo, an accurate description and a fair asking price. Junk or
-              duplicate listings posted to farm entries do not count and can
-              disqualify your other entries.
-            </p>
-          </div>
-        </details>
-      </section>
-
-      <footer className={s.footer}>
-        <div className={s.footerBrand}>
-          Near<span className={s.g}>Gear</span>
+        <div className={`${s.closer} ${s.pad}`}>
+          <h2>One bat. One winner.</h2>
+          <p>
+            Enter free in ten seconds. List the gear in your garage and get more
+            chances.
+          </p>
+          <a className={s.ghost} href="#email" onClick={jumpToEntry}>
+            Enter free
+          </a>
         </div>
-        <div className={s.copyright}>
-          near-gear.com &middot; DFW youth sports gear, local.
-        </div>
-        <div className={s.legal}>
-          NO PURCHASE NECESSARY. A purchase will not increase your chances of
-          winning. Open to legal residents of Texas 18 and older. Void where
-          prohibited. Free entry available above and at{" "}
-          <Link href="/giveaway/free-entry">near-gear.com/giveaway/free-entry</Link>.
-          Promotion ends at {GIVEAWAY_GOAL} active listings or 11:59 p.m. CT on{" "}
-          {PROMOTION_END_LABEL}, whichever occurs first. One prize, approximate
-          retail value $500. Sponsor: NearGear LLC, 1400 Ashmore Court, Keller,
-          TX 76248. See <Link href="/giveaway/rules">official rules</Link>. This
-          promotion is not sponsored, endorsed, or administered by Meta, Easton,
-          or any bat manufacturer.
-        </div>
-        <div className={s.copyright}>&copy; 2026 NearGear LLC.</div>
-      </footer>
+
+        <footer className={s.pad}>
+          <div className={s.fm}>NearGear</div>
+          <p>near-gear.com &middot; DFW youth sports gear, local.</p>
+          <p className={s.footNote}>
+            NO PURCHASE NECESSARY. Open to Texas residents 18+. Void where
+            prohibited. Ends at 500 listings or 11:59 p.m. CT on November 3,
+            2026, whichever occurs first. Prize ARV $500. Sponsor: NearGear LLC,
+            Keller, TX. <Link href="/giveaway/rules">See official rules</Link>.
+            This promotion is not sponsored, endorsed, or administered by Meta,
+            Easton, or any bat manufacturer.
+          </p>
+          <p className={s.footNote}>&copy; 2026 NearGear LLC.</p>
+        </footer>
+      </div>
     </div>
   );
 }
 
-/** Check mark for the success state. */
-function CheckMark() {
+/**
+ * The photo band, or nothing at all.
+ *
+ * Whether the file exists is decided on the server at build time and arrives
+ * as a prop — see page.tsx. When it is missing the element is not rendered,
+ * so there is no placeholder, no broken image and no reserved gap: the hero
+ * sits directly against the prize section. Dropping the file in and
+ * redeploying is the only change needed to make it appear.
+ */
+function BandSlot({ available }: { available: boolean }) {
+  if (!available) return null;
   return (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="10" strokeWidth="1.8" />
-      <path d="M7.5 12.4l3 3 6-6.5" />
-    </svg>
+    <div className={s.band}>
+      {/* A plain img, matching the design. next/image would need width and
+          height for a file that is not in the repo, and its optimiser adds
+          nothing to a single above-the-prize band served from our own origin. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/images/bat-band.jpg"
+        alt="Close-up of a youth baseball bat at a field."
+      />
+    </div>
   );
 }

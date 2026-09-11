@@ -1,66 +1,77 @@
-import { createClient } from "@supabase/supabase-js";
-import { createAdminSupabaseClient } from "@/lib/supabase-admin";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import type { Metadata } from "next";
+import { Saira_Condensed, Public_Sans } from "next/font/google";
 import { GiveawayLanding } from "@/components/giveaway/giveaway-landing";
-import { GIVEAWAY_GOAL, loadEntryPool } from "@/lib/giveaway";
 
 /**
- * /giveaway — the $500 Bat Giveaway landing page.
+ * /giveaway — the $500 bat drawing.
  *
- * The URL is fixed: a live Meta campaign points at it, so this file gets
- * rebuilt rather than replaced.
+ * The URL is fixed: a live Meta campaign points at it, so this file is rebuilt
+ * rather than replaced. The page itself is _design/giveaway-redesign.html,
+ * ported; this component exists only to supply the two things a static design
+ * file cannot decide for itself.
  *
- * TWO NUMBERS ARE READ HERE AND THEY ARE NOT THE SAME NUMBER.
- *
- *   The entry pool     what the headline states. Eligible entries only, by the
- *                      same definition /admin/giveaway draws the winner from.
- *                      Needs the service role: sweepstakes_entries is
- *                      unreachable by anon, and users.sweepstakes_eligible is
- *                      how Rules 2 exclusions are applied.
- *
- *   Active listings    NOT shown to the visitor any more. It is read only to
- *                      decide whether Rules 3(a) has ended the Promotion. The
- *                      old page put it on a progress bar reading "60 of 500 —
- *                      440 listings to go", which renders our own promotion as
- *                      12% of a failure and was doing real damage.
- *
- * Read on the server so both are correct in the HTML. A client fetch would
- * flash a placeholder, and the entry count is the page's whole credibility.
- *
- * Revalidated every 5 minutes: entries do not arrive fast enough to justify
- * realtime, and a cached page absorbs ad traffic without hitting the database
- * on every view. `revalidate` is still the supported model here because
- * cacheComponents is not enabled in next.config.ts — under Cache Components it
- * would be removed and this would need `use cache` with cacheLife instead.
- *
- * NEITHER CLIENT READS COOKIES. Reading cookies opts a route out of static
- * rendering entirely, `revalidate` would be silently ignored, and every ad
- * click would hit the database. The anon client is cookie-free by
- * construction; createAdminSupabaseClient reads environment variables only.
+ * NO DATABASE READ, AND NO COUNT. The previous build put a live entry count in
+ * the headline. The approved design removes it, and the progress bar it
+ * replaced is not coming back either. With nothing to read, the page is fully
+ * static — every ad click is served from the edge without touching Supabase.
  */
-export const revalidate = 300;
 
-export default async function GiveawayPage() {
-  // Rules 3(a) trigger. Public data — active listings are world-readable under
-  // RLS — so the anon key is enough and the service role is not spent on it.
-  const anon = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } },
+/**
+ * Self-hosted by next/font, so there is no render-blocking request to Google
+ * and no layout shift while the display face arrives.
+ *
+ * These are exposed as CSS variables rather than named literally in the
+ * stylesheet: next/font rewrites each family to a generated name, so a
+ * stylesheet asking for "Saira Condensed" by that string would quietly get
+ * Arial Narrow instead. landing.module.css points --disp and --body at these.
+ */
+const sairaCondensed = Saira_Condensed({
+  variable: "--font-saira-condensed",
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  display: "swap",
+});
+
+const publicSans = Public_Sans({
+  variable: "--font-public-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  title: "NearGear Bat Drawing",
+  description:
+    "Somebody in DFW is getting a $500 bat. Free to enter, no account and no purchase. Open to Texas residents 18+.",
+  openGraph: {
+    title: "NearGear Bat Drawing",
+    description:
+      "One bat, one winner, winner's choice of the Easton Ghost or The Dub. Entries close November 3, 2026. No purchase necessary.",
+  },
+};
+
+/**
+ * The photo band is conditional on the file actually being there.
+ *
+ * Checked on the filesystem rather than guarded in the browser with onError:
+ * an onError guard ships the <img>, lets it 404, and removes the element after
+ * the fact, which is a visible flash of empty band on a page a campaign is
+ * paying for. Resolved here, the markup simply never contains the element.
+ *
+ * This runs at build time — the page is static, and on Vercel the filesystem
+ * is the build output — so dropping bat-band.jpg into public/images and
+ * redeploying is the whole of the change needed to make the band appear.
+ */
+const BAND_PATH = path.join(process.cwd(), "public", "images", "bat-band.jpg");
+
+export default function GiveawayPage() {
+  const bandAvailable = existsSync(BAND_PATH);
+
+  return (
+    <div className={`${sairaCondensed.variable} ${publicSans.variable}`}>
+      <GiveawayLanding bandAvailable={bandAvailable} />
+    </div>
   );
-
-  const { count: activeListings } = await anon
-    .from("listings")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "active");
-
-  const closed = (activeListings ?? 0) >= GIVEAWAY_GOAL;
-
-  // The entry pool. A missing service role key is not a crash: loadEntryPool
-  // is skipped, entries stays null, and the page renders a headline with no
-  // number in it. The alternative — falling back to zero — would state
-  // "nobody has entered yet" on the strength of a configuration problem.
-  const admin = createAdminSupabaseClient();
-  const pool = admin ? await loadEntryPool(admin) : null;
-
-  return <GiveawayLanding entries={pool?.entries ?? null} closed={closed} />;
 }
