@@ -1,0 +1,682 @@
+/*
+ * /giveaway — ported from _design/giveaway-redesign.html.
+ *
+ * The design file is the source of truth for every value in here. Where this
+ * differs from it, that is a porting bug, not an improvement.
+ *
+ * TWO THINGS CHANGED IN THE PORT, BOTH FORCED:
+ *
+ *   1. SCOPING. The design styles bare elements — body, header, h1, form,
+ *      button, input, section, details, footer. A CSS Module only hashes CLASS
+ *      names; element selectors are emitted globally. Shipping `button{...}`
+ *      from here would restyle every button on NearGear. So every rule is
+ *      nested under .page, which is the hashed class, and `body` becomes
+ *      `.page`. The cascade inside is otherwise identical.
+ *
+ *   2. FONT FAMILIES. --disp and --body cannot name "Saira Condensed" and
+ *      "Public Sans" literally: next/font self-hosts them under generated
+ *      family names, and the literal string would silently fall through to the
+ *      fallback stack. They point at the next/font variables instead, with the
+ *      design's own fallbacks kept behind them.
+ */
+
+.page {
+  --ground: #f2f5f6;
+  --panel: #ffffff;
+  --ink: #0f1e27;
+  --ink-2: #53656f;
+  --ink-3: #8496a0;
+  --rule: #d9e1e4;
+  --accent: #e8420e;
+  --board: #0c161d;
+  --board-2: #1b2c37;
+  --amber: #ffc43d;
+  --disp: var(--font-saira-condensed), "Arial Narrow", Helvetica, sans-serif;
+  --body: var(--font-public-sans), -apple-system, Segoe UI, Helvetica, Arial,
+    sans-serif;
+
+  font-family: var(--body);
+  color: var(--ink);
+  background: var(--ground);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  box-sizing: border-box;
+}
+
+.page * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.page img {
+  max-width: 100%;
+  display: block;
+}
+
+.wrap {
+  max-width: 560px;
+  margin: 0 auto;
+  background: var(--ground);
+}
+
+.pad {
+  padding-inline: 20px;
+}
+
+/* header */
+.page header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel);
+}
+
+.mark {
+  font-family: var(--disp);
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: 0.01em;
+}
+
+.mark span {
+  color: var(--accent);
+}
+
+.hlink {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+/* scorebug */
+.board {
+  background: var(--board);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 20px;
+}
+
+.board .n {
+  font-family: var(--disp);
+  font-weight: 800;
+  font-size: 32px;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.board .lab {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8fa5b2;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.board .lab b {
+  display: block;
+  color: #e4edf2;
+  font-weight: 700;
+}
+
+.board .live {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--board);
+  background: var(--amber);
+  text-transform: uppercase;
+  padding: 5px 9px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+/* hero */
+.hero {
+  padding-block: 26px 22px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--rule);
+}
+
+.page h1 {
+  font-family: var(--disp);
+  font-weight: 800;
+  font-size: 38px;
+  line-height: 1.02;
+  letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+
+.page h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.sub {
+  margin-top: 11px;
+  font-size: 16px;
+  color: var(--ink-2);
+  max-width: 34ch;
+}
+
+.page form {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.page label.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.page input[type="email"] {
+  font-family: var(--body);
+  font-size: 16px;
+  height: 50px;
+  width: 100%;
+  border: 1.5px solid var(--rule);
+  border-radius: 2px;
+  padding: 0 14px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.page input[type="email"]::placeholder {
+  color: var(--ink-3);
+}
+
+.page input[type="email"]:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.page button {
+  font-family: var(--disp);
+  font-weight: 800;
+  font-size: 19px;
+  letter-spacing: 0.04em;
+  height: 52px;
+  width: 100%;
+  border: 0;
+  border-radius: 2px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.page button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Not in the design: the submit is disabled while the write is in flight, and
+ * a control that looks live but ignores taps is worse than one that says so. */
+.page button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.legal {
+  margin-top: 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.legal a {
+  color: var(--ink-2);
+}
+
+/* multi-step states */
+.step[hidden] {
+  display: none;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: 1fr 118px;
+  gap: 9px;
+}
+
+.fields input {
+  width: 100%;
+}
+
+.page input[type="text"] {
+  font-family: var(--body);
+  font-size: 16px;
+  height: 50px;
+  border: 1.5px solid var(--rule);
+  border-radius: 2px;
+  padding: 0 14px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.page input[type="text"]::placeholder {
+  color: var(--ink-3);
+}
+
+.page input[type="text"]:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+/*
+ * `.page button.backlink`, not `.backlink`.
+ *
+ * In the design this is a plain `.backlink` rule that beats `button{...}` on
+ * source order alone. Scoping for the module turned that rule into
+ * `.page button`, which is class-plus-element and outranks a lone class no
+ * matter where it sits in the file — so the first port rendered "Use a
+ * different email" as a second full-width orange button directly under the
+ * real one. The element is re-stated here to win the comparison back.
+ */
+.page button.backlink {
+  background: none;
+  border: 0;
+  padding: 0;
+  height: auto;
+  width: auto;
+  color: var(--ink-3);
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-top: 12px;
+}
+
+/*
+ * Not in the design. The handler rejects a non-Texas ZIP, a malformed email, a
+ * name with no surname and a repeat entry on the same day, and every one of
+ * those has to land somewhere the eye already is — directly above the ZIP row,
+ * which is where the submit lives.
+ */
+.err {
+  font-size: 13.5px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--accent);
+  background: #fdf0ec;
+  border-left: 3px solid var(--accent);
+  padding: 9px 11px;
+}
+
+.confirm {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+
+.tick {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--amber);
+  display: grid;
+  place-items: center;
+  font-family: var(--disp);
+  font-weight: 800;
+  font-size: 19px;
+  color: var(--board);
+}
+
+/* Same specificity trap as .backlink: this ties with `.page h1` and would be
+ * decided by source order alone. Stated explicitly so a later edit that moves
+ * a rule cannot silently resize the confirmation headline. */
+.page .confirm h1 {
+  font-size: 31px;
+}
+
+.next {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+}
+
+.next .eyebrow {
+  margin-bottom: 7px;
+}
+
+.next h3 {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 21px;
+  margin-bottom: 5px;
+}
+
+.next p {
+  font-size: 14.5px;
+  color: var(--ink-2);
+  margin-bottom: 14px;
+  max-width: 38ch;
+}
+
+.cta {
+  display: block;
+  text-align: center;
+  font-family: var(--disp);
+  font-weight: 800;
+  font-size: 19px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  height: 52px;
+  line-height: 52px;
+  border-radius: 2px;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+}
+
+.alt2 {
+  display: inline-block;
+  margin-top: 13px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* photo band */
+.band {
+  height: 190px;
+  overflow: hidden;
+  background: var(--board);
+}
+
+.band img {
+  width: 100%;
+  height: 190px;
+  object-fit: cover;
+  object-position: 50% 55%;
+}
+
+/* section shell */
+.page section {
+  padding-block: 26px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--rule);
+}
+
+.page section.alt {
+  background: var(--ground);
+}
+
+.eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 9px;
+}
+
+.page h2 {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.lede {
+  font-size: 15px;
+  color: var(--ink-2);
+  max-width: 42ch;
+}
+
+/* prize */
+.prize {
+  margin-top: 16px;
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--ink);
+  background: #fff;
+}
+
+.prize .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.prize .row:last-child {
+  border-bottom: 0;
+}
+
+.prize .k {
+  font-size: 14.5px;
+  color: var(--ink-2);
+}
+
+.prize .v {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 17px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.prize .v.spec {
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  white-space: normal;
+}
+
+.prize .row.stack {
+  display: block;
+}
+
+.prize .row.stack .k {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+
+.prize .row.stack .v {
+  display: block;
+  text-align: left;
+  white-space: normal;
+}
+
+/* steps */
+.steps {
+  list-style: none;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 14px;
+  padding-block: 15px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.steps li:last-child {
+  border-bottom: 0;
+}
+
+.steps .num {
+  font-family: var(--disp);
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.steps h3 {
+  font-size: 15.5px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.steps p {
+  font-size: 14.5px;
+  color: var(--ink-2);
+}
+
+/* why */
+.why {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+}
+
+.why div {
+  background: var(--panel);
+  padding: 14px 13px;
+}
+
+.why h3 {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.why p {
+  font-size: 13.5px;
+  line-height: 1.42;
+  color: var(--ink-2);
+}
+
+/* faq */
+.page details {
+  border-bottom: 1px solid var(--rule);
+}
+
+.page details summary {
+  list-style: none;
+  cursor: pointer;
+  padding-block: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.page details summary::-webkit-details-marker {
+  display: none;
+}
+
+.page details summary::after {
+  content: "+";
+  font-family: var(--disp);
+  font-size: 20px;
+  color: var(--ink-3);
+  line-height: 1;
+}
+
+.page details[open] summary::after {
+  content: "–";
+}
+
+.page details p {
+  padding-bottom: 14px;
+  font-size: 14.5px;
+  color: var(--ink-2);
+  max-width: 44ch;
+}
+
+/* closer */
+.closer {
+  background: var(--board);
+  color: #fff;
+  padding-block: 28px;
+}
+
+/* Ties with `.page h2` on margin-bottom; stated explicitly for the same reason
+ * as .confirm h1 above. */
+.page .closer h2 {
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.closer p {
+  color: #9fb3bf;
+  font-size: 15px;
+  max-width: 36ch;
+  margin-bottom: 18px;
+}
+
+.ghost {
+  display: inline-block;
+  font-family: var(--disp);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--board);
+  background: var(--amber);
+  padding: 14px 22px;
+  border-radius: 2px;
+  text-decoration: none;
+}
+
+.page footer {
+  background: var(--ground);
+  padding-block: 22px 30px;
+}
+
+.page footer .fm {
+  font-family: var(--disp);
+  font-weight: 800;
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.page footer p {
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+.page footer a {
+  color: var(--ink-2);
+}
+
+.footNote {
+  margin-top: 10px;
+}

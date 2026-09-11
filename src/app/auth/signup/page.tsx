@@ -23,6 +23,7 @@ import { formatPhone, isValidUSPhone, toE164 } from "@/lib/phone";
 import { safeRedirect } from "@/lib/safe-redirect";
 import { trackStandard, reportTrackResult } from "@/lib/meta-pixel";
 import { attributionColumns, clearAttribution } from "@/lib/attribution";
+import { recordGiveawaySignupIfAttributed } from "@/lib/giveaway-events";
 import { GoogleAuthButton } from "@/components/google-auth-button";
 import { TERMS_VERSION } from "@/lib/terms";
 
@@ -139,6 +140,11 @@ function SignupInner() {
         "CompleteRegistration",
         trackStandard("CompleteRegistration"),
       );
+
+      // Closes the giveaway funnel. Fires only when this signup followed a tap
+      // on the post-entry listing CTA, and is a no-op otherwise. The mark is
+      // consumed, so the OAuth path cannot double-count the same signup.
+      recordGiveawaySignupIfAttributed();
     }
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
