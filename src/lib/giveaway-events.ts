@@ -1,175 +1,173 @@
-import { readAttribution } from "@/lib/attribution";
 import { viewSessionId } from "@/lib/session-id";
 import { reportTrackResult, trackCustomEvent } from "@/lib/meta-pixel";
 
 /**
- * The giveaway funnel, after the view.
+ * The /giveaway funnel.
  *
- * page_views already answers "did anyone land". These answer what the rebuild
- * is actually a bet on: that moving the listing ask to AFTER a free entry
- * converts better than leading with it. Every one of these is written to our
- * own database first and fired at the Meta pixel second - when the two
- * disagree, the table wins. The pixel silently under-reported ListingCreated
- * for roughly 22 listings, which is precisely why it is not the record.
+ * ONE SESSION ID THROUGHOUT. Every event below carries the value from
+ * src/lib/session-id.ts, which is also what page_views writes on the landing
+ * view. That is the only thing stitching a view to the entry and the signup
+ * that followed it, which is why it comes from one module rather than a
+ * constant re-declared per writer.
  *
- * NOTHING HERE CARRIES PERSONAL DATA. No email, no name, no ZIP. The API route
- * reads the body field by field and would drop it anyway, but the payload is
- * built here and it is built without any.
+ * THE DATABASE IS THE RECORD; THE PIXEL IS A COPY. Each event is written to
+ * giveaway_events first and reported to Meta second. Meta silently
+ * under-reported ListingCreated for roughly 22 listings, so when the two
+ * disagree the table is right. Nothing here should ever be answered from Ads
+ * Manager alone.
+ *
+ * NO PERSONAL DATA, BY CONSTRUCTION. The payload built here is a session id,
+ * an event name and — for rejections — a reason. There is no email, name, ZIP
+ * or entry id in it, the API route reads the body field by field so a future
+ * caller cannot smuggle one in, and since 037 the table has no column that
+ * could hold one anyway.
  */
 
 export const GIVEAWAY_EVENTS = [
-  /** A free entry was accepted and a sweepstakes_entries row now exists. */
-  "entry_submitted",
-  /** The post-entry "list gear" CTA was tapped from the success state. */
+  /** The landing page loaded. */
+  "giveaway_view",
+  /** An email was accepted and s2 was shown. Nothing is written at this point. */
+  "entry_step1_submitted",
+  /** A sweepstakes_entries row was written. */
+  "entry_completed",
+  /** An attempt to write one was refused. Carries a reason. */
+  "entry_rejected",
+  /** "List your gear" on s3. */
   "listing_cta_clicked",
-  /** An account was created in the same visit as that tap. */
+  /** "Or see what DFW families are selling" on s3. */
+  "marketplace_link_clicked",
+  /** An account was created in the same visit as the listing CTA tap. */
   "signup_completed",
 ] as const;
 
 export type GiveawayEvent = (typeof GIVEAWAY_EVENTS)[number];
 
 /**
+ * Why an entry attempt failed.
+ *
+ * Three buckets, because three is what a decision gets made on. bad_zip is the
+ * eligibility rule working as intended and is not a bug; duplicate_today is
+ * someone who already entered and is a sign the page is working; `other` is
+ * the bucket worth watching, because a rise in it means something is broken.
+ */
+export const REJECTION_REASONS = ["bad_zip", "duplicate_today", "other"] as const;
+export type RejectionReason = (typeof REJECTION_REASONS)[number];
+
+/**
+ * Map the handler's error codes onto those buckets.
+ *
+ * Anything unrecognised becomes `other` rather than being dropped: an event we
+ * cannot classify still counts as a person who did not get entered.
+ */
+export function rejectionReason(handlerError: string | undefined): RejectionReason {
+  switch (handlerError) {
+    case "zip_not_texas":
+      return "bad_zip";
+    case "already_entered_today":
+      return "duplicate_today";
+    default:
+      return "other";
+  }
+}
+
+/**
  * The Meta custom event fired alongside each database write.
  *
- * A MAP RATHER THAN A CALL AT EACH SITE. Both halves of "store it and report
- * it" leave from one function below, so the pixel cannot quietly stop firing
+ * A MAP RATHER THAN A CALL PER SITE, so the pixel cannot quietly stop firing
  * for an event that is still being recorded — which is the exact shape of the
- * ListingCreated failure, where the call site looked healthy for ~22 listings
- * while nothing reached Meta.
+ * ListingCreated failure, where every call site looked healthy while nothing
+ * reached Meta.
  *
- * Custom rather than standard events on purpose. `Lead` and
- * `CompleteRegistration` still fire where they always did — the campaign is
- * optimised against them and changing that mid-flight would reset learning —
- * but they are also fired by other parts of the site, so they cannot answer
- * "did the giveaway rebuild work". These can.
+ * Custom rather than standard events: `Lead` and `CompleteRegistration` still
+ * fire where they always did, because the campaign is optimised against them
+ * and changing that mid-flight would reset learning, but both are also fired
+ * elsewhere on the site and so cannot answer "did the giveaway work". These
+ * can.
+ *
+ * The reason does NOT go to Meta. trackCustomEvent takes no payload by
+ * deliberate design in lib/meta-pixel.ts, and widening it so a rejection
+ * reason could ride along would open the same door an email could walk
+ * through. Rejection reasons are ours.
  */
 const PIXEL_EVENT: Record<GiveawayEvent, string> = {
-  entry_submitted: "GiveawayEntry",
+  giveaway_view: "GiveawayView",
+  entry_step1_submitted: "GiveawayEntryStep1",
+  entry_completed: "GiveawayEntryCompleted",
+  entry_rejected: "GiveawayEntryRejected",
   listing_cta_clicked: "GiveawayListingCtaClick",
+  marketplace_link_clicked: "GiveawayMarketplaceClick",
   signup_completed: "GiveawaySignupCompleted",
 };
 
-/** The landing view. Distinct from the snippet's own site-wide PageView. */
-const PIXEL_PAGE_VIEW = "GiveawayPageView";
-
 /**
- * Report the /giveaway landing view to the pixel.
+ * The listing CTA tap, held across the signup round trip.
  *
- * NO DATABASE WRITE HERE. page_views already records this view server-side via
- * PageViewLogger, and has 518 rows of history under it; writing a second row
- * from a second place would double-count the one step of this funnel that was
- * already measured correctly.
- */
-export function recordGiveawayPageView(): void {
-  if (typeof window === "undefined") return;
-  reportTrackResult(PIXEL_PAGE_VIEW, trackCustomEvent(PIXEL_PAGE_VIEW));
-}
-
-/**
- * Campaign parameters for an event.
+ * signup_completed has to be attributable to the tap that caused it, and by
+ * the time an account exists the visitor is on /welcome or /sell with the
+ * giveaway page long gone. So the tap records what it knows at the moment it
+ * happens: the session id, and nothing else.
  *
- * Read from the stored first touch when there is one, and from the current URL
- * otherwise. The URL is the fallback rather than the primary because
- * captureAttribution() refuses to store a record that says nothing - a direct
- * visit has no first touch, and reading the URL still gets the ad parameters on
- * the landing view itself.
- */
-interface CampaignParams {
-  utm_source: string | null;
-  utm_medium: string | null;
-  utm_campaign: string | null;
-  fbclid: string | null;
-}
-
-function campaignParams(): CampaignParams {
-  const stored = readAttribution();
-  if (stored) {
-    return {
-      utm_source: stored.utmSource,
-      utm_medium: stored.utmMedium,
-      utm_campaign: stored.utmCampaign,
-      fbclid: stored.fbclid,
-    };
-  }
-  if (typeof window === "undefined") {
-    return { utm_source: null, utm_medium: null, utm_campaign: null, fbclid: null };
-  }
-  const p = new URLSearchParams(window.location.search);
-  return {
-    utm_source: p.get("utm_source"),
-    utm_medium: p.get("utm_medium"),
-    utm_campaign: p.get("utm_campaign"),
-    fbclid: p.get("fbclid"),
-  };
-}
-
-/**
- * The listing CTA click, held across the signup round trip.
- *
- * signup_completed has to be attributable to the tap that caused it, and by the
- * time an account exists the visitor is on /welcome or /sell: the giveaway page
- * is gone, and clearAttribution() has already run as part of a successful
- * signup. So the tap records what it knows at the moment it happens.
- *
- * sessionStorage, not localStorage: "signed up in the same visit as the tap" is
- * exactly the claim being made, and a mark that outlived the tab would let a
- * signup a week later claim credit.
+ * sessionStorage, not localStorage: "signed up in the same visit as the tap"
+ * is exactly the claim being made, and a mark that outlived the tab would let
+ * a signup a week later claim credit.
  */
 const CTA_MARK_KEY = "ng_giveaway_cta";
-
-interface CtaMark extends CampaignParams {
-  session_id: string | null;
-}
 
 export function markListingCtaClick(): void {
   if (typeof window === "undefined") return;
   try {
-    const mark: CtaMark = { session_id: viewSessionId(), ...campaignParams() };
-    window.sessionStorage.setItem(CTA_MARK_KEY, JSON.stringify(mark));
+    window.sessionStorage.setItem(CTA_MARK_KEY, viewSessionId() ?? "");
   } catch {
-    // ignore
+    // Private modes can refuse storage. The click is still recorded; only the
+    // later signup attribution is lost.
   }
 }
 
 /**
  * Read and clear the mark. Consuming it is what makes signup_completed fire at
- * most once per tap - both signup paths call this, and the second one to run
- * finds nothing.
+ * most once per tap — both signup paths call this, and the second to run finds
+ * nothing.
  */
-export function consumeListingCtaMark(): CtaMark | null {
+function consumeListingCtaMark(): string | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.sessionStorage.getItem(CTA_MARK_KEY);
-    if (!raw) return null;
+    if (raw === null) return null;
     window.sessionStorage.removeItem(CTA_MARK_KEY);
-    return JSON.parse(raw) as CtaMark;
+    return raw;
   } catch {
     return null;
   }
 }
 
 /**
- * Write one event to our database, then report it to the pixel.
+ * Write one event, then report it to the pixel.
  *
- * THAT ORDER IS THE POINT. The database is the source of truth and the pixel
- * is a copy sent to a party that has under-reported before; if only one of the
- * two can happen, it must be the one we can audit.
+ * That order is the point: if only one of the two can happen it must be the
+ * one we can audit.
  *
  * Fire and forget, every error swallowed. `keepalive` so the request survives
- * a navigation - without it the browser cancels an in-flight fetch on unload
+ * a navigation — without it the browser cancels an in-flight fetch on unload,
  * and the CTA click, the one event that by definition precedes a navigation,
- * would be the least likely of the four to be recorded.
+ * would be the least likely of the seven to be recorded.
  */
 export function recordGiveawayEvent(
   event: GiveawayEvent,
-  overrides?: Partial<CtaMark>,
+  options?: { reason?: RejectionReason; sessionId?: string | null },
 ): void {
   if (typeof window === "undefined") return;
-  const base: CtaMark = { session_id: viewSessionId(), ...campaignParams() };
+
+  const sessionId =
+    options?.sessionId !== undefined ? options.sessionId : viewSessionId();
+
   void fetch("/api/giveaway/event", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ event, ...base, ...(overrides ?? {}) }),
+    body: JSON.stringify({
+      event,
+      session_id: sessionId,
+      reason: options?.reason ?? null,
+    }),
     keepalive: true,
   }).catch(() => {});
 
@@ -179,11 +177,14 @@ export function recordGiveawayEvent(
 
 /**
  * Fire signup_completed only if this signup followed a tap on the giveaway
- * success state. Called from both signup paths (password and OAuth); the mark
- * is consumed, so only the first to run records anything.
+ * success state. Called from both signup paths; the mark is consumed, so only
+ * the first to run records anything.
+ *
+ * The session id comes from the mark rather than from storage, so the event
+ * joins to the giveaway visit even though it fires on a different page.
  */
 export function recordGiveawaySignupIfAttributed(): void {
-  const mark = consumeListingCtaMark();
-  if (!mark) return;
-  recordGiveawayEvent("signup_completed", mark);
+  const marked = consumeListingCtaMark();
+  if (marked === null) return;
+  recordGiveawayEvent("signup_completed", { sessionId: marked || null });
 }
