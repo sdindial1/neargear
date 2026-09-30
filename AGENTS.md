@@ -12,4 +12,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 Getting this backwards fails silently. Migration 037 dropped `giveaway_events` columns while the deployed route still wrote them. Every insert returned 500, and the `/giveaway` funnel recorded nothing for 20 days of paid traffic. Migration 026 documents the same trap from the policy side.
 
-Before applying ANY migration, run `npm run check:migrations -- <file.sql>`. It is version-controlled and needs only git, no database. It exits 1 if the file drops or renames a name that deployed `origin/main` code still references. Pass `--removal-reviewed=<file.sql>` only after confirming the code that stops using the name is live. Never apply migrations through the Supabase SQL editor, which skips this check. The local `_recon/apply-to-dev.mjs` runs the same versioned check automatically.
+Apply migrations ONLY with `npm run db:apply -- <NNN_name.sql> ...`, never the Supabase SQL editor.
+- Run with `--dry-run` first. It applies each file inside a transaction and rolls it back, so it proves the SQL runs against the real schema without changing it.
+- Then run with `--yes-apply-to-dev` to commit.
+- The database password comes only from a gitignored `.env.dev` (`DEV_DATABASE_URL=...`) at the repo root, never from the shell.
+- The script runs the removal check (`npm run check:migrations -- <file.sql>`, which needs only git) before it connects. It refuses any file that drops or renames a name deployed `origin/main` code still references. Pass `--removal-reviewed=<file.sql>` only after confirming the code that stops using the name is live.
+- It stops at the first failure.
