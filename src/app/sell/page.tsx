@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { createClient } from "@/lib/supabase/client";
 import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
@@ -24,6 +25,7 @@ import {
 } from "@/lib/constants";
 import type { AIListingAnalysis } from "@/types/ai";
 import { dataUrlToBlob, resizeImage } from "@/lib/image";
+import { preparePhotos } from "@/lib/photo-upload";
 import { formatCondition } from "@/lib/utils";
 import { ensurePublicUserRow } from "@/lib/ensure-profile";
 import { isSellerSuspended } from "@/lib/strikes";
@@ -246,7 +248,7 @@ function SellPageInner() {
     setProcessedPhotos((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const handleReanalyzePhotos = (
+  const handleReanalyzePhotos = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const incoming = Array.from(e.target.files ?? []);
@@ -254,8 +256,15 @@ function SellPageInner() {
     if (incoming.length === 0) return;
     const remaining = MAX_REANALYZE_PHOTOS - photos.length;
     if (remaining <= 0) return;
-    const added = incoming.slice(0, Math.min(2, remaining));
-    const combined = [...photos, ...added];
+    // Same preparation as the main picker. This path used to skip validation
+    // entirely and hand raw originals to the analyzer.
+    const { valid, errors } = await preparePhotos(
+      incoming.slice(0, Math.min(2, remaining)),
+      photos.length,
+    );
+    for (const err of errors) toast.error(err, { duration: 7000 });
+    if (!valid.length) return;
+    const combined = [...photos, ...valid];
     setPhotos(combined);
     analyzePhotos(combined);
   };

@@ -26,8 +26,7 @@ import {
   SPORT_CATEGORIES,
 } from "@/lib/constants";
 import { sanitizeText, LIMITS } from "@/lib/sanitize";
-import { dataUrlToBlob, resizeImage } from "@/lib/image";
-import { MAX_PHOTOS, validatePhotos } from "@/lib/photo-upload";
+import { MAX_PHOTOS, preparePhotos } from "@/lib/photo-upload";
 import {
   ChevronLeft,
   Loader2,
@@ -114,18 +113,21 @@ function ListingEditInner({ id }: { id: string }) {
     const files = Array.from(e.target.files || []);
     if (!files.length || !listing) return;
 
-    const { valid, errors } = validatePhotos(files, photoUrls.length);
-    for (const err of errors) toast.error(err, { duration: 4000 });
     if (e.target) e.target.value = "";
-    if (!valid.length) return;
-
     setUploading(true);
+    const { valid, errors } = await preparePhotos(files, photoUrls.length);
+    for (const err of errors) toast.error(err, { duration: 7000 });
+    if (!valid.length) {
+      setUploading(false);
+      return;
+    }
     const newUrls: string[] = [];
 
+    let failed = 0;
     for (const file of valid) {
       try {
-        const dataUrl = await resizeImage(file, 1024, 0.85);
-        const blob = await dataUrlToBlob(dataUrl);
+        // Already compressed to a ~1024px JPEG by preparePhotos().
+        const blob = file;
         const fileName = `${listing.seller_id}/${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 8)}.jpg`;
@@ -134,6 +136,7 @@ function ListingEditInner({ id }: { id: string }) {
           .upload(fileName, blob, { contentType: "image/jpeg" });
         if (upErr) {
           console.error("Upload error:", upErr);
+          failed++;
           continue;
         }
         const { data: urlData } = supabase.storage
@@ -141,8 +144,17 @@ function ListingEditInner({ id }: { id: string }) {
           .getPublicUrl(upData.path);
         newUrls.push(urlData.publicUrl);
       } catch (err) {
-        console.error("Resize/upload failed:", err);
+        console.error("Upload failed:", err);
+        failed++;
       }
+    }
+
+    // Used to be console-only: a failed upload just silently didn't appear.
+    if (failed) {
+      toast.error(
+        `${failed} photo${failed > 1 ? "s" : ""} didn't upload. Check your connection and add ${failed > 1 ? "them" : "it"} again.`,
+        { duration: 7000 },
+      );
     }
 
     if (newUrls.length) {

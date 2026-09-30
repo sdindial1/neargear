@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Camera, ImagePlus, Loader2, X } from "lucide-react";
-import { MAX_PHOTOS, validatePhotos } from "@/lib/photo-upload";
+import { MAX_PHOTOS, preparePhotos } from "@/lib/photo-upload";
 
 export interface PhotoUploadProps {
   photos: File[];
@@ -33,7 +33,10 @@ export function PhotoUpload({
 }: PhotoUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previews, setPreviews] = useState<string[]>([]);
-  const [pendingCount, setPendingCount] = useState(0);
+  // Photos being compressed right now. Shown as spinner tiles, and while it is
+  // non-zero the picker is locked: handleSelect appends to the `photos` it
+  // closed over, so a second pick mid-compression would overwrite the first.
+  const [compressing, setCompressing] = useState(0);
 
   useEffect(() => {
     const urls = photos.map((f) => URL.createObjectURL(f));
@@ -42,24 +45,28 @@ export function PhotoUpload({
   }, [photos]);
 
   const openPicker = () => {
+    if (compressing) return;
     inputRef.current?.click();
   };
 
-  const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const incoming = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (incoming.length === 0) return;
 
-    const { valid, errors } = validatePhotos(incoming, photos.length);
-    for (const err of errors) toast.error(err, { duration: 4000 });
-    if (!valid.length) return;
-
-    setPendingCount((p) => p + valid.length);
-    onPhotosChange([...photos, ...valid]);
-    setTimeout(
-      () => setPendingCount((p) => Math.max(0, p - valid.length)),
-      500,
-    );
+    // Shrunk here, at pick time, not at submit: full-size iPhone photos never
+    // sit in memory as previews, and a photo we cannot use is reported while
+    // the seller is still in the picker mindset, not after they fill the form.
+    setCompressing(Math.min(incoming.length, max - photos.length));
+    try {
+      const { valid, errors } = await preparePhotos(incoming, photos.length);
+      // Longer than the old 4s: these now tell the seller what to do, and
+      // that takes more than a glance to read.
+      for (const err of errors) toast.error(err, { duration: 7000 });
+      if (valid.length) onPhotosChange([...photos, ...valid]);
+    } finally {
+      setCompressing(0);
+    }
   };
 
   const handleRemove = (idx: number) => {
@@ -67,7 +74,7 @@ export function PhotoUpload({
   };
 
   const count = photos.length;
-  const atCapacity = count >= max;
+  const atCapacity = count + compressing >= max;
   const counterClass = atCapacity
     ? "text-orange font-semibold"
     : count >= 8
@@ -85,12 +92,13 @@ export function PhotoUpload({
         accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
         multiple
         onChange={handleSelect}
+        disabled={compressing > 0}
         style={HIDDEN_INPUT_STYLE}
         aria-hidden="true"
         tabIndex={-1}
       />
 
-      {count === 0 ? (
+      {count === 0 && compressing === 0 ? (
         <button
           type="button"
           onClick={openPicker}
@@ -110,7 +118,6 @@ export function PhotoUpload({
         <>
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
             {previews.map((src, i) => {
-              const isPending = i >= count - pendingCount;
               return (
                 <div
                   key={i}
@@ -121,11 +128,6 @@ export function PhotoUpload({
                     alt={`Photo ${i + 1}`}
                     className="w-full h-full object-cover"
                   />
-                  {isPending && (
-                    <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 text-white animate-spin" />
-                    </div>
-                  )}
                   <button
                     type="button"
                     onClick={() => handleRemove(i)}
@@ -137,7 +139,16 @@ export function PhotoUpload({
                 </div>
               );
             })}
-            {!atCapacity && (
+            {Array.from({ length: compressing }, (_, i) => (
+              <div
+                key={`compressing-${i}`}
+                aria-label="Preparing photo"
+                className="w-20 h-20 flex-shrink-0 rounded-lg bg-gray-100 border flex items-center justify-center"
+              >
+                <Loader2 className="w-5 h-5 text-orange animate-spin" />
+              </div>
+            ))}
+            {!atCapacity && compressing === 0 && (
               <button
                 type="button"
                 onClick={openPicker}
