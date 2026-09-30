@@ -173,9 +173,19 @@ export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
     show("s1");
   };
 
-  const onListingCtaClick = () => {
+  /**
+   * Every listing CTA marks the tab for signup attribution, and records which
+   * placement was tapped. Three placements, three event names: the question
+   * this page has to answer is which of them people use.
+   */
+  const onListingCtaClick = (
+    event:
+      | "listing_cta_clicked"
+      | "hero_listing_cta_clicked"
+      | "header_listing_cta_clicked",
+  ) => {
     markListingCtaClick();
-    recordGiveawayEvent("listing_cta_clicked");
+    recordGiveawayEvent(event);
   };
 
   return (
@@ -185,9 +195,16 @@ export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
           <span className={s.mark}>
             Near<span>Gear</span>
           </span>
-          <a className={s.hlink} href="#list">
+          {/* A real link now. It used to be an in-page anchor to "Why sell
+              here": a header that says "List your gear" and then scrolls is a
+              promise the page did not keep. */}
+          <Link
+            className={s.hlink}
+            href="/auth/signup?redirect=/sell"
+            onClick={() => onListingCtaClick("header_listing_cta_clicked")}
+          >
             List your gear
-          </a>
+          </Link>
         </header>
 
         <div className={s.board}>
@@ -231,6 +248,27 @@ export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
               residents 18+. NearGear LLC, Keller TX.{" "}
               <Link href="/giveaway/rules">Official rules</Link>.
             </p>
+
+            {/* Listing, offered BEFORE any entry. The ads said "Start
+                Listing"; from 2026-09-11 this page only offered listing after
+                someone entered the drawing, so most of the paid run landed on
+                a page that did not do what the ad said. Entering is not a
+                prerequisite for the thing we actually want people to do.
+                Placed after the legal line so the free-entry notice stays
+                directly under the form it describes. */}
+            <div className={s.listnow}>
+              <p>
+                <b>Got gear your kids outgrew?</b> Listing is free, and every
+                item you list is another entry.
+              </p>
+              <Link
+                className={s.listcta}
+                href="/auth/signup?redirect=/sell"
+                onClick={() => onListingCtaClick("hero_listing_cta_clicked")}
+              >
+                Start listing
+              </Link>
+            </div>
           </div>
 
           {/* ---- s2: the fields Rules 4.2 requires ---- */}
@@ -318,7 +356,7 @@ export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
               <Link
                 className={s.cta}
                 href="/auth/signup?redirect=/sell"
-                onClick={onListingCtaClick}
+                onClick={() => onListingCtaClick("listing_cta_clicked")}
               >
                 List your gear
               </Link>

@@ -32,8 +32,13 @@ export const GIVEAWAY_EVENTS = [
   "entry_completed",
   /** An attempt to write one was refused. Carries a reason. */
   "entry_rejected",
-  /** "List your gear" on s3. */
+  /** "List your gear" on s3 — only seen by people who entered. */
   "listing_cta_clicked",
+  /** "Start listing" in the hero, before any entry. The ads promised listing;
+   *  until this existed the page only offered it after an entry. */
+  "hero_listing_cta_clicked",
+  /** "List your gear" in the header. Was an in-page anchor until 2026-09-30. */
+  "header_listing_cta_clicked",
   /** "Or see what DFW families are selling" on s3. */
   "marketplace_link_clicked",
   /** An account was created in the same visit as the listing CTA tap. */
@@ -95,6 +100,8 @@ const PIXEL_EVENT: Record<GiveawayEvent, string> = {
   entry_completed: "GiveawayEntryCompleted",
   entry_rejected: "GiveawayEntryRejected",
   listing_cta_clicked: "GiveawayListingCtaClick",
+  hero_listing_cta_clicked: "GiveawayHeroListingCtaClick",
+  header_listing_cta_clicked: "GiveawayHeaderListingCtaClick",
   marketplace_link_clicked: "GiveawayMarketplaceClick",
   signup_completed: "GiveawaySignupCompleted",
 };
