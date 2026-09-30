@@ -1,29 +1,39 @@
 import type { NextRequest } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createAdminSupabaseClient } from "@/lib/supabase-admin";
-import { GIVEAWAY_EVENTS, type GiveawayEvent } from "@/lib/giveaway-events";
+import {
+  GIVEAWAY_EVENTS,
+  REJECTION_REASONS,
+  type GiveawayEvent,
+  type RejectionReason,
+} from "@/lib/giveaway-events";
 
 export const runtime = "nodejs";
 
 /**
- * POST /api/giveaway/event - record one step of the giveaway funnel.
+ * POST /api/giveaway/event — record one step of the giveaway funnel.
  *
  * Sibling of /api/pageview and deliberately the same shape: unauthenticated,
  * allow-listed server-side, never throws upward, never able to affect what a
  * paying visitor sees on the page.
  *
- * SERVER-SIDE ALLOWLIST. The client has one too, but a client-side allowlist is
- * a suggestion - anything can POST here. This is what actually bounds the
- * `event` column to the three values /admin knows how to read.
+ * SERVER-SIDE ALLOWLISTS. The client has them too, but a client-side allowlist
+ * is a suggestion — anything can POST here. These are what actually bound the
+ * `event` and `reason` columns to values /admin knows how to read.
  *
- * NO PERSONAL DATA IS ACCEPTED. The body is read field by field rather than
- * spread into the insert, so a future caller that starts sending an email
- * address gets it dropped here instead of quietly persisting it into a table
- * whose whole premise is that it holds none.
+ * THREE FIELDS ARE READ AND THREE ARE WRITTEN. The body is picked apart field
+ * by field rather than spread into the insert, so a caller that starts sending
+ * an email address gets it dropped here. Since migration 037 the table has no
+ * column that could hold one either — the guarantee is in the schema, and this
+ * is the second lock on the same door.
+ *
+ * NO SESSION LOOKUP. The previous version called getUser() to attach a user_id.
+ * That column is gone: this table records that something happened, never who
+ * did it. Dropping the lookup also takes a cookie read and a round trip off
+ * every event on a page under ad load.
  */
 
-/** Long enough for real campaign values, short enough not to be a text dump. */
-const MAX = 300;
+/** Long enough for a UUID, short enough not to be a text dump. */
+const MAX = 100;
 
 function clip(v: unknown): string | null {
   if (typeof v !== "string") return null;
@@ -38,34 +48,28 @@ export async function POST(request: NextRequest) {
 
     const event = clip(body.event);
     if (!event || !GIVEAWAY_EVENTS.includes(event as GiveawayEvent)) {
-      // Not an error worth surfacing - just refuse to record it.
+      // Not an error worth surfacing — just refuse to record it.
       return Response.json({ ok: false, reason: "event_not_logged" });
     }
+
+    // A reason is meaningful only on a rejection. Anything unrecognised is
+    // stored as null rather than passed through, so the column cannot become a
+    // free-text field by accident.
+    const rawReason = clip(body.reason);
+    const reason =
+      event === "entry_rejected" &&
+      rawReason &&
+      REJECTION_REASONS.includes(rawReason as RejectionReason)
+        ? rawReason
+        : null;
 
     const admin = createAdminSupabaseClient();
     if (!admin) return Response.json({ ok: false, reason: "no_service_role" });
 
-    // Best effort. An anonymous visitor is the expected case for every event
-    // except signup_completed, and getUser() returning nothing is not a failure.
-    let userId: string | null = null;
-    try {
-      const supabase = await createServerSupabaseClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      userId = user?.id ?? null;
-    } catch {
-      // ignore
-    }
-
     const { error } = await admin.from("giveaway_events").insert({
       event,
       session_id: clip(body.session_id),
-      utm_source: clip(body.utm_source),
-      utm_medium: clip(body.utm_medium),
-      utm_campaign: clip(body.utm_campaign),
-      fbclid: clip(body.fbclid),
-      user_id: userId,
+      reason,
     });
 
     if (error) {

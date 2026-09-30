@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   markListingCtaClick,
   recordGiveawayEvent,
+  rejectionReason,
 } from "@/lib/giveaway-events";
 import s from "@/app/giveaway/landing.module.css";
 
@@ -80,10 +81,29 @@ export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
     if (step === "s1") emailRef.current?.focus();
   }, [step]);
 
+  /**
+   * giveaway_view — the landing view.
+   *
+   * Its own ref rather than the focus effect's: that one is meant to run again
+   * on every step change, and this one must run exactly once. Ref-guarded
+   * because React StrictMode double-invokes effects in development, and a view
+   * counted twice is a conversion rate halved.
+   */
+  const viewRecorded = useRef(false);
+  useEffect(() => {
+    if (viewRecorded.current) return;
+    viewRecorded.current = true;
+    recordGiveawayEvent("giveaway_view");
+  }, []);
+
   const submitEmail = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     show("s2");
+    // Nothing is written to sweepstakes_entries here and this does not change
+    // that. It records that someone got past the email field, which is the
+    // drop-off the funnel most needs to see.
+    recordGiveawayEvent("entry_step1_submitted");
   };
 
   const submitEntry = async (e: React.FormEvent) => {
@@ -93,6 +113,9 @@ export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
     const parts = fullName.trim().split(/\s+/).filter(Boolean);
     if (parts.length < 2) {
       setError("Please enter your first and last name.");
+      // A rejection even though no request was made: from the funnel's point
+      // of view this is someone who tried and did not get entered.
+      recordGiveawayEvent("entry_rejected", { reason: "other" });
       return;
     }
     const firstName = parts[0];
@@ -117,15 +140,19 @@ export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
         // lands in the same slot above the ZIP row, which is where the eye
         // already is because that is where the submit button lives.
         setError(body.message || "Something went wrong. Please try again.");
+        recordGiveawayEvent("entry_rejected", {
+          reason: rejectionReason(body.error),
+        });
         setSubmitting(false);
         return;
       }
 
       setSubmitting(false);
       show("s3");
-      recordGiveawayEvent("entry_submitted");
+      recordGiveawayEvent("entry_completed");
     } catch {
       setError("Network error. Please check your connection and try again.");
+      recordGiveawayEvent("entry_rejected", { reason: "other" });
       setSubmitting(false);
     }
   };
@@ -295,7 +322,11 @@ export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
               >
                 List your gear
               </Link>
-              <Link className={s.alt2} href="/marketplace">
+              <Link
+                className={s.alt2}
+                href="/marketplace"
+                onClick={() => recordGiveawayEvent("marketplace_link_clicked")}
+              >
                 Or see what DFW families are selling &rarr;
               </Link>
             </div>
