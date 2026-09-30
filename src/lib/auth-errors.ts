@@ -14,6 +14,10 @@ export const AUTH_ERRORS = {
   expired: "That sign-in link expired or was already used. Please try again.",
   failed:
     "We couldn't sign you in. Please try again, or sign in with email below.",
+  // Not an error, but it arrives the same way: password signup when Supabase
+  // requires email confirmation. The account is finished in /auth/callback.
+  confirm:
+    "Almost done — check your email and tap the confirmation link, then sign in here.",
   setup:
     "We couldn't finish setting up your account. Please try again in a moment — if it keeps happening, email support@near-gear.com.",
 } as const;

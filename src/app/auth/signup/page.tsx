@@ -26,6 +26,7 @@ import { attributionColumns, clearAttribution } from "@/lib/attribution";
 import { recordGiveawaySignupIfAttributed } from "@/lib/giveaway-events";
 import { GoogleAuthSection } from "@/components/google-auth-button";
 import { TERMS_VERSION } from "@/lib/terms";
+import * as Sentry from "@sentry/nextjs";
 
 type FoundingPhase =
   | "off"
@@ -54,6 +55,10 @@ function SignupInner() {
   const [foundingPhase, setFoundingPhase] = useState<FoundingPhase>("off");
   const [waitlistJoining, setWaitlistJoining] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  // Set once supabase.auth.signUp succeeds. If the profile insert then fails,
+  // tapping Create Account again retries only the insert: signUp a second time
+  // would refuse the email as already registered, leaving the person stuck.
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -77,65 +82,124 @@ function SignupInner() {
     const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
     const phoneE164 = toE164(phone);
 
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        data: { full_name: fullName, city, zipcode, phone: phoneE164 },
-      },
-    });
+    let userId = pendingUserId;
+    let hasSession = true;
+    if (!userId) {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: { full_name: fullName, city, zipcode, phone: phoneE164 },
+        },
+      });
 
-    if (signUpError) {
-      setError(signUpError.message);
-      setLoading(false);
+      if (signUpError) {
+        setError(signUpError.message);
+        setLoading(false);
+        return;
+      }
+      if (!signUpData.user) {
+        setError("We couldn't create your account. Please try again.");
+        setLoading(false);
+        return;
+      }
+      userId = signUpData.user.id;
+      hasSession = signUpData.session !== null;
+      setPendingUserId(userId);
+    }
+
+    // No session means Supabase is requiring email confirmation. RLS lets only
+    // a signed-in user insert their own row, so the insert below would fail on
+    // every signup. It works today ONLY because email auto-confirm is on
+    // (mailer_autoconfirm, checked 2026-09-30). If that setting changes, the
+    // account is completed in /auth/callback when the link is clicked: it
+    // builds the row from the signup metadata, and /welcome reports the
+    // registration then. Nothing is reported here.
+    if (!hasSession) {
+      router.push(
+        `/auth/login?error=confirm&redirect=${encodeURIComponent(redirectTo)}`,
+      );
       return;
     }
 
-    if (signUpData.user) {
-      // First-touch attribution, captured when they LANDED (possibly days ago
-      // and on another page) and carried here in localStorage. This is the only
-      // moment it can be persisted — fbclid and utm_* exist solely in the URL of
-      // that first request, so a signup written without them loses the link to
-      // the ad permanently. Spreads to nothing when unknown, leaving the columns
-      // NULL rather than inventing a source.
-      await supabase.from("users").insert({
-        id: signUpData.user.id,
+    // First-touch attribution, captured when they LANDED (possibly days ago
+    // and on another page) and carried here in localStorage. This is the only
+    // moment it can be persisted — fbclid and utm_* exist solely in the URL of
+    // that first request, so a signup written without them loses the link to
+    // the ad permanently. Spreads to nothing when unknown, leaving the columns
+    // NULL rather than inventing a source.
+    //
+    // CHECKED, and read back. This insert used to be fire-and-forget, with
+    // CompleteRegistration firing below whatever happened — a paid-for
+    // conversion that did not require the account to exist. The row we report
+    // must be one PostgREST actually returned.
+    const { data: row, error: insErr } = await supabase
+      .from("users")
+      .insert({
+        id: userId,
         email,
         full_name: fullName,
         city,
         zipcode,
         phone: phoneE164,
         ...attributionColumns(),
+      })
+      .select("id")
+      .maybeSingle();
+
+    let created: boolean;
+    if (insErr?.code === "23505") {
+      // Already there: an earlier attempt's insert landed but its response did
+      // not. That attempt may have been the one to count, so this one does not
+      // — undercounting one signup beats reporting a duplicate.
+      created = false;
+    } else if (insErr || !row) {
+      console.error("[signup] profile insert failed", insErr);
+      Sentry.captureException(new Error("[signup] profile insert failed"), {
+        tags: { flow: "password-signup", stage: "profile-insert" },
+        extra: { userId, detail: insErr },
       });
-      // Cleared only after the row is written, so a failed signup keeps the
-      // attribution for the retry. On a shared or kiosk browser this also stops
-      // the next person's account inheriting the first person's ad click.
-      clearAttribution();
+      // Attribution is kept for the retry, and nothing is reported. Tapping
+      // Create Account again retries only this insert (see pendingUserId).
+      setError(
+        "Your account was created, but we couldn't finish setting it up. Tap Create Account to try again — if it keeps happening, email support@near-gear.com.",
+      );
+      setLoading(false);
+      return;
+    } else {
+      created = true;
+    }
 
-      // Record terms acceptance as an audit trail. Separate update so an
-      // older schema without the new columns still lets signup succeed —
-      // the migration in supabase/migrations/011_terms_acceptance.sql adds
-      // them. Errors here are logged but don't block account creation.
-      try {
-        const { error: termsErr } = await supabase
-          .from("users")
-          .update({
-            terms_accepted_at: new Date().toISOString(),
-            terms_version: TERMS_VERSION,
-          })
-          .eq("id", signUpData.user.id);
-        if (termsErr) {
-          console.warn("[signup] terms acceptance not recorded:", termsErr.message);
-        }
-      } catch (err) {
-        console.warn("[signup] terms acceptance write threw:", err);
+    // Cleared only after the row is written, so a failed signup keeps the
+    // attribution for the retry. On a shared or kiosk browser this also stops
+    // the next person's account inheriting the first person's ad click.
+    clearAttribution();
+
+    // Record terms acceptance as an audit trail. Separate update so an
+    // older schema without the new columns still lets signup succeed —
+    // the migration in supabase/migrations/011_terms_acceptance.sql adds
+    // them. Errors here are logged but don't block account creation.
+    try {
+      const { error: termsErr } = await supabase
+        .from("users")
+        .update({
+          terms_accepted_at: new Date().toISOString(),
+          terms_version: TERMS_VERSION,
+        })
+        .eq("id", userId);
+      if (termsErr) {
+        console.warn("[signup] terms acceptance not recorded:", termsErr.message);
       }
+    } catch (err) {
+      console.warn("[signup] terms acceptance write threw:", err);
+    }
 
-      // Fires only inside `if (signUpData.user)`, so a rejected signup never
-      // reports a conversion. Placed before the founding-flow branch below,
-      // which returns early — instrumenting after it would silently miss every
-      // founding signup. Sends no data: see lib/meta-pixel.ts.
+    if (created) {
+      // Fires only once the profile row is proven to exist. Placed before the
+      // founding-flow branch below, which returns early — instrumenting after
+      // it would silently miss every founding signup. Sends no data: see
+      // lib/meta-pixel.ts.
       reportTrackResult(
         "CompleteRegistration",
         trackStandard("CompleteRegistration"),

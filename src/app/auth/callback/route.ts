@@ -110,10 +110,16 @@ export async function GET(request: NextRequest) {
   if (!existing) {
     // Google's profile fields. `name` and `full_name` are both populated
     // depending on the provider and scope granted, so both are checked before
-    // falling back to the address.
+    // falling back to the address. city/zipcode/phone come from the password
+    // signup form, which passes them as signUp metadata: this is where that
+    // account's row gets created if email confirmation is ever required (the
+    // browser has no session then, so RLS refuses its own insert).
     const meta = (user.user_metadata ?? {}) as {
       full_name?: string;
       name?: string;
+      city?: string;
+      zipcode?: string;
+      phone?: string;
     };
     const { data: inserted, error: insErr } = await admin
       .from("users")
@@ -121,6 +127,9 @@ export async function GET(request: NextRequest) {
         id: user.id,
         email: user.email,
         full_name: meta.full_name ?? meta.name ?? user.email ?? null,
+        city: meta.city || null,
+        zipcode: meta.zipcode || null,
+        phone: meta.phone || null,
         // Recorded here rather than left for a later page, because the
         // sweepstakes Official Rules are incorporated by reference and an
         // account with no recorded acceptance is a gap we would only discover
