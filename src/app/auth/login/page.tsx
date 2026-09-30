@@ -9,15 +9,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, LogIn } from "lucide-react";
 import { safeRedirect } from "@/lib/safe-redirect";
-import { GoogleAuthButton } from "@/components/google-auth-button";
+import { GoogleAuthSection } from "@/components/google-auth-button";
+import { authErrorMessage } from "@/lib/auth-errors";
 
 function LoginInner() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  // Seeded from /auth/callback's ?error= code. Without this a failed or
+  // cancelled Google sign-in returned here to a blank form and no explanation.
+  const [error, setError] = useState(() =>
+    authErrorMessage(searchParams.get("error")),
+  );
+  const [loading, setLoading] = useState(false);
   const supabase = createClient();
   // Default to /marketplace — / is the marketing landing where signed-in
   // users can't tell they're signed in (no bottom nav, no avatar visible
@@ -96,15 +101,7 @@ function LoginInner() {
             Log in to buy and sell sports gear
           </p>
 
-          <GoogleAuthButton next={redirectTo} label="Continue with Google" />
-
-          <div className="my-5 flex items-center gap-3">
-            <div className="h-px flex-1 bg-gray-200" />
-            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              or use email
-            </span>
-            <div className="h-px flex-1 bg-gray-200" />
-          </div>
+          <GoogleAuthSection next={redirectTo} label="Continue with Google" />
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">

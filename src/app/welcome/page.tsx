@@ -32,10 +32,6 @@ export default async function WelcomePage({
   searchParams: Promise<{ next?: string; new?: string }>;
 }) {
   const { next, new: isNewParam } = await searchParams;
-  // Set by /auth/callback when it created the profile row. Only a freshly
-  // created account fires CompleteRegistration — landing here again later must
-  // not re-report a conversion.
-  const isNew = isNewParam === "1";
   // Same guard as the auth pages — this value ends up in a client-side
   // navigation, so it must never carry an absolute URL.
   const nextPath = safeRedirect(next, "/marketplace");
@@ -80,6 +76,13 @@ export default async function WelcomePage({
   }
 
   const firstName = row?.full_name?.trim().split(/\s+/)[0] || null;
+
+  // Set by /auth/callback, which sends it only after proving the profile row
+  // exists. Re-checked here because the flag is just a query string: anyone can
+  // type ?new=1, and CompleteRegistration is a conversion we pay against. No
+  // row, no conversion. PostAuthBootstrap strips the flag after firing so a
+  // reload cannot report it twice.
+  const isNew = isNewParam === "1" && row !== null;
 
   return (
     <>

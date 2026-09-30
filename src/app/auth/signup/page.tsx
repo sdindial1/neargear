@@ -24,7 +24,7 @@ import { safeRedirect } from "@/lib/safe-redirect";
 import { trackStandard, reportTrackResult } from "@/lib/meta-pixel";
 import { attributionColumns, clearAttribution } from "@/lib/attribution";
 import { recordGiveawaySignupIfAttributed } from "@/lib/giveaway-events";
-import { GoogleAuthButton } from "@/components/google-auth-button";
+import { GoogleAuthSection } from "@/components/google-auth-button";
 import { TERMS_VERSION } from "@/lib/terms";
 
 type FoundingPhase =
@@ -358,15 +358,7 @@ function SignupInner() {
                   still unverified, and every one that lands in junk is a paid
                   ad click thrown away. The cheaper path should be the visible
                   one. */}
-              <GoogleAuthButton next={redirectTo} label="Sign up with Google" />
-
-              <div className="my-5 flex items-center gap-3">
-                <div className="h-px flex-1 bg-gray-200" />
-                <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  or use email
-                </span>
-                <div className="h-px flex-1 bg-gray-200" />
-              </div>
+              <GoogleAuthSection next={redirectTo} label="Sign up with Google" />
 
               <div className="space-y-4">
                 <div className="space-y-1.5">

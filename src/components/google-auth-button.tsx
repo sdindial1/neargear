@@ -29,6 +29,47 @@ import { Loader2 } from "lucide-react";
  * safeRedirect() when the callback reads it back, so a crafted value cannot
  * turn this into an open redirect.
  */
+
+/**
+ * OFF unless NEXT_PUBLIC_GOOGLE_AUTH_ENABLED is exactly "true".
+ *
+ * This button is only half the feature — the other half is the Google provider
+ * in the Supabase dashboard, which code cannot see or check. Shipped without
+ * it, the button sends paid-ad visitors to a raw JSON 400 ("Unsupported
+ * provider: provider is not enabled") on supabase.co, where our error handling
+ * below never runs because the browser has already left the page. That
+ * happened: the commit was being held back by hand, a later merge carried it
+ * to production anyway, and nothing in the code knew it was meant to be held.
+ *
+ * So the hold lives here, in code, defaulting to off. Turning it on is a
+ * Vercel env change made AFTER the provider is configured and one real signup
+ * has been verified — not a code change that a merge can make by accident.
+ * NEXT_PUBLIC_ values are inlined at build time, so a change needs a redeploy.
+ */
+export const GOOGLE_AUTH_ENABLED =
+  process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true";
+
+/**
+ * The button plus its "or use email" divider, or nothing at all. The divider
+ * belongs to the button — left behind on its own it would read as a missing
+ * option.
+ */
+export function GoogleAuthSection(props: { next?: string; label?: string }) {
+  if (!GOOGLE_AUTH_ENABLED) return null;
+  return (
+    <>
+      <GoogleAuthButton {...props} />
+      <div className="my-5 flex items-center gap-3">
+        <div className="h-px flex-1 bg-gray-200" />
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          or use email
+        </span>
+        <div className="h-px flex-1 bg-gray-200" />
+      </div>
+    </>
+  );
+}
+
 export function GoogleAuthButton({
   next = "/marketplace",
   label = "Continue with Google",

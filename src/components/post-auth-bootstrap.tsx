@@ -58,6 +58,14 @@ export function PostAuthBootstrap({ isNew }: { isNew: boolean }) {
       }
 
       if (isNew) {
+        // Drop ?new=1 from the URL before firing. The ref only guards this
+        // mount: a reload, or Back onto this page, mounts again and would
+        // report the same registration twice. replaceState leaves no history
+        // entry that still carries the flag.
+        const url = new URL(window.location.href);
+        url.searchParams.delete("new");
+        window.history.replaceState(window.history.state, "", url);
+
         reportTrackResult("CompleteRegistration", trackStandard("CompleteRegistration"));
 
         // Closes the giveaway funnel on the OAuth path. No-op unless this
