@@ -51,3 +51,6 @@ _recon/
 # Stripe CLI binary (do not commit the ~34MB executable)
 stripe.exe
 *.exe
+
+# Local record of scripts/apply-migrations.mjs runs
+migration-apply-log.md
