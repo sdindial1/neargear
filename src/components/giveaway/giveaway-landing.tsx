@@ -222,8 +222,8 @@ export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
               Somebody in DFW is getting a <em>$500 bat</em>.
             </h1>
             <p className={s.sub}>
-              Free to enter. No account, no purchase, about ten seconds. Then go
-              back to what you were doing.
+              Free to enter. No account, no purchase, about ten seconds. Then
+              list what your kids outgrew &mdash; every item is another entry.
             </p>
             <form id="f1" onSubmit={submitEmail}>
               <label className={s.sr} htmlFor="email">
@@ -258,8 +258,8 @@ export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
                 directly under the form it describes. */}
             <div className={s.listnow}>
               <p>
-                <b>Got gear your kids outgrew?</b> Listing is free, and every
-                item you list is another entry.
+                <b>Got gear your kids outgrew?</b> Listing is free and takes
+                about a minute.
               </p>
               <Link
                 className={s.listcta}
