@@ -41,6 +41,9 @@ export const GIVEAWAY_EVENTS = [
   "header_listing_cta_clicked",
   /** "Or see what DFW families are selling" on s3. */
   "marketplace_link_clicked",
+  /** "Win a $500 bat" in the site header — the organic way in. Fires on the
+   *  page the visitor was on, before they reach /giveaway. */
+  "site_header_giveaway_clicked",
   /** An account was created in the same visit as the listing CTA tap. */
   "signup_completed",
 ] as const;
@@ -103,6 +106,7 @@ const PIXEL_EVENT: Record<GiveawayEvent, string> = {
   hero_listing_cta_clicked: "GiveawayHeroListingCtaClick",
   header_listing_cta_clicked: "GiveawayHeaderListingCtaClick",
   marketplace_link_clicked: "GiveawayMarketplaceClick",
+  site_header_giveaway_clicked: "GiveawaySiteHeaderClick",
   signup_completed: "GiveawaySignupCompleted",
 };
 

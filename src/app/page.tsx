@@ -4,6 +4,7 @@ import Link from 'next/link';
 import FlowArt, { FlowSection } from '@/components/ui/story-scroll';
 import { Footer } from '@/components/footer';
 import { LandingNavAuth } from '@/components/landing-nav-auth';
+import { GiveawayHeaderLink } from '@/components/giveaway-header-link';
 
 const HEADLINE =
   'text-[clamp(2.5rem,10vw,14rem)] font-heading font-bold leading-[0.85] uppercase tracking-tight';
@@ -108,6 +109,9 @@ export default function LandingPage() {
           <span>Near</span>
           <span style={{ color: ORANGE }}>Gear</span>
         </Link>
+        <div className="flex min-w-0 flex-1 justify-center px-2">
+          <GiveawayHeaderLink />
+        </div>
         <LandingNavAuth />
       </nav>
 

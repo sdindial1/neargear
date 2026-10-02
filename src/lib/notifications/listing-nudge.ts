@@ -24,7 +24,6 @@ import {
 } from "./templates";
 import {
   GIVEAWAY_GOAL,
-  PROMOTION_END_ISO,
   PROMOTION_END_LABEL,
 } from "@/lib/giveaway";
 
@@ -73,21 +72,6 @@ function appUrl(): string {
 function firstName(full: string | null): string {
   const n = (full ?? "").trim().split(/\s+/)[0];
   return n || "there";
-}
-
-/**
- * Is the Promotion still running? Copy that dangles a drawing which has already
- * closed is worse than copy with no hook at all.
- *
- * Only the END DATE is checked here. The other terminator — reaching
- * GIVEAWAY_GOAL active listings (Rules 3(a)) — needs a live count, so the
- * caller passes it in. Defaulting to "running" would be the wrong failure
- * direction, so an unknown count suppresses the block.
- */
-export function promotionOpen(activeListings: number | null): boolean {
-  if (activeListings == null) return false;
-  if (activeListings >= GIVEAWAY_GOAL) return false;
-  return Date.now() < Date.parse(PROMOTION_END_ISO);
 }
 
 function unsubscribeUrl(token: string): string {

@@ -87,7 +87,10 @@ export function LandingNavAuth() {
         href="/marketplace"
         className="text-xs font-bold uppercase tracking-widest text-white/90 transition hover:text-white md:text-sm"
       >
-        Marketplace &rarr;
+        {/* "Shop" on phones: with the "Win a $500 bat" link in this header,
+            "Marketplace" overlapped it by 22px at 360px wide. */}
+        <span className="md:hidden">Shop &rarr;</span>
+        <span className="hidden md:inline">Marketplace &rarr;</span>
       </Link>
       <Link
         href="/profile"

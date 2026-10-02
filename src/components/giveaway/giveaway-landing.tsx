@@ -8,6 +8,7 @@ import {
   rejectionReason,
 } from "@/lib/giveaway-events";
 import s from "@/app/giveaway/landing.module.css";
+import { useGiveawayOpen } from "@/lib/use-giveaway-open";
 
 /**
  * /giveaway — ported from _design/giveaway-redesign.html.
@@ -48,6 +49,13 @@ export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
   const [zip, setZip] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // Rules §3: closed at 500 total active listings or November 3, whichever
+  // comes first. The page is static, so it asks in the browser. Only a definite
+  // false shows "closed": an unknown status keeps the form, because telling
+  // someone the drawing has ended must be true, and the entry route refuses
+  // entries server-side whatever this shows.
+  const closed = useGiveawayOpen() === false;
 
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -216,8 +224,33 @@ export function GiveawayLanding({ bandAvailable }: GiveawayLandingProps) {
         </div>
 
         <div className={`${s.hero} ${s.pad}`}>
+          {/* ---- closed: replaces s1 once the drawing has ended ---- */}
+          {closed && step === "s1" && (
+            <div className={s.step}>
+              <h1>The bat drawing has closed.</h1>
+              <p className={s.sub}>
+                Entries ended when NearGear reached 500 listings or on November
+                3, whichever came first. The winner is notified within seven
+                days. <Link href="/giveaway/rules">Official rules</Link>.
+              </p>
+              <div className={s.listnow}>
+                <p>
+                  <b>Still got gear your kids outgrew?</b> Listing is free and
+                  takes about a minute.
+                </p>
+                <Link
+                  className={s.listcta}
+                  href="/auth/signup?redirect=/sell"
+                  onClick={() => onListingCtaClick("hero_listing_cta_clicked")}
+                >
+                  Start listing
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* ---- s1: email only ---- */}
-          <div className={s.step} id="s1" hidden={step !== "s1"}>
+          <div className={s.step} id="s1" hidden={step !== "s1" || closed}>
             <h1>
               Somebody in DFW is getting a <em>$500 bat</em>.
             </h1>

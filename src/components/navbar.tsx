@@ -14,6 +14,7 @@ import { LogOut, Receipt, UserCircle, Wallet } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { NotificationBell } from "@/components/notification-bell";
 import { PayoutBanner } from "@/components/payout-banner";
+import { GiveawayHeaderLink } from "@/components/giveaway-header-link";
 import { getActiveName, type ActiveProfile } from "@/lib/active-profile";
 
 interface SignedInUser {
@@ -134,6 +135,13 @@ export function Navbar() {
             <span className="text-white">Near</span>
             <span className="text-orange">Gear</span>
           </Link>
+
+          {/* Centred between the logo and the account controls. Measured at
+              360px with the real fonts: 24px clear each side when signed in,
+              38px signed out. Empty (and zero-width) while hidden. */}
+          <div className="flex min-w-0 flex-1 justify-center px-2">
+            <GiveawayHeaderLink />
+          </div>
 
           {user ? (
             <div className="flex items-center gap-4">
