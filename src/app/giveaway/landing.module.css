@@ -236,6 +236,47 @@
   cursor: default;
 }
 
+/* Pre-entry listing CTA (s1). Same geometry as the entry button, in the
+ * scoreboard colour rather than the accent, so the two actions read as two
+ * choices and not as one button repeated. */
+.listnow {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+}
+
+.listnow p {
+  font-size: 14.5px;
+  line-height: 1.4;
+  color: var(--ink-2);
+  margin-bottom: 10px;
+}
+
+.listnow b {
+  color: var(--ink);
+}
+
+.listcta {
+  display: block;
+  text-align: center;
+  font-family: var(--disp);
+  font-weight: 800;
+  font-size: 19px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  height: 52px;
+  line-height: 52px;
+  border-radius: 2px;
+  background: var(--board);
+  color: #fff;
+  text-decoration: none;
+}
+
+.listcta:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 .legal {
   margin-top: 12px;
   font-size: 12.5px;
