@@ -23,6 +23,51 @@ export const PROMOTION_END_LABEL = "November 3, 2026";
 export const RULES_LAST_UPDATED = "August 6, 2026";
 
 /**
+ * Is the Promotion running? THE one definition — the entry route, the status
+ * endpoint behind the header link and /giveaway, and the nudge emails all ask
+ * this, so they cannot disagree about whether the drawing is open.
+ *
+ * Rules §3 ends it at whichever comes first: (a) 500 total active listings,
+ * (b) 11:59:59 p.m. Central on November 3. Both are checked, plus the start.
+ *
+ * An unknown count is CLOSED. Every caller either advertises the drawing or
+ * accepts into it, and doing either for a promotion that may have ended is the
+ * failure that matters; hiding a link for five minutes during a database blip
+ * is not.
+ *
+ * Known gap: §3(a) ends it "the moment" the platform reaches 500. A live count
+ * can fall back to 499 when a listing sells or is removed, and this would read
+ * that as open again. Closing it for good needs a persisted closed-at, which is
+ * a migration — not needed while the count is far from the goal.
+ */
+export function promotionOpen(
+  activeListings: number | null,
+  now: number = Date.now(),
+): boolean {
+  if (activeListings == null) return false;
+  if (activeListings >= GIVEAWAY_GOAL) return false;
+  return now >= Date.parse(PROMOTION_START_ISO) && now <= Date.parse(PROMOTION_END_ISO);
+}
+
+/**
+ * The §3(a) count: every active listing on the platform, "counted by Sponsor".
+ * Seed listings included — the rule says total active listings, not organic.
+ *
+ * null on error rather than 0, so promotionOpen() treats a failed read as
+ * closed instead of as "nobody has listed anything".
+ */
+export async function countPromotionListings(
+  client: SupabaseClient,
+): Promise<number | null> {
+  const { count, error } = await client
+    .from("listings")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "active");
+  if (error) return null;
+  return count ?? null;
+}
+
+/**
  * Texas ZIP ranges.
  *
  * 75000–79999 is the bulk of the state; 88500–88599 is the El Paso block,

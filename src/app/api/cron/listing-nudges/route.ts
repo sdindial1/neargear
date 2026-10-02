@@ -5,9 +5,9 @@ import { sendListingNudge } from "@/lib/notifications/email";
 import {
   NUDGE_COHORT_START,
   NUDGE_SCHEDULE,
-  promotionOpen,
   type NudgeStep,
 } from "@/lib/notifications/listing-nudge";
+import { countPromotionListings, promotionOpen } from "@/lib/giveaway";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -141,11 +141,8 @@ export async function GET(request: Request) {
     // GIVEAWAY_GOAL active listings. Read it rather than assuming it is open —
     // promoting a closed drawing would be a false statement in a marketing
     // email.
-    const { count: activeListings } = await admin
-      .from("listings")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "active");
-    const open = promotionOpen(activeListings ?? null);
+    const activeListings = await countPromotionListings(admin);
+    const open = promotionOpen(activeListings);
 
     // The social-proof line in email 2, read live. Organic only: naming a seed
     // listing would advertise gear that does not exist and a seller nobody can
@@ -169,7 +166,7 @@ export async function GET(request: Request) {
       enabled,
       promotionOpen: open,
       cohortStart: NUDGE_COHORT_START,
-      activeListings: activeListings ?? null,
+      activeListings,
       example: example ? `${example.title}${example.city ? " / " + example.city : ""}` : null,
       steps: {} as Record<string, unknown>,
     };

@@ -2,11 +2,13 @@ import * as Sentry from "@sentry/nextjs";
 import { createAdminSupabaseClient } from "@/lib/supabase-admin";
 import { sanitizeText } from "@/lib/sanitize";
 import {
+  countPromotionListings,
   isPlausibleEmail,
   isTexasZip,
   normalizeEmail,
   PROMOTION_END_ISO,
   PROMOTION_START_ISO,
+  promotionOpen,
 } from "@/lib/giveaway";
 
 export const runtime = "nodejs";
@@ -97,6 +99,32 @@ export async function POST(request: Request) {
       return Response.json(
         { error: "unavailable", message: "Entries are temporarily unavailable. Please try again shortly." },
         { status: 500 },
+      );
+    }
+
+    // Rules §3(a): the Promotion ALSO ends the moment the platform reaches 500
+    // total active listings. The date check above was the only terminator this
+    // route enforced, so an entry made after the 500th listing would have been
+    // accepted into a drawing the rules say had already ended.
+    //
+    // An unreadable count is refused, not waved through — but answered as a
+    // temporary failure, because "the giveaway has closed" would be untrue.
+    const activeListings = await countPromotionListings(admin);
+    if (activeListings === null) {
+      Sentry.captureMessage("[giveaway/free-entry] listing count unreadable; entry refused", "error");
+      return Response.json(
+        { error: "unavailable", message: "Entries are temporarily unavailable. Please try again shortly." },
+        { status: 503 },
+      );
+    }
+    if (!promotionOpen(activeListings)) {
+      return Response.json(
+        {
+          error: "closed",
+          message:
+            "The giveaway has closed and entries are no longer being accepted.",
+        },
+        { status: 409 },
       );
     }
 
