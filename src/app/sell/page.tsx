@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import { createClient } from "@/lib/supabase/client";
 import { Navbar } from "@/components/navbar";
 import { BottomNav } from "@/components/bottom-nav";
@@ -50,9 +51,46 @@ interface ProcessedPhoto {
   // be dropped straight into an <img src>.
   dataUrl: string;
   mimeType: string;
-  // True when the bg-removal API returned a transparent PNG; false when we
-  // fell back to the original JPEG (API down, rate-limited, etc.).
+  // True when the bg-removal API returned a flattened PNG; false when we fell
+  // back to the original JPEG.
   bgRemoved: boolean;
+  // WHY the fallback happened, straight from the route. Undefined when removal
+  // succeeded, or when the request itself never got an answer. This used to be
+  // thrown away, which is how three listings uploaded with their backgrounds
+  // intact for two weeks without anyone knowing.
+  bgReason?: string;
+  // Seller-facing sentence for `bgReason`, written by the server so the copy
+  // lives next to the taxonomy it describes.
+  bgMessage?: string;
+}
+
+/**
+ * Tell the seller when background removal didn't happen.
+ *
+ * ONE toast for the whole batch, keyed by reason, because ten photos failing
+ * for one reason is one piece of news. The `id` also means a re-analyse
+ * replaces the existing toast instead of stacking another.
+ *
+ * NOT `toast.error`. The seller did nothing wrong and nothing is lost — their
+ * listing is fine, it just uses the photos as shot. A red error banner on the
+ * one screen the ads pay to reach would cost more listings than the missing
+ * cut-out does, and signup → first listing is already the funnel's worst step.
+ *
+ * `not_configured` is deliberately silent: that is a deployment problem, it
+ * reaches us by email and Sentry instead, and it is the permanent state of
+ * every local dev environment, where a toast on every upload would be noise.
+ */
+function notifyBgFailures(processed: ProcessedPhoto[]): void {
+  const failed = processed.filter(
+    (p) => !p.bgRemoved && p.bgReason && p.bgReason !== "not_configured",
+  );
+  const first = failed[0];
+  if (!first?.bgMessage) return;
+  toast(first.bgMessage, {
+    id: `bg-${first.bgReason}`,
+    duration: 8000,
+    icon: "ℹ️",
+  });
 }
 
 type Step = "photos" | "processing" | "review";
@@ -197,6 +235,16 @@ function SellPageInner() {
                     bgRemoved: true,
                   };
                 }
+                // Removal failed, and the route told us why. Carry the reason
+                // up rather than discarding it — the toast below is the only
+                // thing that makes this visible to anyone.
+                return {
+                  dataUrl: originalDataUrl,
+                  mimeType: "image/jpeg",
+                  bgRemoved: false,
+                  bgReason: bg.reason,
+                  bgMessage: bg.message,
+                };
               }
             } catch {
               // fall through to original
@@ -220,6 +268,7 @@ function SellPageInner() {
 
       setAnalysis(data as AIListingAnalysis);
       setProcessedPhotos(processed);
+      notifyBgFailures(processed);
       setTitle(data.item || "");
       setSport(data.sport || "");
       setCategory(data.category || "");
