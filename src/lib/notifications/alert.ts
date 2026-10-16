@@ -147,6 +147,17 @@ export async function alertOperational(alert: CriticalAlert): Promise<void> {
     console.error(`[alert:sentry-throw] ${event}:`, err);
   }
 
+  // EMAIL ONLY FROM PRODUCTION. Unlike alertCritical — where money may have
+  // moved and a missed alert is unrecoverable — these fire on ordinary
+  // breakage, and the most common way to break them locally is to run the dev
+  // server at all. Mailing support@ on every `npm run dev` upload is how the
+  // inbox becomes something nobody opens. Console and Sentry still record it
+  // in every environment, so nothing is lost; only the inbox is spared.
+  if (process.env.NODE_ENV !== "production") {
+    console.error(`[alert:dev-suppressed] would email: ${event}`);
+    return;
+  }
+
   const body = `${summary}\n\n${detailText}\n\nenv: ${process.env.NODE_ENV ?? "unknown"}\ntime: ${new Date().toISOString()}`;
   await emailAlert(`[NearGear WARNING] ${event}`, body);
 }
