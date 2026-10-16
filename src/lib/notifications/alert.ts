@@ -93,6 +93,92 @@ async function emailAlert(
 }
 
 /**
+ * Per-instance cooldown for repeating alerts.
+ *
+ * A seller uploading ten photos hits a broken integration ten times in one
+ * burst. Ten identical emails is how an alert channel gets muted, and a muted
+ * channel is worse than no channel.
+ *
+ * BEST-EFFORT BY CONSTRUCTION: this is module memory, so it is per serverless
+ * instance, and a cold start forgets it. That is the right trade here — the
+ * alternative is a database write on the error path, and the errors this guards
+ * are exactly the ones where the environment is already misbehaving. Over-
+ * sending a little beats a dependency that can fail. The photo burst that
+ * motivates it lands on one warm instance anyway.
+ */
+const ALERT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const lastAlertAt = new Map<string, number>();
+
+function claimCooldown(key: string): boolean {
+  const now = Date.now();
+  const previous = lastAlertAt.get(key);
+  if (previous !== undefined && now - previous < ALERT_COOLDOWN_MS) return false;
+  lastAlertAt.set(key, now);
+  return true;
+}
+
+/**
+ * Raise an OPERATIONAL alert: something is broken and a human has to act, but
+ * no money moved. Same channels as alertCritical, lower severity, and rate
+ * limited per `event` so a burst of identical failures sends one email.
+ *
+ * Kept separate from alertCritical so that function's reservation for
+ * money-critical events stays true — once "critical" includes cosmetic
+ * breakage, the subject line stops meaning anything.
+ *
+ * Never throws.
+ */
+export async function alertOperational(alert: CriticalAlert): Promise<void> {
+  const { event, summary, details } = alert;
+  const detailText = renderDetails(details);
+
+  // Logged every time, even when the email is suppressed — the function log
+  // should show every occurrence, only the inbox gets the rate limit.
+  console.error(`[WARNING:${event}] ${summary}\n${detailText}`);
+
+  if (!claimCooldown(event)) return;
+
+  try {
+    Sentry.captureMessage(`[WARNING:${event}] ${summary}`, {
+      level: "warning",
+      extra: { ...details },
+    });
+  } catch (err) {
+    console.error(`[alert:sentry-throw] ${event}:`, err);
+  }
+
+  const body = `${summary}\n\n${detailText}\n\nenv: ${process.env.NODE_ENV ?? "unknown"}\ntime: ${new Date().toISOString()}`;
+  await emailAlert(`[NearGear WARNING] ${event}`, body);
+}
+
+/**
+ * Background removal is down. Called from the sell flow's removal route on any
+ * failure that is ours rather than the photo's.
+ *
+ * The cooldown key includes the reason so "out of credits" and "key rejected"
+ * are not treated as the same incident — they need different fixes.
+ */
+export async function alertBackgroundRemovalDown(
+  reason: string,
+  detail: string,
+): Promise<void> {
+  const nextStep =
+    reason === "insufficient_credits"
+      ? "Top up remove.bg credits. Listings are uploading with backgrounds intact until you do."
+      : reason === "invalid_key"
+        ? "REMOVEBG_API_KEY was rejected. Check the key in Vercel Production."
+        : reason === "not_configured"
+          ? "REMOVEBG_API_KEY is missing from this deployment's environment."
+          : "Check remove.bg status and the function logs.";
+
+  await alertOperational({
+    event: `background_removal_${reason}`,
+    summary: `Listing photos are uploading WITHOUT background removal (${reason}). ${nextStep}`,
+    details: { reason, detail },
+  });
+}
+
+/**
  * Raise a money-critical alert on every available channel. Never throws.
  */
 export async function alertCritical(alert: CriticalAlert): Promise<void> {
