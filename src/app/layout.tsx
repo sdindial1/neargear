@@ -5,6 +5,7 @@ import { AceFloating } from "@/components/ace/ace-floating";
 import { MetaPixel } from "@/components/meta-pixel";
 import { AttributionCapture } from "@/components/attribution-capture";
 import { PageViewLogger } from "@/components/page-view-logger";
+import { Footer } from "@/components/footer";
 import "./globals.css";
 
 const barlow = Barlow({
@@ -141,6 +142,7 @@ export default function RootLayout({
           }}
         />
         {children}
+        <Footer />
         <MetaPixel />
         <AttributionCapture />
         <PageViewLogger />

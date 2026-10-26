@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import FlowArt, { FlowSection } from '@/components/ui/story-scroll';
-import { Footer } from '@/components/footer';
 import { LandingNavAuth } from '@/components/landing-nav-auth';
 import { GiveawayHeaderLink } from '@/components/giveaway-header-link';
 
@@ -562,7 +561,6 @@ export default function LandingPage() {
           </div>
         </FlowSection>
       </FlowArt>
-      <Footer />
     </>
   );
 }
