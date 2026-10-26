@@ -210,6 +210,7 @@ async function sendOrLog(
   subject: string,
   mail: RenderedEmail,
   attempt: "primary" | "fallback" = "primary",
+  replyTo?: string,
 ): Promise<SendResult> {
   const client = getClient();
   if (!client) {
@@ -223,12 +224,13 @@ async function sendOrLog(
       subject,
       html: mail.html,
       text: mail.text,
+      ...(replyTo ? { replyTo } : {}),
     });
     if (error) {
       // Domain not verified yet → retry with onboarding sender once, loudly.
       if (attempt === "primary" && /domain|from/i.test(String(error.message))) {
         reportFallback(subject, to, error.message);
-        return sendOrLog(to, subject, mail, "fallback");
+        return sendOrLog(to, subject, mail, "fallback", replyTo);
       }
       console.error(`[email:error] "${subject}" → ${to}:`, error.message);
       return { ok: false, reason: "error", message: error.message };
@@ -902,4 +904,59 @@ export async function sendListingNudge(opts: {
   const { step, to, promotionOpen, example } = opts;
   const { subject, mail } = renderNudge(step, to, { promotionOpen, example });
   return sendOrLog(to.email, subject, mail);
+}
+
+// ---------------------------------------------------------------------------
+// 12. Contact-support form → the support inbox
+//
+// Reply-To is the visitor, so answering is just hitting reply. Returns the
+// send result: the route records it on the support_messages row, which is
+// what makes a failed send findable instead of silently lost.
+// ---------------------------------------------------------------------------
+
+export const SUPPORT_INBOX = "amaro@near-gear.com";
+
+export async function sendSupportMessageEmail(opts: {
+  name: string;
+  email: string;
+  message: string;
+  /** Same-site path the visitor came from, or null if they opened /support directly. */
+  pagePath: string | null;
+  userId: string | null;
+  submittedAt: Date;
+}): Promise<SendResult> {
+  const { name, email, message, pagePath, userId, submittedAt } = opts;
+  const pageUrl = pagePath ? `${appUrl()}${pagePath}` : null;
+  const when = submittedAt.toLocaleString("en-US", {
+    timeZone: "America/Chicago",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  const mail = emailLayout({
+    preheader: message.slice(0, 120),
+    eyebrow: "Support request",
+    heading: `Message from ${name}`,
+    // One paragraph per line the visitor wrote, so their formatting survives.
+    intro: message.split(/\r?\n+/).filter((p) => p.trim()),
+    details: [
+      { label: "From", value: name, sub: email },
+      {
+        label: "Page",
+        value: pagePath ?? "Opened the support page directly",
+        link: pageUrl ? { href: pageUrl, label: "Open page" } : null,
+      },
+      { label: "Account", value: userId ?? "Not signed in" },
+      { label: "Sent", value: `${when} Central` },
+    ],
+    ctaNote: "Reply to this email to answer them directly.",
+  });
+
+  return sendOrLog(
+    SUPPORT_INBOX,
+    `Support: ${name}`,
+    mail,
+    "primary",
+    email,
+  );
 }

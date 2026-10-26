@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SupportLink } from "@/components/support-link";
 
 export function Footer() {
   return (
@@ -21,12 +22,9 @@ export function Footer() {
             >
               Terms of Service
             </Link>
-            <a
-              href="mailto:support@near-gear.com"
-              className="text-gray-400 hover:text-orange transition-colors"
-            >
-              Support
-            </a>
+            <SupportLink className="text-gray-400 hover:text-orange transition-colors">
+              Contact support
+            </SupportLink>
           </div>
         </div>
       </div>

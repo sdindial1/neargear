@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   DropdownMenu,
@@ -10,7 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Receipt, UserCircle, Wallet } from "lucide-react";
+import { LifeBuoy, LogOut, Receipt, UserCircle, Wallet } from "lucide-react";
+import { supportHref } from "@/components/support-link";
 import type { Session } from "@supabase/supabase-js";
 import { NotificationBell } from "@/components/notification-bell";
 import { PayoutBanner } from "@/components/payout-banner";
@@ -28,6 +29,7 @@ interface SignedInUser {
 export function Navbar() {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<SignedInUser | null>(null);
   // Track whether we've finished checking auth so the logo doesn't
   // briefly default to "/" during the async load window — fast taps
@@ -179,6 +181,12 @@ export function Navbar() {
                   className="flex items-center gap-2 cursor-pointer"
                 >
                   <Wallet className="w-4 h-4" /> Wallet
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push(supportHref(pathname))}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <LifeBuoy className="w-4 h-4" /> Contact support
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleSignOut}
